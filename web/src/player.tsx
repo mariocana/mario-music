@@ -1,0 +1,290 @@
+/**
+ * player.tsx — lo stato di riproduzione, condiviso da tutta l'app.
+ *
+ * Esiste UN SOLO elemento <audio> per l'intera sessione, creato qui e mai
+ * smontato. È importante: se ogni schermata creasse il suo, cambiare pagina
+ * interromperebbe la musica e il browser ricomincerebbe a scaricare da capo.
+ *
+ * Cosa fa il browser quando assegniamo `audio.src`:
+ *   1. GET con `Range: bytes=0-` → riceve 206 e comincia a riempire il buffer
+ *   2. legge l'intestazione del file per ricavare durata e formato (`loadedmetadata`)
+ *   3. quando ha abbastanza dati parte (`canplay`) e continua a scaricare a fette
+ *   4. se trascini la barra, abbandona la richiesta in corso e ne apre una
+ *      nuova con `Range: bytes=<offset>-`
+ * Tutta la logica di rete è del browser: a noi basta esporre gli header giusti.
+ */
+import {
+  createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
+} from 'react';
+import type { ReactNode } from 'react';
+import type { Track } from './api.ts';
+import { streamUrl, coverUrl } from './api.ts';
+
+export type RepeatMode = 'off' | 'all' | 'one';
+
+type PlayerState = {
+  queue: Track[];
+  index: number;
+  current: Track | null;
+  isPlaying: boolean;
+  isLoading: boolean;
+  currentTime: number;
+  duration: number;
+  /** secondi già scaricati a partire dalla posizione corrente */
+  buffered: number;
+  volume: number;
+  muted: boolean;
+  shuffle: boolean;
+  repeat: RepeatMode;
+  error: string | null;
+};
+
+type PlayerApi = PlayerState & {
+  playQueue: (tracks: Track[], startIndex?: number) => void;
+  toggle: () => void;
+  next: () => void;
+  previous: () => void;
+  seek: (seconds: number) => void;
+  setVolume: (v: number) => void;
+  toggleMute: () => void;
+  toggleShuffle: () => void;
+  cycleRepeat: () => void;
+};
+
+const PlayerContext = createContext<PlayerApi | null>(null);
+
+/** Mescola una copia dell'array (Fisher-Yates). */
+function shuffled<T>(items: T[]): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+export function PlayerProvider({ children }: { children: ReactNode }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  if (audioRef.current === null && typeof Audio !== 'undefined') {
+    const audio = new Audio();
+    // 'metadata' scaricherebbe solo l'intestazione: con 'auto' diciamo al
+    // browser che può riempire il buffer in anticipo, come fa Apple Music.
+    audio.preload = 'auto';
+    audioRef.current = audio;
+  }
+
+  // La coda "originale" serve per tornare all'ordine dell'album quando si
+  // disattiva lo shuffle.
+  const sourceRef = useRef<Track[]>([]);
+
+  const [state, setState] = useState<PlayerState>({
+    queue: [], index: -1, current: null,
+    isPlaying: false, isLoading: false,
+    currentTime: 0, duration: 0, buffered: 0,
+    volume: 1, muted: false,
+    shuffle: false, repeat: 'off',
+    error: null,
+  });
+
+  const patch = useCallback((p: Partial<PlayerState>) => setState((s) => ({ ...s, ...p })), []);
+
+  /** Carica una traccia nell'elemento audio e prova a farla partire. */
+  const load = useCallback((queue: Track[], index: number, autoplay: boolean) => {
+    const audio = audioRef.current;
+    const track = queue[index];
+    if (!audio || !track) return;
+
+    audio.src = streamUrl(track.id);
+    patch({ queue, index, current: track, currentTime: 0, duration: track.duration, buffered: 0, error: null, isLoading: true });
+
+    if (autoplay) {
+      // play() è asincrono e può essere rifiutato: i browser bloccano
+      // l'audio finché l'utente non ha interagito con la pagina.
+      audio.play().catch((err: DOMException) => {
+        if (err.name === 'NotAllowedError') {
+          patch({ isPlaying: false, error: 'Il browser ha bloccato la riproduzione automatica: premi play.' });
+        } else {
+          patch({ isPlaying: false, error: `Riproduzione fallita: ${err.message}` });
+        }
+      });
+    }
+  }, [patch]);
+
+  const playQueue = useCallback((tracks: Track[], startIndex = 0) => {
+    if (tracks.length === 0) return;
+    sourceRef.current = tracks;
+    if (state.shuffle) {
+      // Con lo shuffle attivo il brano scelto resta il primo, gli altri si mescolano.
+      const chosen = tracks[startIndex];
+      const rest = shuffled(tracks.filter((_, i) => i !== startIndex));
+      load([chosen, ...rest], 0, true);
+    } else {
+      load(tracks, startIndex, true);
+    }
+  }, [load, state.shuffle]);
+
+  const next = useCallback(() => {
+    setState((s) => {
+      if (s.index < 0) return s;
+      const last = s.index >= s.queue.length - 1;
+      if (last && s.repeat !== 'all') {
+        audioRef.current?.pause();
+        return { ...s, isPlaying: false };
+      }
+      const nextIndex = last ? 0 : s.index + 1;
+      queueMicrotask(() => load(s.queue, nextIndex, true));
+      return s;
+    });
+  }, [load]);
+
+  const previous = useCallback(() => {
+    setState((s) => {
+      const audio = audioRef.current;
+      if (!audio || s.index < 0) return s;
+      // Come su Apple Music: entro i primi 3 secondi si torna indietro,
+      // dopo si riparte dall'inizio del brano corrente.
+      if (audio.currentTime > 3 || s.index === 0) {
+        audio.currentTime = 0;
+        return s;
+      }
+      queueMicrotask(() => load(s.queue, s.index - 1, true));
+      return s;
+    });
+  }, [load]);
+
+  // Copia sempre aggiornata dello stato, leggibile dai gestori di eventi
+  // senza doverli riagganciare a ogni render.
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  /* ── eventi dell'elemento audio → stato React ── */
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const onTime = () => {
+      // `buffered` è una lista di intervalli già scaricati: cerchiamo quello
+      // che contiene la posizione attuale per disegnare la barra di buffering.
+      let ahead = audio.currentTime;
+      for (let i = 0; i < audio.buffered.length; i++) {
+        if (audio.buffered.start(i) <= audio.currentTime && audio.currentTime <= audio.buffered.end(i)) {
+          ahead = audio.buffered.end(i);
+          break;
+        }
+      }
+      patch({ currentTime: audio.currentTime, buffered: ahead });
+    };
+    const onMeta = () => patch({ duration: audio.duration, isLoading: false });
+    const onPlay = () => patch({ isPlaying: true, error: null });
+    const onPause = () => patch({ isPlaying: false });
+    const onWaiting = () => patch({ isLoading: true });
+    const onPlaying = () => patch({ isLoading: false });
+    const onError = () => patch({ isLoading: false, isPlaying: false, error: 'Impossibile leggere questo file audio.' });
+    const onEnded = () => {
+      if (audioRef.current && stateRef.current.repeat === 'one') {
+        audioRef.current.currentTime = 0;
+        void audioRef.current.play();
+      } else {
+        next();
+      }
+    };
+
+    audio.addEventListener('timeupdate', onTime);
+    audio.addEventListener('progress', onTime);
+    audio.addEventListener('loadedmetadata', onMeta);
+    audio.addEventListener('durationchange', onMeta);
+    audio.addEventListener('play', onPlay);
+    audio.addEventListener('pause', onPause);
+    audio.addEventListener('waiting', onWaiting);
+    audio.addEventListener('playing', onPlaying);
+    audio.addEventListener('error', onError);
+    audio.addEventListener('ended', onEnded);
+    return () => {
+      audio.removeEventListener('timeupdate', onTime);
+      audio.removeEventListener('progress', onTime);
+      audio.removeEventListener('loadedmetadata', onMeta);
+      audio.removeEventListener('durationchange', onMeta);
+      audio.removeEventListener('play', onPlay);
+      audio.removeEventListener('pause', onPause);
+      audio.removeEventListener('waiting', onWaiting);
+      audio.removeEventListener('playing', onPlaying);
+      audio.removeEventListener('error', onError);
+      audio.removeEventListener('ended', onEnded);
+    };
+  }, [next, patch]);
+
+  /* ── controlli del sistema operativo (barra multimediale, cuffie, lock screen) ── */
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || !state.current) return;
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: state.current.title,
+      artist: state.current.artist,
+      album: state.current.album,
+      artwork: [{ src: coverUrl(state.current.albumId), sizes: '640x640', type: 'image/jpeg' }],
+    });
+    navigator.mediaSession.setActionHandler('play', () => void audioRef.current?.play());
+    navigator.mediaSession.setActionHandler('pause', () => audioRef.current?.pause());
+    navigator.mediaSession.setActionHandler('nexttrack', next);
+    navigator.mediaSession.setActionHandler('previoustrack', previous);
+  }, [state.current, next, previous]);
+
+  const value: PlayerApi = useMemo(() => ({
+    ...state,
+    playQueue,
+    next,
+    previous,
+    toggle: () => {
+      const audio = audioRef.current;
+      if (!audio || !stateRef.current.current) return;
+      if (audio.paused) void audio.play().catch(() => patch({ error: 'Riproduzione bloccata dal browser.' }));
+      else audio.pause();
+    },
+    seek: (seconds) => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      // Assegnare currentTime fa partire una nuova richiesta HTTP con Range:
+      // è letteralmente questa riga a innescare il seek lato rete.
+      audio.currentTime = Math.max(0, Math.min(seconds, audio.duration || 0));
+      patch({ currentTime: audio.currentTime });
+    },
+    setVolume: (v) => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      audio.volume = v;
+      audio.muted = false;
+      patch({ volume: v, muted: false });
+    },
+    toggleMute: () => {
+      const audio = audioRef.current;
+      if (!audio) return;
+      audio.muted = !audio.muted;
+      patch({ muted: audio.muted });
+    },
+    toggleShuffle: () => {
+      setState((s) => {
+        const on = !s.shuffle;
+        if (s.index < 0) return { ...s, shuffle: on };
+        const current = s.queue[s.index];
+        if (on) {
+          const rest = shuffled(s.queue.filter((_, i) => i !== s.index));
+          return { ...s, shuffle: on, queue: [current, ...rest], index: 0 };
+        }
+        // Ritorno all'ordine originale, restando sul brano in ascolto.
+        const restored = sourceRef.current.length ? sourceRef.current : s.queue;
+        return { ...s, shuffle: on, queue: restored, index: Math.max(0, restored.findIndex((t) => t.id === current.id)) };
+      });
+    },
+    cycleRepeat: () => setState((s) => ({
+      ...s,
+      repeat: s.repeat === 'off' ? 'all' : s.repeat === 'all' ? 'one' : 'off',
+    })),
+  }), [state, playQueue, next, previous, patch]);
+
+  return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;
+}
+
+export function usePlayer(): PlayerApi {
+  const ctx = useContext(PlayerContext);
+  if (!ctx) throw new Error('usePlayer va usato dentro <PlayerProvider>');
+  return ctx;
+}

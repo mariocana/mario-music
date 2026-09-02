@@ -1,0 +1,123 @@
+import { useRef } from 'react';
+import { formatTime } from '../api.ts';
+import { usePlayer } from '../player.tsx';
+import { Cover } from './Cover.tsx';
+
+/** Barra trascinabile: click e drag mappano la posizione X su un valore. */
+function Scrubber({ value, max, buffered = 0, onSeek, ariaLabel }: {
+  value: number; max: number; buffered?: number; onSeek: (v: number) => void; ariaLabel: string;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  const valueAt = (clientX: number) => {
+    const box = ref.current?.getBoundingClientRect();
+    if (!box || box.width === 0) return 0;
+    const ratio = Math.min(1, Math.max(0, (clientX - box.left) / box.width));
+    return ratio * max;
+  };
+
+  const startDrag = (e: React.PointerEvent) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    onSeek(valueAt(e.clientX));
+  };
+
+  const pct = max > 0 ? (value / max) * 100 : 0;
+  const bufPct = max > 0 ? Math.min(100, (buffered / max) * 100) : 0;
+
+  return (
+    <div
+      ref={ref}
+      className="scrubber"
+      role="slider"
+      aria-label={ariaLabel}
+      aria-valuemin={0}
+      aria-valuemax={Math.round(max)}
+      aria-valuenow={Math.round(value)}
+      tabIndex={0}
+      onPointerDown={startDrag}
+      onPointerMove={(e) => { if (e.buttons === 1) onSeek(valueAt(e.clientX)); }}
+      onKeyDown={(e) => {
+        if (e.key === 'ArrowRight') onSeek(Math.min(max, value + 5));
+        if (e.key === 'ArrowLeft') onSeek(Math.max(0, value - 5));
+      }}
+    >
+      <div className="scrubber-track">
+        <div className="scrubber-buffer" style={{ width: `${bufPct}%` }} />
+        <div className="scrubber-fill" style={{ width: `${pct}%` }} />
+        <div className="scrubber-knob" style={{ left: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+export function PlayerBar() {
+  const p = usePlayer();
+
+  if (!p.current) {
+    return (
+      <footer className="playerbar playerbar-idle">
+        <span>Scegli un brano per iniziare</span>
+      </footer>
+    );
+  }
+
+  return (
+    <footer className="playerbar">
+      <div className="pb-now">
+        <Cover albumId={p.current.albumId} title={p.current.album} size="sm" />
+        <div className="pb-meta">
+          <span className="pb-title">{p.current.title}</span>
+          <span className="pb-sub">{p.current.artist} — {p.current.album}</span>
+        </div>
+      </div>
+
+      <div className="pb-center">
+        <div className="pb-buttons">
+          <button
+            className={`icon ${p.shuffle ? 'on' : ''}`}
+            onClick={p.toggleShuffle}
+            aria-pressed={p.shuffle}
+            title="Riproduzione casuale"
+          >⤨</button>
+          <button className="icon" onClick={p.previous} title="Precedente">⏮</button>
+          <button className="icon big" onClick={p.toggle} title={p.isPlaying ? 'Pausa' : 'Riproduci'}>
+            {p.isPlaying ? '⏸' : '▶'}
+          </button>
+          <button className="icon" onClick={p.next} title="Successivo">⏭</button>
+          <button
+            className={`icon ${p.repeat !== 'off' ? 'on' : ''}`}
+            onClick={p.cycleRepeat}
+            title={p.repeat === 'one' ? 'Ripeti brano' : p.repeat === 'all' ? 'Ripeti coda' : 'Ripetizione disattivata'}
+          >{p.repeat === 'one' ? '🔂' : '🔁'}</button>
+        </div>
+
+        <div className="pb-progress">
+          <span className="t">{formatTime(p.currentTime)}</span>
+          <Scrubber
+            value={p.currentTime}
+            max={p.duration || p.current.duration}
+            buffered={p.buffered}
+            onSeek={p.seek}
+            ariaLabel="Posizione nel brano"
+          />
+          <span className="t">-{formatTime(Math.max(0, (p.duration || p.current.duration) - p.currentTime))}</span>
+        </div>
+      </div>
+
+      <div className="pb-right">
+        {p.isLoading && <span className="pb-buffering" title="In caricamento">•••</span>}
+        <button className="icon" onClick={p.toggleMute} title="Muto">{p.muted || p.volume === 0 ? '🔇' : '🔊'}</button>
+        <div className="pb-volume">
+          <Scrubber
+            value={p.muted ? 0 : p.volume}
+            max={1}
+            onSeek={p.setVolume}
+            ariaLabel="Volume"
+          />
+        </div>
+      </div>
+
+      {p.error && <div className="pb-error" role="status">{p.error}</div>}
+    </footer>
+  );
+}

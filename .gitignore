@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.DS_Store
+*.log
+
+# libreria musicale e dati generati: non vanno in git
+media/
+data/
+.cache/
