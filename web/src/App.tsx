@@ -48,18 +48,6 @@ export function App() {
         <aside className="sidebar">
           <div className="brand">mario<span>music</span></div>
 
-          <input
-            className="search"
-            type="search"
-            placeholder="Cerca"
-            value={query}
-            onChange={(e) => {
-              const q = e.target.value;
-              setQuery(q);
-              setView(q.trim() ? { name: 'search', q } : { name: 'albums' });
-            }}
-          />
-
           <nav>
             <span className="navlabel">Libreria</span>
             {item('albums', 'Album', { name: 'albums' })}
@@ -83,7 +71,22 @@ export function App() {
           )}
         </aside>
 
-        <main className="content">
+        <div className="main">
+          <header className="topbar">
+            <input
+              className="search"
+              type="search"
+              placeholder="Cerca"
+              value={query}
+              onChange={(e) => {
+                const q = e.target.value;
+                setQuery(q);
+                setView(q.trim() ? { name: 'search', q } : { name: 'albums' });
+              }}
+            />
+          </header>
+
+          <main className="content">
           {!downloads.online && (
             <p className="offline-banner" role="status">
               Sei offline: si vedono il catalogo salvato e i brani scaricati.
@@ -96,7 +99,8 @@ export function App() {
           {view.name === 'songs' && <SongsView />}
           {view.name === 'search' && <SearchView q={view.q} />}
           {view.name === 'downloads' && <DownloadsView />}
-        </main>
+          </main>
+        </div>
 
         <PlayerBar />
       </div>
