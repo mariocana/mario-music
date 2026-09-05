@@ -2,6 +2,7 @@ import type { Track } from '../api.ts';
 import { formatTime } from '../api.ts';
 import { usePlayer } from '../player.tsx';
 import { DownloadButton } from './DownloadButton.tsx';
+import { Icon } from './Icon.tsx';
 
 type Props = {
   tracks: Track[];
@@ -29,7 +30,7 @@ export function TrackList({ tracks, showAlbum = false }: Props) {
             >
               {active && player.isPlaying
                 ? <span className="bars" aria-hidden><i /><i /><i /></span>
-                : <><span className="n">{track.trackNo ?? i + 1}</span><span className="play">▶</span></>}
+                : <><span className="n">{track.trackNo ?? i + 1}</span><span className="play"><Icon name="play" size={13} /></span></>}
             </button>
 
             <div className="track-main">

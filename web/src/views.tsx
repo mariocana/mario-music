@@ -7,6 +7,7 @@ import { useNavigate } from './nav.tsx';
 import { useLibrary } from './library.tsx';
 import { usePlayer } from './player.tsx';
 import { Cover } from './components/Cover.tsx';
+import { Icon } from './components/Icon.tsx';
 import { TrackList } from './components/TrackList.tsx';
 import { DownloadButton } from './components/DownloadButton.tsx';
 import { formatBytes, useDownloads } from './downloads.tsx';
@@ -68,14 +69,16 @@ export function AlbumDetailView({ id }: { id: number }) {
             {data.year ? `${data.year} · ` : ''}{data.tracks.length} brani · {formatLength(total)}
           </p>
           <div className="albumhead-actions">
-            <button className="primary" onClick={() => player.playQueue(data.tracks, 0)}>▶ Riproduci</button>
+            <button className="primary" onClick={() => player.playQueue(data.tracks, 0)}>
+              <Icon name="play" size={15} /> Riproduci
+            </button>
             <button
               className="ghost"
               onClick={() => {
                 if (!player.shuffle) player.toggleShuffle();
                 player.playQueue(data.tracks, Math.floor(Math.random() * data.tracks.length));
               }}
-            >⤨ Casuale</button>
+            ><Icon name="shuffle" size={15} /> Casuale</button>
             <DownloadButton tracks={data.tracks} label="Scarica" />
           </div>
         </div>
@@ -210,13 +213,15 @@ export function DownloadsView() {
 
       {items.length === 0 ? (
         <p className="hint">
-          Nessun brano scaricato. Usa il pulsante ↓ su un album o su un singolo brano:
+          Nessun brano scaricato. Usa il pulsante di download su un album o su un singolo brano:
           resterà ascoltabile anche con il server spento.
         </p>
       ) : (
         <>
           <div className="albumhead-actions" style={{ marginBottom: 18 }}>
-            <button className="primary" onClick={() => player.playQueue(tracks, 0)}>▶ Riproduci</button>
+            <button className="primary" onClick={() => player.playQueue(tracks, 0)}>
+              <Icon name="play" size={15} /> Riproduci
+            </button>
             <button className="ghost" onClick={() => void d.clear()}>Libera spazio</button>
           </div>
           <p className="dim" style={{ marginTop: -8 }}>

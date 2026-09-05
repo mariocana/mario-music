@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { formatTime } from '../api.ts';
 import { usePlayer } from '../player.tsx';
 import { Cover } from './Cover.tsx';
+import { Icon } from './Icon.tsx';
 
 /** Barra trascinabile: click e drag mappano la posizione X su un valore. */
 function Scrubber({ value, max, buffered = 0, onSeek, ariaLabel }: {
@@ -78,17 +79,17 @@ export function PlayerBar() {
             onClick={p.toggleShuffle}
             aria-pressed={p.shuffle}
             title="Riproduzione casuale"
-          >⤨</button>
-          <button className="icon" onClick={p.previous} title="Precedente">⏮</button>
+          ><Icon name="shuffle" /></button>
+          <button className="icon" onClick={p.previous} title="Precedente"><Icon name="prev" /></button>
           <button className="icon big" onClick={p.toggle} title={p.isPlaying ? 'Pausa' : 'Riproduci'}>
-            {p.isPlaying ? '⏸' : '▶'}
+            <Icon name={p.isPlaying ? 'pause' : 'play'} size={26} />
           </button>
-          <button className="icon" onClick={p.next} title="Successivo">⏭</button>
+          <button className="icon" onClick={p.next} title="Successivo"><Icon name="next" /></button>
           <button
             className={`icon ${p.repeat !== 'off' ? 'on' : ''}`}
             onClick={p.cycleRepeat}
             title={p.repeat === 'one' ? 'Ripeti brano' : p.repeat === 'all' ? 'Ripeti coda' : 'Ripetizione disattivata'}
-          >{p.repeat === 'one' ? '🔂' : '🔁'}</button>
+          ><Icon name={p.repeat === 'one' ? 'repeatOne' : 'repeat'} /></button>
         </div>
 
         <div className="pb-progress">
@@ -105,8 +106,10 @@ export function PlayerBar() {
       </div>
 
       <div className="pb-right">
-        {p.isLoading && <span className="pb-buffering" title="In caricamento">•••</span>}
-        <button className="icon" onClick={p.toggleMute} title="Muto">{p.muted || p.volume === 0 ? '🔇' : '🔊'}</button>
+        {p.isLoading && <span className="pb-buffering" title="In caricamento"><Icon name="spinner" size={15} /></span>}
+        <button className="icon" onClick={p.toggleMute} title="Muto">
+          <Icon name={p.muted || p.volume === 0 ? 'mute' : 'volume'} />
+        </button>
         <div className="pb-volume">
           <Scrubber
             value={p.muted ? 0 : p.volume}

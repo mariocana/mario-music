@@ -1,5 +1,6 @@
 import type { Track } from '../api.ts';
 import { useDownloads } from '../downloads.tsx';
+import { Icon } from './Icon.tsx';
 
 /**
  * Bottone a tre stati: da scaricare → in corso (con percentuale) → salvato.
@@ -31,7 +32,7 @@ export function DownloadButton({ tracks, label }: { tracks: Track[]; label?: str
         className="ghost dl dl-done"
         title="Rimuovi dai download"
         onClick={() => void d.remove(tracks.map((t) => t.id))}
-      >✓{label ? ' Scaricato' : ''}</button>
+      ><Icon name="check" size={15} />{label ? ' Scaricato' : ''}</button>
     );
   }
 
@@ -41,6 +42,6 @@ export function DownloadButton({ tracks, label }: { tracks: Track[]; label?: str
       title={d.online ? 'Scarica per ascoltare offline' : 'Serve la rete per scaricare'}
       disabled={!d.online}
       onClick={() => void d.download(tracks)}
-    >↓{label ? ` ${label}` : ''}{done.length > 0 ? ` (${done.length}/${tracks.length})` : ''}</button>
+    ><Icon name="download" size={15} />{label ? ` ${label}` : ''}{done.length > 0 ? ` (${done.length}/${tracks.length})` : ''}</button>
   );
 }

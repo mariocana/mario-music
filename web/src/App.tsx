@@ -11,6 +11,7 @@ import {
 } from './views.tsx';
 import { useDownloads } from './downloads.tsx';
 import { useLibrary } from './library.tsx';
+import { Icon } from './components/Icon.tsx';
 
 export function App() {
   const [view, setView] = useState<View>({ name: 'albums' });
@@ -70,7 +71,8 @@ export function App() {
               disabled={library.scanning}
               title="Rilegge i file e aggiorna il catalogo"
             >
-              {library.scanning ? 'Aggiorno…' : '⟳ Aggiorna'}
+              <Icon name={library.scanning ? 'spinner' : 'refresh'} size={14} />
+              {library.scanning ? 'Aggiorno…' : 'Aggiorna'}
             </button>
             {stats && (
               <p className="sidebar-stats">
