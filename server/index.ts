@@ -261,9 +261,14 @@ const server = createServer(async (req, res) => {
     // Dopo `npm run build` questo server serve anche dist/, da solo.
     if (!url.pathname.startsWith('/api/') && existsSync(DIST)) {
       const asset = path.join(DIST, url.pathname);
-      const file = existsSync(asset) && (await stat(asset)).isFile()
-        ? asset
-        : path.join(DIST, 'index.html');
+      const exists = existsSync(asset) && (await stat(asset)).isFile();
+
+      // Solo i percorsi senza estensione sono rotte dell'app e ricadono
+      // sull'index.html. Un /favicon.ico mancante deve dare 404, non HTML:
+      // altrimenti un asset sbagliato sembra funzionare e rompe più in là.
+      if (!exists && path.extname(url.pathname)) return json(res, 404, { error: 'Non trovato' });
+
+      const file = exists ? asset : path.join(DIST, 'index.html');
       if (existsSync(file)) {
         const ext = path.extname(file);
         const types: Record<string, string> = {

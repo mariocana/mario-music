@@ -47,7 +47,9 @@ async function precacheShell() {
   await cache.put('/', response);
 
   const assets = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map((m) => m[1]);
-  await cache.addAll(assets);
+  // Icone e manifest: servono anche offline, alla scheda del browser e alla
+  // schermata Home quando l'app è installata.
+  await cache.addAll([...assets, '/favicon.svg', '/favicon-32.png', '/apple-touch-icon.png', '/manifest.webmanifest']);
 }
 
 self.addEventListener('install', (event) => {

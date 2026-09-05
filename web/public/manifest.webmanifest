@@ -5,5 +5,9 @@
   "display": "standalone",
   "background_color": "#0b0b0d",
   "theme_color": "#0b0b0d",
-  "lang": "it"
+  "lang": "it",
+  "icons": [
+    { "src": "/favicon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" },
+    { "src": "/apple-touch-icon.png", "type": "image/png", "sizes": "180x180" }
+  ]
 }
