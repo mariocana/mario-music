@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { App } from './App.tsx';
 import { PlayerProvider } from './player.tsx';
 import { DownloadsProvider } from './downloads.tsx';
+import { LibraryProvider } from './library.tsx';
 import './styles.css';
 
 /**
@@ -51,10 +52,12 @@ if ('serviceWorker' in navigator) {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <DownloadsProvider>
-      <PlayerProvider>
-        <App />
-      </PlayerProvider>
-    </DownloadsProvider>
+    <LibraryProvider>
+      <DownloadsProvider>
+        <PlayerProvider>
+          <App />
+        </PlayerProvider>
+      </DownloadsProvider>
+    </LibraryProvider>
   </StrictMode>,
 );

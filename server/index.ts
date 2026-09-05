@@ -15,8 +15,11 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { openDb } from './db.ts';
 import { sendFile } from './stream.ts';
+import { scanLibrary, LibraryMissingError } from './scanner.ts';
 
 const PORT = Number(process.env.PORT ?? 4000);
+// Ogni quanti minuti ripassare la libreria. 0 disattiva il ripasso automatico.
+const SCAN_EVERY_MIN = Number(process.env.SCAN_INTERVAL_MIN ?? 5);
 const db = openDb();
 
 /* ────────────────────────────── query SQL ────────────────────────────── */
@@ -130,6 +133,36 @@ const get = (pattern: RegExp, handler: Handler) => {
   routes.push({ method: 'GET', pattern, handler });
   routes.push({ method: 'HEAD', pattern, handler });
 };
+const post = (pattern: RegExp, handler: Handler) => {
+  routes.push({ method: 'POST', pattern, handler });
+};
+
+/* ────────────────────── ripasso della libreria ────────────────────── */
+
+// Un solo scan per volta: due in parallelo scriverebbero sulle stesse righe.
+let scanning = false;
+
+async function runScan(reason: string) {
+  if (scanning) return null;
+  scanning = true;
+  try {
+    const result = await scanLibrary();
+    const changed = result.added + result.updated + result.removed;
+    if (changed > 0) {
+      console.log(
+        `scan (${reason}): +${result.added} ↻${result.updated} -${result.removed}` +
+        ` → ${result.total} tracce in ${(result.ms / 1000).toFixed(1)}s`,
+      );
+    }
+    return result;
+  } catch (err) {
+    if (err instanceof LibraryMissingError) console.warn(`scan: ${err.message}`);
+    else console.error('scan fallito:', err);
+    return null;
+  } finally {
+    scanning = false;
+  }
+}
 
 /* ─────────────────────────────── rotte ─────────────────────────────── */
 
@@ -164,6 +197,14 @@ get(/^\/api\/search$/, (_req, res, _params, url) => {
   // titolo che contiene % o _ cambierebbe il senso della query.
   const like = `%${term.replace(/[%_]/g, (c) => `\\${c}`)}%`;
   json(res, 200, q.searchTracks.all(like, like, like));
+});
+
+// Ripasso su richiesta, dal pulsante "Aggiorna" nell'interfaccia.
+post(/^\/api\/scan$/, async (_req, res) => {
+  if (scanning) return json(res, 409, { error: 'Scan già in corso' });
+  const result = await runScan('richiesto');
+  if (!result) return json(res, 500, { error: 'Scan fallito: controlla i log del server' });
+  json(res, 200, result);
 });
 
 // Copertina dell'album: file su disco, estratto dai tag durante lo scan.
@@ -260,4 +301,11 @@ server.listen(PORT, () => {
   console.log(`mario-music su http://localhost:${PORT}`);
   console.log(`Libreria: ${s.tracks} brani, ${s.albums} album, ${s.artists} artisti`);
   if (s.tracks === 0) console.log('Libreria vuota → npm run seed && npm run scan');
+
+  if (SCAN_EVERY_MIN > 0) {
+    console.log(`Ripasso automatico della libreria ogni ${SCAN_EVERY_MIN} minuti`);
+    const timer = setInterval(() => void runScan('automatico'), SCAN_EVERY_MIN * 60_000);
+    // unref: il timer non deve tenere in vita il processo se il server chiude.
+    timer.unref();
+  }
 });

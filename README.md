@@ -42,13 +42,24 @@ Poi `npm run scan`. È idempotente: confronta dimensione e data di modifica e
 rilegge solo i file cambiati. Le tracce i cui file sono spariti vengono tolte
 dal database.
 
+Non è però necessario lanciarlo a mano: **il server ripassa la libreria da solo
+ogni 5 minuti**, e il pulsante ⟳ Aggiorna nella barra laterale lo forza subito.
+Cambia l'intervallo con `SCAN_INTERVAL_MIN=15 npm start`, oppure disattivalo con
+`SCAN_INTERVAL_MIN=0`.
+
+Perché un ripasso periodico e non un watcher sul filesystem: copiare un file
+genera decine di eventi, e il file va indicizzato *a copia finita*. Il ripasso
+periodico si autoripara — se becca un file a metà copia, al giro dopo dimensione
+e data sono cambiate e lo rilegge. Meno codice, meno casi limite.
+
 Formati riconosciuti: mp3, m4a/aac, flac, ogg/opus, wav, aiff.
 
 ## Com'è fatto
 
 ```
 scripts/seed.ts   genera una libreria finta con ffmpeg (accordi sintetizzati)
-scripts/scan.ts   ffprobe → tag e durata → SQLite; estrae le copertine
+scripts/scan.ts   il comando `npm run scan`, un guscio sopra lo scanner
+server/scanner.ts ffprobe → tag e durata → SQLite; estrae le copertine
 server/db.ts      schema: artists → albums → tracks
 server/stream.ts  invio dei file con HTTP Range (il cuore dello streaming)
 server/index.ts   server node:http nudo: API JSON + streaming

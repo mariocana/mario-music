@@ -4,6 +4,7 @@ import { api, formatLength, formatTime } from './api.ts';
 import type { Album } from './api.ts';
 import { useAsync } from './useAsync.ts';
 import { useNavigate } from './nav.tsx';
+import { useLibrary } from './library.tsx';
 import { usePlayer } from './player.tsx';
 import { Cover } from './components/Cover.tsx';
 import { TrackList } from './components/TrackList.tsx';
@@ -25,7 +26,8 @@ function AlbumCard({ album }: { album: Album }) {
 }
 
 export function AlbumsView() {
-  const { data, error, loading } = useAsync(() => api.albums(), []);
+  const { revision } = useLibrary();
+  const { data, error, loading } = useAsync(() => api.albums(), [revision]);
   if (loading) return <Loading />;
   if (error) return <Failure message={error} />;
   if (!data?.length) return <p className="hint">Libreria vuota. Lancia <code>npm run seed &amp;&amp; npm run scan</code>.</p>;
@@ -41,7 +43,8 @@ export function AlbumsView() {
 }
 
 export function AlbumDetailView({ id }: { id: number }) {
-  const { data, error, loading } = useAsync(() => api.album(id), [id]);
+  const { revision } = useLibrary();
+  const { data, error, loading } = useAsync(() => api.album(id), [id, revision]);
   const player = usePlayer();
   const navigate = useNavigate();
 
@@ -83,7 +86,8 @@ export function AlbumDetailView({ id }: { id: number }) {
 }
 
 export function ArtistsView() {
-  const { data, error, loading } = useAsync(() => api.artists(), []);
+  const { revision } = useLibrary();
+  const { data, error, loading } = useAsync(() => api.artists(), [revision]);
   const navigate = useNavigate();
   if (loading) return <Loading />;
   if (error) return <Failure message={error} />;
@@ -106,7 +110,8 @@ export function ArtistsView() {
 }
 
 export function ArtistDetailView({ id }: { id: number }) {
-  const { data, error, loading } = useAsync(() => api.artist(id), [id]);
+  const { revision } = useLibrary();
+  const { data, error, loading } = useAsync(() => api.artist(id), [id, revision]);
   if (loading) return <Loading />;
   if (error) return <Failure message={error} />;
   if (!data) return null;
@@ -122,7 +127,8 @@ export function ArtistDetailView({ id }: { id: number }) {
 }
 
 export function SongsView() {
-  const { data, error, loading } = useAsync(() => api.tracks(), []);
+  const { revision } = useLibrary();
+  const { data, error, loading } = useAsync(() => api.tracks(), [revision]);
   if (loading) return <Loading />;
   if (error) return <Failure message={error} />;
   if (!data?.length) return <p className="hint">Nessun brano indicizzato.</p>;

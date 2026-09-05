@@ -10,10 +10,12 @@ import {
   DownloadsView,
 } from './views.tsx';
 import { useDownloads } from './downloads.tsx';
+import { useLibrary } from './library.tsx';
 
 export function App() {
   const [view, setView] = useState<View>({ name: 'albums' });
-  const { data: stats } = useAsync(() => api.stats(), []);
+  const library = useLibrary();
+  const { data: stats } = useAsync(() => api.stats(), [library.revision]);
   const player = usePlayer();
   const downloads = useDownloads();
 
@@ -61,11 +63,22 @@ export function App() {
             )}
           </nav>
 
-          {stats && (
-            <p className="sidebar-stats">
-              {stats.tracks} brani · {stats.albums} album<br />{stats.artists} artisti
-            </p>
-          )}
+          <div className="sidebar-foot">
+            <button
+              className="refresh"
+              onClick={() => void library.refresh()}
+              disabled={library.scanning}
+              title="Rilegge i file e aggiorna il catalogo"
+            >
+              {library.scanning ? 'Aggiorno…' : '⟳ Aggiorna'}
+            </button>
+            {stats && (
+              <p className="sidebar-stats">
+                {stats.tracks} brani · {stats.albums} album · {stats.artists} artisti
+              </p>
+            )}
+            {library.error && <p className="sidebar-stats error">{library.error}</p>}
+          </div>
         </aside>
 
         <div className="main">
