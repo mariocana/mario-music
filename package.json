@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "npm run dev:server & npm run dev:web",
+    "start": "npm run scan && node server/index.ts",
     "dev:server": "tsx watch server/index.ts",
     "dev:web": "vite",
     "build": "vite build",
