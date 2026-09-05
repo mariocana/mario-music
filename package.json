@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "npm run dev:server & npm run dev:web",
     "start": "npm run scan && node server/index.ts",
+    "stop": "lsof -ti :4000 | xargs -r kill || true",
+    "restart": "npm run stop && npm start",
     "dev:server": "tsx watch server/index.ts",
     "dev:web": "vite",
     "build": "vite build",
