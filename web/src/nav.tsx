@@ -7,7 +7,7 @@ export type View =
   | { name: 'artist'; id: number }
   | { name: 'songs' }
   | { name: 'downloads' }
-  | { name: 'search'; q: string };
+  | { name: 'search' };
 
 /** Navigazione minimale: niente router, solo uno stato in App più questo context. */
 export const NavContext = createContext<(view: View) => void>(() => {});

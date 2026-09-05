@@ -42,8 +42,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   min-height: 0;
 }
 
-.topbar { padding: 16px 32px 0; }
-.topbar .search { max-width: 420px; }
 
 /* ── sidebar ── */
 .sidebar {
@@ -69,6 +67,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   color: var(--text);
 }
 .search:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+
+/* Il campo di ricerca sta dentro la sua vista, non in cima a ogni schermata. */
+.searchbox { max-width: 420px; margin-bottom: 18px; font-size: 15px; padding: 9px 12px; }
 
 .navlabel {
   display: block;
@@ -341,8 +342,6 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
   }
   .badge { float: none; display: inline-block; margin-left: 4px; }
 
-  .topbar { padding: 10px 14px 0; }
-  .topbar .search { max-width: none; }
   /* Sotto i 16px iOS ingrandisce la pagina quando tocchi il campo. */
   .search { font-size: 16px; padding: 9px 12px; }
 

@@ -13,7 +13,6 @@ import { useDownloads } from './downloads.tsx';
 
 export function App() {
   const [view, setView] = useState<View>({ name: 'albums' });
-  const [query, setQuery] = useState('');
   const { data: stats } = useAsync(() => api.stats(), []);
   const player = usePlayer();
   const downloads = useDownloads();
@@ -30,10 +29,7 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [player]);
 
-  const nav = (next: View) => {
-    if (next.name !== 'search') setQuery('');
-    setView(next);
-  };
+  const nav = (next: View) => setView(next);
 
   const item = (name: View['name'], label: string, target: View) => (
     <button
@@ -49,6 +45,7 @@ export function App() {
           <div className="brand">mario<span>music</span></div>
 
           <nav>
+            {item('search', 'Cerca', { name: 'search' })}
             <span className="navlabel">Libreria</span>
             {item('albums', 'Album', { name: 'albums' })}
             {item('artists', 'Artisti', { name: 'artists' })}
@@ -72,20 +69,6 @@ export function App() {
         </aside>
 
         <div className="main">
-          <header className="topbar">
-            <input
-              className="search"
-              type="search"
-              placeholder="Cerca"
-              value={query}
-              onChange={(e) => {
-                const q = e.target.value;
-                setQuery(q);
-                setView(q.trim() ? { name: 'search', q } : { name: 'albums' });
-              }}
-            />
-          </header>
-
           <main className="content">
           {!downloads.online && (
             <p className="offline-banner" role="status">
@@ -97,7 +80,7 @@ export function App() {
           {view.name === 'artists' && <ArtistsView />}
           {view.name === 'artist' && <ArtistDetailView id={view.id} />}
           {view.name === 'songs' && <SongsView />}
-          {view.name === 'search' && <SearchView q={view.q} />}
+          {view.name === 'search' && <SearchView />}
           {view.name === 'downloads' && <DownloadsView />}
           </main>
         </div>

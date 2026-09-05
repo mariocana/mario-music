@@ -1,4 +1,5 @@
 /** Le schermate: griglia album, dettaglio album, artisti, brani, ricerca. */
+import { useState } from 'react';
 import { api, formatLength, formatTime } from './api.ts';
 import type { Album } from './api.ts';
 import { useAsync } from './useAsync.ts';
@@ -134,36 +135,52 @@ export function SongsView() {
   );
 }
 
-export function SearchView({ q }: { q: string }) {
-  const { data, error, loading } = useAsync(() => (q.trim().length < 2 ? Promise.resolve([]) : api.search(q)), [q]);
+export function SearchView() {
+  // La query vive qui, non in App: il campo esiste solo dentro questa vista.
+  const [q, setQ] = useState('');
+  const term = q.trim();
+  const { data, error, loading } = useAsync(
+    () => (term.length < 2 ? Promise.resolve([]) : api.search(term)),
+    [term],
+  );
   const navigate = useNavigate();
   const player = usePlayer();
 
-  if (q.trim().length < 2) return <p className="hint">Scrivi almeno due lettere.</p>;
-  if (loading) return <Loading />;
-  if (error) return <Failure message={error} />;
-  if (!data?.length) return <p className="hint">Nessun risultato per “{q}”.</p>;
-
   return (
     <>
-      <h1>Risultati per “{q}”</h1>
-      <ul className="rows">
-        {data.map((hit, i) => (
-          <li key={hit.id}>
-            <button
-              className="row"
-              // I risultati diventano la coda: cliccarne uno fa partire da lì.
-              onClick={() => player.playQueue(data, i)}
-              onDoubleClick={() => navigate({ name: 'album', id: hit.albumId })}
-            >
-              <Cover albumId={hit.albumId} title={hit.album} size="sm" />
-              <span className="row-title">{hit.title}</span>
-              <span className="dim">{hit.artist} — {hit.album}</span>
-              <span className="dim">{formatTime(hit.duration)}</span>
-            </button>
-          </li>
-        ))}
-      </ul>
+      <input
+        className="search searchbox"
+        type="search"
+        placeholder="Artisti, album, brani"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+        // Toccando "Cerca" ci si aspetta di poter già scrivere.
+        autoFocus
+      />
+
+      {term.length < 2 ? <p className="hint">Scrivi almeno due lettere.</p>
+        : loading ? <Loading />
+        : error ? <Failure message={error} />
+        : !data?.length ? <p className="hint">Nessun risultato per “{term}”.</p>
+        : (
+          <ul className="rows">
+            {data.map((hit, i) => (
+              <li key={hit.id}>
+                <button
+                  className="row"
+                  // I risultati diventano la coda: cliccarne uno fa partire da lì.
+                  onClick={() => player.playQueue(data, i)}
+                  onDoubleClick={() => navigate({ name: 'album', id: hit.albumId })}
+                >
+                  <Cover albumId={hit.albumId} title={hit.album} size="sm" />
+                  <span className="row-title">{hit.title}</span>
+                  <span className="dim">{hit.artist} — {hit.album}</span>
+                  <span className="dim">{formatTime(hit.duration)}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
     </>
   );
 }
