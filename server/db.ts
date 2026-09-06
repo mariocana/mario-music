@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS albums (
   year       INTEGER,
   genre      TEXT,
   cover_path TEXT,
+  -- impronta del contenuto: finisce nell'URL, così la cache si invalida da sé
+  cover_key  TEXT,
   UNIQUE (artist_id, title)
 );
 
@@ -61,5 +63,9 @@ export function openDb(): DatabaseSync {
   db.exec('PRAGMA journal_mode = WAL');
   db.exec('PRAGMA foreign_keys = ON');
   db.exec(SCHEMA);
+
+  // Migrazione per i database creati prima che cover_key esistesse.
+  try { db.exec('ALTER TABLE albums ADD COLUMN cover_key TEXT'); } catch { /* già presente */ }
+
   return db;
 }

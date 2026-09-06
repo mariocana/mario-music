@@ -2,7 +2,13 @@ import { useState } from 'react';
 import { coverUrl } from '../api.ts';
 
 /** Copertina con ripiego grafico quando l'album non ne ha una. */
-export function Cover({ albumId, title, size = 'md' }: { albumId: number; title: string; size?: 'sm' | 'md' | 'lg' }) {
+export function Cover({ albumId, title, coverKey, size = 'md' }: {
+  albumId: number;
+  title: string;
+  /** impronta del contenuto: entra nell'URL per invalidare la cache */
+  coverKey?: string | null;
+  size?: 'sm' | 'md' | 'lg';
+}) {
   const [failed, setFailed] = useState(false);
   if (failed) {
     return (
@@ -14,7 +20,7 @@ export function Cover({ albumId, title, size = 'md' }: { albumId: number; title:
   return (
     <img
       className={`cover cover-${size}`}
-      src={coverUrl(albumId)}
+      src={coverUrl(albumId, coverKey)}
       alt=""
       loading="lazy"
       onError={() => setFailed(true)}

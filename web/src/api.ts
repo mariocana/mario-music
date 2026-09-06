@@ -7,6 +7,7 @@ export type Album = {
   genre: string | null;
   artistId: number;
   artist: string;
+  coverKey: string | null;
   trackCount: number;
   duration: number;
   hasCover: boolean;
@@ -25,6 +26,7 @@ export type Track = {
   size: number;
   albumId: number;
   album: string;
+  coverKey: string | null;
   artistId: number;
   artist: string;
 };
@@ -50,7 +52,16 @@ export const api = {
   search: (q: string) => get<Track[]>(`/api/search?q=${encodeURIComponent(q)}`),
 };
 
-export const coverUrl = (albumId: number) => `/api/albums/${albumId}/cover`;
+/**
+ * L'impronta del contenuto va nell'URL, non solo negli header.
+ *
+ * Senza, l'indirizzo resta `/api/albums/33/cover` anche quando la copertina
+ * cambia: browser e service worker continuano a mostrare la vecchia finché
+ * non scade la cache. Con ?v=<impronta>, una copertina diversa è un URL
+ * diverso — e quello vecchio può restare in cache per sempre senza danni.
+ */
+export const coverUrl = (albumId: number, coverKey?: string | null) =>
+  `/api/albums/${albumId}/cover${coverKey ? `?v=${coverKey}` : ''}`;
 export const streamUrl = (trackId: number) => `/api/tracks/${trackId}/stream`;
 
 /** 214 → "3:34" ; 5400 → "1:30:00" */

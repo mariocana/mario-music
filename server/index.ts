@@ -30,6 +30,7 @@ const q = {
            ar.id AS artistId, ar.name AS artist,
            COUNT(t.id) AS trackCount,
            ROUND(SUM(t.duration)) AS duration,
+           al.cover_key AS coverKey,
            al.cover_path IS NOT NULL AS hasCover
     FROM albums al
     JOIN artists ar ON ar.id = al.artist_id
@@ -40,6 +41,7 @@ const q = {
   album: db.prepare(`
     SELECT al.id, al.title, al.year, al.genre,
            ar.id AS artistId, ar.name AS artist,
+           al.cover_key AS coverKey,
            al.cover_path IS NOT NULL AS hasCover
     FROM albums al JOIN artists ar ON ar.id = al.artist_id
     WHERE al.id = ?
@@ -49,6 +51,7 @@ const q = {
            ar.id AS artistId, ar.name AS artist,
            COUNT(t.id) AS trackCount,
            ROUND(SUM(t.duration)) AS duration,
+           al.cover_key AS coverKey,
            al.cover_path IS NOT NULL AS hasCover
     FROM albums al
     JOIN artists ar ON ar.id = al.artist_id
@@ -71,7 +74,8 @@ const q = {
   tracksOfAlbum: db.prepare(`
     SELECT t.id, t.title, t.track_no AS trackNo, t.disc_no AS discNo, t.duration,
            t.codec, t.bitrate, t.sample_rate AS sampleRate, t.channels, t.size,
-           al.id AS albumId, al.title AS album, ar.id AS artistId, ar.name AS artist
+           al.id AS albumId, al.title AS album, al.cover_key AS coverKey,
+           ar.id AS artistId, ar.name AS artist
     FROM tracks t
     JOIN albums al ON al.id = t.album_id
     JOIN artists ar ON ar.id = t.artist_id
@@ -81,7 +85,8 @@ const q = {
   allTracks: db.prepare(`
     SELECT t.id, t.title, t.track_no AS trackNo, t.disc_no AS discNo, t.duration,
            t.codec, t.bitrate, t.sample_rate AS sampleRate, t.channels, t.size,
-           al.id AS albumId, al.title AS album, ar.id AS artistId, ar.name AS artist
+           al.id AS albumId, al.title AS album, al.cover_key AS coverKey,
+           ar.id AS artistId, ar.name AS artist
     FROM tracks t
     JOIN albums al ON al.id = t.album_id
     JOIN artists ar ON ar.id = t.artist_id
@@ -92,7 +97,8 @@ const q = {
   searchTracks: db.prepare(`
     SELECT t.id, t.title, t.track_no AS trackNo, t.disc_no AS discNo, t.duration,
            t.codec, t.bitrate, t.sample_rate AS sampleRate, t.channels, t.size,
-           al.id AS albumId, al.title AS album, ar.id AS artistId, ar.name AS artist
+           al.id AS albumId, al.title AS album, al.cover_key AS coverKey,
+           ar.id AS artistId, ar.name AS artist
     FROM tracks t
     JOIN albums al ON al.id = t.album_id
     JOIN artists ar ON ar.id = t.artist_id
@@ -214,9 +220,11 @@ get(/^\/api\/albums\/(\d+)\/cover$/, async (req, res, [id]) => {
     return json(res, 404, { error: 'Nessuna copertina' });
   }
   const stats = await stat(row.coverPath);
+  // L'URL porta ?v=<impronta del contenuto>: se la copertina cambia cambia
+  // anche l'URL, quindi tenerla in cache per sempre è corretto.
   sendFile(req, res, row.coverPath, stats, {
     contentType: 'image/jpeg',
-    cacheControl: 'private, max-age=604800',
+    cacheControl: 'private, max-age=31536000, immutable',
   });
 });
 

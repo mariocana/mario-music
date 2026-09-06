@@ -220,7 +220,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       title: state.current.title,
       artist: state.current.artist,
       album: state.current.album,
-      artwork: [{ src: coverUrl(state.current.albumId), sizes: '640x640', type: 'image/jpeg' }],
+      artwork: [{ src: coverUrl(state.current.albumId, state.current.coverKey), sizes: '640x640', type: 'image/jpeg' }],
     });
     navigator.mediaSession.setActionHandler('play', () => void audioRef.current?.play());
     navigator.mediaSession.setActionHandler('pause', () => audioRef.current?.pause());

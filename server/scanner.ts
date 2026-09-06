@@ -13,7 +13,9 @@
  * il file è privo di metadati.
  */
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
+import { readdir as readDir, unlink } from 'node:fs/promises';
 import { mkdir, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -93,34 +95,49 @@ function num(value: string | undefined): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
-/** Estrae la copertina incorporata nel file; se non c'è, cerca cover.* accanto. */
-async function extractCover(file: string, albumId: number, hasEmbedded: boolean): Promise<string | null> {
-  await mkdir(COVERS, { recursive: true });
-  const dest = path.join(COVERS, `album-${albumId}.jpg`);
-  if (existsSync(dest)) return dest;
+/**
+ * Nome del file di copertina, derivato da artista + album.
+ *
+ * NON si usa l'id dell'album: gli id vengono riciclati da SQLite quando le
+ * righe si cancellano, e durante un import la stessa libreria può essere
+ * ricreata più volte. Con `album-<id>.jpg` un album nuovo ereditava la
+ * copertina di quello che aveva avuto quell'id prima: copertine sbagliate
+ * sui brani sbagliati. Un nome derivato dal contenuto non ha questo problema.
+ */
+function coverKeyFor(artist: string, album: string): string {
+  return createHash('sha1').update(`${artist}\u0000${album}`).digest('hex').slice(0, 16);
+}
 
-  if (hasEmbedded) {
-    try {
-      await run('ffmpeg', [
-        '-y', '-loglevel', 'error',
-        '-i', file,
-        '-map', '0:v:0', '-frames:v', '1',
-        '-vf', 'scale=640:-1',
-        '-c:v', 'mjpeg', '-q:v', '3',
-        dest,
-      ]);
-      return dest;
-    } catch {
-      /* niente copertina incorporata utilizzabile: si prova il fallback */
-    }
+function coverFileFor(artist: string, album: string): string {
+  return path.join(COVERS, `${coverKeyFor(artist, album)}.jpg`);
+}
+
+/** Estrae la copertina incorporata nel file; se non c'è, cerca cover.* accanto. */
+async function extractCover(file: string, dest: string): Promise<string | null> {
+  await mkdir(COVERS, { recursive: true });
+
+  try {
+    await run('ffmpeg', [
+      '-y', '-loglevel', 'error',
+      '-i', file,
+      '-map', '0:v:0', '-frames:v', '1',
+      '-vf', 'scale=640:-1',
+      '-c:v', 'mjpeg', '-q:v', '3',
+      dest,
+    ]);
+    return dest;
+  } catch {
+    /* niente copertina incorporata utilizzabile: si prova il fallback */
   }
 
   for (const name of ['cover.jpg', 'cover.png', 'folder.jpg', 'front.jpg']) {
     const candidate = path.join(path.dirname(file), name);
     if (existsSync(candidate)) {
-      await run('ffmpeg', ['-y', '-loglevel', 'error', '-i', candidate,
-        '-vf', 'scale=640:-1', '-c:v', 'mjpeg', '-q:v', '3', dest]);
-      return dest;
+      try {
+        await run('ffmpeg', ['-y', '-loglevel', 'error', '-i', candidate,
+          '-vf', 'scale=640:-1', '-c:v', 'mjpeg', '-q:v', '3', dest]);
+        return dest;
+      } catch { /* immagine illeggibile: si prova il candidato successivo */ }
     }
   }
   return null;
@@ -164,7 +181,7 @@ export async function scanLibrary(onFile?: (line: string) => void): Promise<Scan
   const insArtist = db.prepare('INSERT INTO artists (name) VALUES (?)');
   const findAlbum = db.prepare('SELECT id, cover_path FROM albums WHERE artist_id = ? AND title = ?');
   const insAlbum = db.prepare('INSERT INTO albums (artist_id, title, year, genre) VALUES (?, ?, ?, ?)');
-  const setCover = db.prepare('UPDATE albums SET cover_path = ? WHERE id = ?');
+  const setCover = db.prepare('UPDATE albums SET cover_path = ?, cover_key = ? WHERE id = ?');
   const findTrack = db.prepare('SELECT id, size, mtime FROM tracks WHERE path = ?');
   const upsertTrack = db.prepare(`
     INSERT INTO tracks (album_id, artist_id, title, track_no, disc_no, duration,
@@ -208,7 +225,6 @@ export async function scanLibrary(onFile?: (line: string) => void): Promise<Scan
     const info = await probe(file);
     const tags = info.format?.tags;
     const audio = info.streams?.find((s) => s.codec_type === 'audio');
-    const hasEmbeddedCover = Boolean(info.streams?.some((s) => s.codec_type === 'video'));
 
     // Nomi delle cartelle come ripiego: <libreria>/<artista>/<album>/<file>
     const dir = path.dirname(file);
@@ -223,11 +239,6 @@ export async function scanLibrary(onFile?: (line: string) => void): Promise<Scan
 
     const aId = artistId(artistName);
     const alb = albumId(aId, albumTitle, year, genre);
-
-    if (!alb.cover_path) {
-      const cover = await extractCover(file, alb.id, hasEmbeddedCover);
-      if (cover) setCover.run(cover, alb.id);
-    }
 
     upsertTrack.run(
       alb.id,
@@ -257,6 +268,42 @@ export async function scanLibrary(onFile?: (line: string) => void): Promise<Scan
   for (const t of gone) del.run(t.id);
   db.exec('DELETE FROM albums  WHERE id NOT IN (SELECT DISTINCT album_id  FROM tracks)');
   db.exec('DELETE FROM artists WHERE id NOT IN (SELECT DISTINCT artist_id FROM tracks)');
+
+  // ── copertine ──
+  // Fuori dal ciclo sui file, apposta: i file già indicizzati vengono saltati,
+  // quindi qui dentro le copertine non verrebbero mai riviste. Con una fase a
+  // parte, un album a cui manca la copertina la recupera al primo scan utile.
+  const albumsToCover = db.prepare(`
+    SELECT al.id, al.title, al.cover_path AS coverPath, al.cover_key AS coverKey, ar.name AS artist,
+           (SELECT t.path FROM tracks t WHERE t.album_id = al.id
+            ORDER BY t.disc_no, t.track_no LIMIT 1) AS sample
+    FROM albums al JOIN artists ar ON ar.id = al.artist_id
+  `).all() as Array<{
+    id: number; title: string; coverPath: string | null; coverKey: string | null;
+    artist: string; sample: string | null;
+  }>;
+
+  const wanted = new Set<string>();
+  for (const album of albumsToCover) {
+    if (!album.sample) continue;
+    const key = coverKeyFor(album.artist, album.title);
+    const dest = path.join(COVERS, `${key}.jpg`);
+    wanted.add(`${key}.jpg`);
+
+    // Si rifà se manca il file, se la riga punta ancora al vecchio schema di
+    // nomi basato sull'id, o se manca l'impronta che finisce nell'URL.
+    if (album.coverPath === dest && album.coverKey === key && existsSync(dest)) continue;
+
+    const cover = existsSync(dest) ? dest : await extractCover(album.sample, dest);
+    setCover.run(cover, cover ? key : null, album.id);
+  }
+
+  // Via i file di copertina che non appartengono più a nessun album.
+  try {
+    for (const name of await readDir(COVERS)) {
+      if (!wanted.has(name)) await unlink(path.join(COVERS, name));
+    }
+  } catch { /* la cartella può non esistere ancora */ }
 
   const total = (db.prepare('SELECT COUNT(*) AS n FROM tracks').get() as { n: number }).n;
   db.close();

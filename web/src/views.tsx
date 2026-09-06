@@ -19,7 +19,7 @@ function AlbumCard({ album }: { album: Album }) {
   const navigate = useNavigate();
   return (
     <button className="albumcard" onClick={() => navigate({ name: 'album', id: album.id })}>
-      <Cover albumId={album.id} title={album.title} />
+      <Cover albumId={album.id} title={album.title} coverKey={album.coverKey} />
       <span className="albumcard-title">{album.title}</span>
       <span className="albumcard-sub">{album.artist}{album.year ? ` · ${album.year}` : ''}</span>
     </button>
@@ -58,7 +58,7 @@ export function AlbumDetailView({ id }: { id: number }) {
   return (
     <>
       <header className="albumhead">
-        <Cover albumId={data.id} title={data.title} size="lg" />
+        <Cover albumId={data.id} title={data.title} coverKey={data.coverKey} size="lg" />
         <div className="albumhead-meta">
           <span className="eyebrow">{data.genre ?? 'Album'}</span>
           <h1>{data.title}</h1>
@@ -181,7 +181,7 @@ export function SearchView() {
                   onClick={() => player.playQueue(data, i)}
                   onDoubleClick={() => navigate({ name: 'album', id: hit.albumId })}
                 >
-                  <Cover albumId={hit.albumId} title={hit.album} size="sm" />
+                  <Cover albumId={hit.albumId} title={hit.album} coverKey={hit.coverKey} size="sm" />
                   <span className="row-title">{hit.title}</span>
                   <span className="dim">{hit.artist} — {hit.album}</span>
                   <span className="dim">{formatTime(hit.duration)}</span>

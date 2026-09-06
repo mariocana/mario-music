@@ -14,7 +14,7 @@
  * È la stessa logica di server/stream.ts, questa volta lato client.
  */
 
-const VERSION = 'v2';
+const VERSION = 'v3';
 const SHELL = `shell-${VERSION}`;   // index.html, js, css: l'app in sé
 const API = `api-${VERSION}`;       // catalogo JSON e copertine
 

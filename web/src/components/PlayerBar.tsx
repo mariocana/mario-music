@@ -65,7 +65,7 @@ export function PlayerBar() {
   return (
     <footer className="playerbar">
       <div className="pb-now">
-        <Cover albumId={p.current.albumId} title={p.current.album} size="sm" />
+        <Cover albumId={p.current.albumId} title={p.current.album} coverKey={p.current.coverKey} size="sm" />
         <div className="pb-meta">
           <span className="pb-title">{p.current.title}</span>
           <span className="pb-sub">{p.current.artist} — {p.current.album}</span>
