@@ -5,6 +5,8 @@ import type { View } from './nav.tsx';
 import { useAsync } from './useAsync.ts';
 import { PlayerBar } from './components/PlayerBar.tsx';
 import { QueuePanel } from './components/QueuePanel.tsx';
+import { NowPlaying } from './components/NowPlaying.tsx';
+import { useIsMobile } from './useMediaQuery.ts';
 import { usePlayer } from './player.tsx';
 import {
   AlbumsView, AlbumDetailView, ArtistsView, ArtistDetailView, SongsView, SearchView,
@@ -17,6 +19,9 @@ import { Icon } from './components/Icon.tsx';
 export function App() {
   const [view, setView] = useState<View>({ name: 'albums' });
   const [queueOpen, setQueueOpen] = useState(false);
+  // Su mobile la coda non è una colonna ma una faccia della schermata piena.
+  const isMobile = useIsMobile();
+  const [sheet, setSheet] = useState<'chiusa' | 'brano' | 'coda'>('chiusa');
   const library = useLibrary();
   const { data: stats } = useAsync(() => api.stats(), [library.revision]);
   const player = usePlayer();
@@ -102,9 +107,23 @@ export function App() {
           </main>
         </div>
 
-        {queueOpen && <QueuePanel onClose={() => setQueueOpen(false)} />}
+        {!isMobile && queueOpen && <QueuePanel onClose={() => setQueueOpen(false)} />}
 
-        <PlayerBar queueOpen={queueOpen} onToggleQueue={() => setQueueOpen((v) => !v)} />
+        <PlayerBar
+          queueOpen={isMobile ? sheet === 'coda' : queueOpen}
+          onToggleQueue={() => (isMobile
+            ? setSheet((s) => (s === 'coda' ? 'chiusa' : 'coda'))
+            : setQueueOpen((v) => !v))}
+          onExpand={isMobile ? () => setSheet('brano') : undefined}
+        />
+
+        {isMobile && sheet !== 'chiusa' && (
+          <NowPlaying
+            faccia={sheet === 'coda' ? 'coda' : 'brano'}
+            onFaccia={(f) => setSheet(f)}
+            onClose={() => setSheet('chiusa')}
+          />
+        )}
       </div>
     </NavContext.Provider>
   );

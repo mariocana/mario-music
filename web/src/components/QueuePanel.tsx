@@ -13,26 +13,20 @@ import { usePlayer } from '../player.tsx';
 import { Cover } from './Cover.tsx';
 import { Icon } from './Icon.tsx';
 
-export function QueuePanel({ onClose }: { onClose: () => void }) {
+/** Riepilogo testuale della coda, condiviso da pannello e schermata piena. */
+export function useQueueSummary(): string {
   const p = usePlayer();
+  if (p.queue.length === 0) return 'Coda vuota';
   const rimanenti = p.queue.length - p.index - 1;
+  return `${p.queue.length} brani · ${rimanenti > 0 ? `${rimanenti} dopo questo` : 'ultimo brano'}`;
+}
+
+/** La sola lista dei brani in coda: il contorno lo mette chi la usa. */
+export function QueueList() {
+  const p = usePlayer();
 
   return (
-    <aside className="queue" aria-label="Coda di riproduzione">
-      <header className="queue-head">
-        <div>
-          <h2>In riproduzione</h2>
-          <span className="dim">
-            {p.queue.length === 0
-              ? 'Coda vuota'
-              : `${p.queue.length} brani · ${rimanenti > 0 ? `${rimanenti} dopo questo` : 'ultimo brano'}`}
-          </span>
-        </div>
-        <button className="icon" onClick={onClose} title="Chiudi la coda" aria-label="Chiudi la coda">
-          <Icon name="close" />
-        </button>
-      </header>
-
+    <>
       {p.queue.length === 0 ? (
         <p className="hint queue-empty">Scegli un album per riempire la coda.</p>
       ) : (
@@ -66,6 +60,25 @@ export function QueuePanel({ onClose }: { onClose: () => void }) {
           ))}
         </ol>
       )}
+    </>
+  );
+}
+
+export function QueuePanel({ onClose }: { onClose: () => void }) {
+  const riepilogo = useQueueSummary();
+
+  return (
+    <aside className="queue" aria-label="Coda di riproduzione">
+      <header className="queue-head">
+        <div>
+          <h2>In riproduzione</h2>
+          <span className="dim">{riepilogo}</span>
+        </div>
+        <button className="icon" onClick={onClose} title="Chiudi la coda" aria-label="Chiudi la coda">
+          <Icon name="close" />
+        </button>
+      </header>
+      <QueueList />
     </aside>
   );
 }

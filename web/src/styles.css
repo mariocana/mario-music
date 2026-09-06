@@ -438,7 +438,21 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
   .pb-buttons .icon svg { width: 17px; height: 17px; }
   .pb-buttons .icon.big svg { width: 23px; height: 23px; }
   .pb-now { gap: 8px; }
-  .pb-right { display: none; }
+
+  /* Il pulsante della coda deve restare raggiungibile anche al telefono:
+     `.pb-right` non si nasconde più in blocco, si tiene solo la coda e la si
+     affianca alla barra di avanzamento, sulla prima riga. */
+  /* 38px del pulsante + 8px di spazio: senza contarli entrambi la riga
+     trabocca e il pulsante va a capo, finendo davanti alla copertina. */
+  .pb-progress { width: calc(100% - 46px); }
+  .pb-right {
+    display: flex;
+    order: -1;
+    width: 38px;
+    justify-content: flex-end;
+    gap: 0;
+  }
+  .pb-mute, .pb-volume, .pb-buffering { display: none; }
   .playerbar-idle { padding: 12px; font-size: 13px; }
 }
 
@@ -515,3 +529,64 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
   .app.with-queue .main { display: none; }
   .queue { border-left: 0; }
 }
+
+/* ══════════ schermata piena del player (solo mobile) ══════════ */
+.np {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  /* Sale dal basso, come una scheda che si apre. */
+  animation: np-su 0.24s cubic-bezier(0.2, 0.8, 0.3, 1);
+  transition: transform 0.2s ease;
+  touch-action: none;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@keyframes np-su { from { transform: translateY(100%); } }
+@media (prefers-reduced-motion: reduce) { .np { animation: none; } }
+
+.np-head { display: flex; justify-content: center; padding: 10px 0 4px; flex: none; }
+/* La maniglia: si trascina, ma è anche un bottone per chi non usa i gesti. */
+.np-grip { padding: 8px 40px; }
+.np-grip span { display: block; width: 38px; height: 4px; border-radius: 2px; background: var(--line); }
+
+.np-body { flex: 1; display: flex; flex-direction: column; gap: 18px; padding: 8px 24px 0; min-height: 0; }
+
+.np-art { display: flex; justify-content: center; }
+.np-art .cover {
+  width: 100%;
+  max-width: min(78vw, 340px);
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: 14px;
+  box-shadow: 0 18px 40px rgb(0 0 0 / 0.45);
+}
+
+.np-meta { display: flex; flex-direction: column; gap: 2px; }
+.np-meta h2 { margin: 0; font-size: 21px; line-height: 1.25; }
+.np-meta p { margin: 0; }
+.np-meta .eyebrow { margin-bottom: 4px; }
+
+/* margin-top:auto spinge avanzamento, comandi e volume in fondo: la
+   copertina resta in alto e lo spazio in eccesso va tutto in mezzo. */
+.np-progress { display: flex; flex-direction: column; margin-top: auto; }
+.np-times { display: flex; justify-content: space-between; font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; }
+
+.np-controls { display: flex; align-items: center; justify-content: space-between; padding: 0 4px; }
+.np-controls .icon { padding: 12px; }
+.np-play { color: var(--text); }
+
+.np-volume { display: flex; align-items: center; gap: 12px; color: var(--dim); padding-bottom: 8px; }
+
+.np-body-queue { padding: 8px 10px 0; gap: 10px; overflow: hidden; }
+.np-queue-head { padding: 0 10px; }
+.np-queue-head h2 { margin: 0 0 2px; font-size: 17px; }
+.np-body-queue .queue-list { padding: 0; }
+
+.np-foot { display: flex; justify-content: flex-end; padding: 6px 22px 14px; flex: none; }
+
+/* Sulla barra compatta, la zona del brano si tocca per aprire la schermata. */
+.pb-now-tap { cursor: pointer; border-radius: 8px; }
+.pb-now-tap:active { background: var(--bg-hover); }

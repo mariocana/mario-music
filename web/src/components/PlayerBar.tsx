@@ -5,7 +5,7 @@ import { Cover } from './Cover.tsx';
 import { Icon } from './Icon.tsx';
 
 /** Barra trascinabile: click e drag mappano la posizione X su un valore. */
-function Scrubber({ value, max, buffered = 0, onSeek, ariaLabel }: {
+export function Scrubber({ value, max, buffered = 0, onSeek, ariaLabel }: {
   value: number; max: number; buffered?: number; onSeek: (v: number) => void; ariaLabel: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -51,7 +51,12 @@ function Scrubber({ value, max, buffered = 0, onSeek, ariaLabel }: {
   );
 }
 
-export function PlayerBar({ queueOpen, onToggleQueue }: { queueOpen: boolean; onToggleQueue: () => void }) {
+export function PlayerBar({ queueOpen, onToggleQueue, onExpand }: {
+  queueOpen: boolean;
+  onToggleQueue: () => void;
+  /** su mobile: apre la schermata piena; su desktop non viene passata */
+  onExpand?: () => void;
+}) {
   const p = usePlayer();
 
   if (!p.current) {
@@ -69,7 +74,14 @@ export function PlayerBar({ queueOpen, onToggleQueue }: { queueOpen: boolean; on
 
   return (
     <footer className="playerbar">
-      <div className="pb-now">
+      <div
+        className={`pb-now ${onExpand ? 'pb-now-tap' : ''}`}
+        onClick={onExpand}
+        role={onExpand ? 'button' : undefined}
+        tabIndex={onExpand ? 0 : undefined}
+        onKeyDown={(e) => { if (onExpand && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onExpand(); } }}
+        aria-label={onExpand ? 'Apri la schermata di riproduzione' : undefined}
+      >
         <Cover albumId={p.current.albumId} title={p.current.album} coverKey={p.current.coverKey} size="sm" />
         <div className="pb-meta">
           <span className="pb-title">{p.current.title}</span>
@@ -113,12 +125,12 @@ export function PlayerBar({ queueOpen, onToggleQueue }: { queueOpen: boolean; on
       <div className="pb-right">
         {p.isLoading && <span className="pb-buffering" title="In caricamento"><Icon name="spinner" size={15} /></span>}
         <button
-          className={`icon ${queueOpen ? 'on' : ''}`}
+          className={`icon pb-queue ${queueOpen ? 'on' : ''}`}
           onClick={onToggleQueue}
           aria-pressed={queueOpen}
           title="Coda di riproduzione"
         ><Icon name="queue" /></button>
-        <button className="icon" onClick={p.toggleMute} title="Muto">
+        <button className="icon pb-mute" onClick={p.toggleMute} title="Muto">
           <Icon name={p.muted || p.volume === 0 ? 'mute' : 'volume'} />
         </button>
         <div className="pb-volume">
