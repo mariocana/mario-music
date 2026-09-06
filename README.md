@@ -154,5 +154,5 @@ curl -s -D - -o /dev/null -H "Range: bytes=0-99" localhost:4000/api/tracks/1/str
 - [ ] **3. Transcodifica** — FLAC e formati esotici convertiti al volo per i browser che non li leggono
 - [ ] **4. Playlist e preferiti** — con riordino, e conteggio degli ascolti
 - [ ] **5. Ricerca seria** — SQLite FTS5 al posto di `LIKE`
-- [ ] **6. Coda visibile** — pannello "in riproduzione", riordino, "riproduci dopo"
+- [x] **6. Coda visibile** — pannello "in riproduzione", riordino, "riproduci dopo"
 - [ ] **7. Utenti** — login, libreria per utente, streaming autenticato

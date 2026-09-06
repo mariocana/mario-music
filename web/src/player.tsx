@@ -41,6 +41,14 @@ type PlayerState = {
 
 type PlayerApi = PlayerState & {
   playQueue: (tracks: Track[], startIndex?: number) => void;
+  /** salta a una posizione della coda */
+  playAt: (index: number) => void;
+  /** infila un brano subito dopo quello in ascolto */
+  playNext: (track: Track) => void;
+  /** aggiunge in fondo alla coda */
+  addToQueue: (track: Track) => void;
+  removeAt: (index: number) => void;
+  move: (from: number, to: number) => void;
   toggle: () => void;
   next: () => void;
   previous: () => void;
@@ -238,6 +246,75 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       if (!audio || !stateRef.current.current) return;
       if (audio.paused) void audio.play().catch(() => patch({ error: 'Riproduzione bloccata dal browser.' }));
       else audio.pause();
+    },
+    playAt: (index) => {
+      const s = stateRef.current;
+      if (index >= 0 && index < s.queue.length) load(s.queue, index, true);
+    },
+    playNext: (track) => {
+      setState((s) => {
+        if (s.index < 0) {
+          queueMicrotask(() => load([track], 0, true));
+          return s;
+        }
+        // Se è già in coda più avanti lo si sposta, invece di duplicarlo.
+        const without = s.queue.filter((t, i) => !(t.id === track.id && i !== s.index));
+        const at = without.findIndex((t, i) => t.id === s.queue[s.index].id && i >= 0);
+        const q = [...without];
+        q.splice(at + 1, 0, track);
+        sourceRef.current = q;
+        return { ...s, queue: q, index: at };
+      });
+    },
+    addToQueue: (track) => {
+      setState((s) => {
+        if (s.index < 0) {
+          queueMicrotask(() => load([track], 0, true));
+          return s;
+        }
+        const q = [...s.queue, track];
+        sourceRef.current = q;
+        return { ...s, queue: q };
+      });
+    },
+    removeAt: (index) => {
+      setState((s) => {
+        if (index < 0 || index >= s.queue.length) return s;
+        const q = s.queue.filter((_, i) => i !== index);
+        sourceRef.current = q;
+
+        if (q.length === 0) {
+          const audio = audioRef.current;
+          audio?.pause();
+          if (audio) audio.removeAttribute('src');
+          return { ...s, queue: [], index: -1, current: null, isPlaying: false, currentTime: 0 };
+        }
+        if (index < s.index) return { ...s, queue: q, index: s.index - 1 };
+        if (index > s.index) return { ...s, queue: q };
+
+        // Tolta quella in ascolto: suona chi prende il suo posto.
+        const nextIndex = Math.min(index, q.length - 1);
+        const wasPlaying = s.isPlaying;
+        queueMicrotask(() => load(q, nextIndex, wasPlaying));
+        return { ...s, queue: q };
+      });
+    },
+    move: (from, to) => {
+      setState((s) => {
+        if (from === to || from < 0 || to < 0 || from >= s.queue.length || to >= s.queue.length) return s;
+        const q = [...s.queue];
+        const [moved] = q.splice(from, 1);
+        q.splice(to, 0, moved);
+        sourceRef.current = q;
+
+        // L'indice deve continuare a puntare al brano in ascolto, che
+        // potrebbe essersi spostato per effetto del riordino.
+        let index = s.index;
+        if (from === s.index) index = to;
+        else if (from < s.index && to >= s.index) index = s.index - 1;
+        else if (from > s.index && to <= s.index) index = s.index + 1;
+        return { ...s, queue: q, index };
+      });
     },
     seek: (seconds) => {
       const audio = audioRef.current;

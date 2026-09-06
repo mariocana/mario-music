@@ -51,13 +51,18 @@ function Scrubber({ value, max, buffered = 0, onSeek, ariaLabel }: {
   );
 }
 
-export function PlayerBar() {
+export function PlayerBar({ queueOpen, onToggleQueue }: { queueOpen: boolean; onToggleQueue: () => void }) {
   const p = usePlayer();
 
   if (!p.current) {
     return (
       <footer className="playerbar playerbar-idle">
         <span>Scegli un brano per iniziare</span>
+        <button
+          className={`icon ${queueOpen ? 'on' : ''}`}
+          onClick={onToggleQueue}
+          title="Coda di riproduzione"
+        ><Icon name="queue" /></button>
       </footer>
     );
   }
@@ -107,6 +112,12 @@ export function PlayerBar() {
 
       <div className="pb-right">
         {p.isLoading && <span className="pb-buffering" title="In caricamento"><Icon name="spinner" size={15} /></span>}
+        <button
+          className={`icon ${queueOpen ? 'on' : ''}`}
+          onClick={onToggleQueue}
+          aria-pressed={queueOpen}
+          title="Coda di riproduzione"
+        ><Icon name="queue" /></button>
         <button className="icon" onClick={p.toggleMute} title="Muto">
           <Icon name={p.muted || p.volume === 0 ? 'mute' : 'volume'} />
         </button>

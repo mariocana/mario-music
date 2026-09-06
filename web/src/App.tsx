@@ -4,6 +4,7 @@ import { NavContext } from './nav.tsx';
 import type { View } from './nav.tsx';
 import { useAsync } from './useAsync.ts';
 import { PlayerBar } from './components/PlayerBar.tsx';
+import { QueuePanel } from './components/QueuePanel.tsx';
 import { usePlayer } from './player.tsx';
 import {
   AlbumsView, AlbumDetailView, ArtistsView, ArtistDetailView, SongsView, SearchView,
@@ -15,6 +16,7 @@ import { Icon } from './components/Icon.tsx';
 
 export function App() {
   const [view, setView] = useState<View>({ name: 'albums' });
+  const [queueOpen, setQueueOpen] = useState(false);
   const library = useLibrary();
   const { data: stats } = useAsync(() => api.stats(), [library.revision]);
   const player = usePlayer();
@@ -43,7 +45,7 @@ export function App() {
 
   return (
     <NavContext.Provider value={nav}>
-      <div className="app">
+      <div className={`app${queueOpen ? ' with-queue' : ''}`}>
         <aside className="sidebar">
           <div className="brand">mario<span>music</span></div>
 
@@ -100,7 +102,9 @@ export function App() {
           </main>
         </div>
 
-        <PlayerBar />
+        {queueOpen && <QueuePanel onClose={() => setQueueOpen(false)} />}
+
+        <PlayerBar queueOpen={queueOpen} onToggleQueue={() => setQueueOpen((v) => !v)} />
       </div>
     </NavContext.Provider>
   );

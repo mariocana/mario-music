@@ -38,6 +38,13 @@ export function TrackList({ tracks, showAlbum = false }: Props) {
               {showAlbum && <span className="track-sub">{track.artist} — {track.album}</span>}
             </div>
 
+            <button
+              className="icon track-queue"
+              onClick={() => player.playNext(track)}
+              title="Riproduci dopo"
+              aria-label={`Riproduci ${track.title} dopo`}
+            ><Icon name="queueNext" size={15} /></button>
+
             <span className="track-format">{track.codec?.toUpperCase()}</span>
             <span className="track-time">{formatTime(track.duration)}</span>
             <DownloadButton tracks={[track]} />

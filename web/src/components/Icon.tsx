@@ -14,7 +14,8 @@ export type IconName =
   | 'play' | 'pause' | 'prev' | 'next'
   | 'shuffle' | 'repeat' | 'repeatOne'
   | 'volume' | 'mute'
-  | 'download' | 'check' | 'refresh' | 'spinner';
+  | 'download' | 'check' | 'refresh' | 'spinner'
+  | 'queue' | 'queueNext' | 'close' | 'up' | 'down';
 
 /** Icone piene: sagome compatte, leggibili anche a 14px. */
 const FILLED: Partial<Record<IconName, React.ReactNode>> = {
@@ -80,6 +81,30 @@ const STROKED: Partial<Record<IconName, React.ReactNode>> = {
     </>
   ),
   check: <path d="m20 6-11 11-5-5" />,
+  queue: (
+    <>
+      <path d="M4 7h16" />
+      <path d="M4 12h16" />
+      <path d="M4 17h9" />
+    </>
+  ),
+  queueNext: (
+    <>
+      <path d="M4 7h12" />
+      <path d="M4 12h12" />
+      <path d="M4 17h7" />
+      <path d="M17.5 14v7" />
+      <path d="M14 17.5h7" />
+    </>
+  ),
+  close: (
+    <>
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </>
+  ),
+  up: <path d="m6 15 6-6 6 6" />,
+  down: <path d="m6 9 6 6 6-6" />,
   refresh: (
     <>
       <path d="M21 4v6h-6" />
