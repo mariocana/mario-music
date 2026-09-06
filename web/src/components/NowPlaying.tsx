@@ -11,6 +11,8 @@
 import { useRef, useState } from 'react';
 import { formatTime } from '../api.ts';
 import { usePlayer } from '../player.tsx';
+import { useNavigate } from '../nav.tsx';
+import type { View } from '../nav.tsx';
 import { Cover } from './Cover.tsx';
 import { Icon } from './Icon.tsx';
 import { Scrubber } from './PlayerBar.tsx';
@@ -27,7 +29,14 @@ export function NowPlaying({ faccia, onFaccia, onClose }: {
   onClose: () => void;
 }) {
   const p = usePlayer();
+  const navigate = useNavigate();
   const riepilogo = useQueueSummary();
+
+  /** Naviga e chiude la schermata: restare aperti coprirebbe la pagina aperta. */
+  const vaiA = (view: View) => {
+    navigate(view);
+    onClose();
+  };
   const [trascinamento, setTrascinamento] = useState(0);
   const partenza = useRef<number | null>(null);
 
@@ -88,9 +97,19 @@ export function NowPlaying({ faccia, onFaccia, onClose }: {
           </div>
 
           <div className="np-meta">
-            <span className="eyebrow">{p.current.album}</span>
+            <button
+              className="np-link eyebrow"
+              onClick={() => vaiA({ name: 'album', id: p.current!.albumId })}
+              title={`Vai all'album ${p.current.album}`}
+            >{p.current.album}</button>
+
             <h2>{p.current.title}</h2>
-            <p className="dim">{p.current.artist}</p>
+
+            <button
+              className="np-link np-artist"
+              onClick={() => vaiA({ name: 'artist', id: p.current!.artistId })}
+              title={`Vai all'artista ${p.current.artist}`}
+            >{p.current.artist}</button>
           </div>
 
           <div className="np-progress">

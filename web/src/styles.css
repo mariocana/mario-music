@@ -564,10 +564,23 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
   box-shadow: 0 18px 40px rgb(0 0 0 / 0.45);
 }
 
-.np-meta { display: flex; flex-direction: column; gap: 2px; }
+.np-meta { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
 .np-meta h2 { margin: 0; font-size: 21px; line-height: 1.25; }
-.np-meta p { margin: 0; }
 .np-meta .eyebrow { margin-bottom: 4px; }
+
+/* Album e artista sono collegamenti alle rispettive pagine. Restano
+   visivamente quello che erano: cambia solo che si possono toccare. */
+.np-link {
+  padding: 6px 0;
+  text-align: left;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.np-link:active { opacity: 0.55; }
+.np-artist { font-size: 15px; color: var(--dim); }
+.np-artist:hover { color: var(--text); }
 
 /* margin-top:auto spinge avanzamento, comandi e volume in fondo: la
    copertina resta in alto e lo spazio in eccesso va tutto in mezzo. */
