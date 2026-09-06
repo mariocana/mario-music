@@ -431,10 +431,13 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
   .pb-progress { order: -1; width: 100%; }
   .pb-progress .t { font-size: 10px; min-width: 32px; }
   .pb-now { flex: 1; order: 0; }
-  .pb-buttons { order: 1; gap: 8px; }
-  /* Casuale e ripeti restano solo su schermo grande. */
-  .pb-buttons .icon:first-child,
-  .pb-buttons .icon:last-child { display: none; }
+  /* Tutti e cinque i comandi anche al telefono: lo shuffle è proprio quello
+     che si usa di più in mobilità. Ci stanno rimpicciolendo le icone. */
+  .pb-buttons { order: 1; gap: 3px; }
+  .pb-buttons .icon { padding: 8px; }
+  .pb-buttons .icon svg { width: 17px; height: 17px; }
+  .pb-buttons .icon.big svg { width: 23px; height: 23px; }
+  .pb-now { gap: 8px; }
   .pb-right { display: none; }
   .playerbar-idle { padding: 12px; font-size: 13px; }
 }
