@@ -88,6 +88,44 @@ function tag(tags: Record<string, string> | undefined, ...names: string[]): stri
   return undefined;
 }
 
+/** Cartelle tipo "CD1", "Disc 2", "Disco 03": non sono album, sono dischi. */
+const DISC_FOLDER = /^(?:cd|disc|disco|disk)\s*[-_]?\s*(\d{1,2})$/i;
+
+/**
+ * Ricava album, artista e numero di disco dalla posizione del file.
+ *
+ * Serve solo come ripiego, quando i tag non dicono niente: i tag vincono
+ * sempre. La disposizione supportata è quella reale della libreria —
+ * file sciolti nella radice, oppure una cartella per album:
+ *
+ *   library/canzone.mp3                  → nessun album: "Singoli"
+ *   library/Album/01 brano.mp3           → album = "Album"
+ *   library/Album/CD2/01 brano.mp3       → album = "Album", disco 2
+ *   library/Artista/Album/01 brano.mp3   → anche questa, se la usi
+ *
+ * La versione precedente dava per scontato `Artista/Album/file` e risaliva
+ * sempre di due livelli: sui file sciolti finiva per chiamare l'album
+ * "library" e l'artista "media", cioè pezzi del percorso del progetto.
+ */
+function fromPath(file: string): { album: string; artist?: string; disc?: number } {
+  const relative = path.relative(LIBRARY, path.dirname(file));
+  const parts = relative === '' || relative === '.' ? [] : relative.split(path.sep);
+
+  let disc: number | undefined;
+  const last = parts.at(-1);
+  const match = last ? DISC_FOLDER.exec(last) : null;
+  if (match) {
+    disc = Number(match[1]);
+    parts.pop();
+  }
+
+  if (parts.length === 0) return { album: 'Singoli', disc };
+
+  // "Nome album (2014)" → "Nome album"
+  const album = parts.at(-1)!.replace(/\s*[([]\d{4}[)\]]\s*$/, '').trim();
+  return { album: album || 'Singoli', artist: parts.at(-2), disc };
+}
+
 /** "3/12" → 3, "07" → 7, "" → undefined */
 function num(value: string | undefined): number | undefined {
   if (!value) return undefined;
@@ -226,13 +264,12 @@ export async function scanLibrary(onFile?: (line: string) => void): Promise<Scan
     const tags = info.format?.tags;
     const audio = info.streams?.find((s) => s.codec_type === 'audio');
 
-    // Nomi delle cartelle come ripiego: <libreria>/<artista>/<album>/<file>
-    const dir = path.dirname(file);
-    const folderAlbum = path.basename(dir).replace(/\s*\(\d{4}\)\s*$/, '');
-    const folderArtist = path.basename(path.dirname(dir));
+    // I tag vincono; il percorso è solo il ripiego per i file senza metadati.
+    const fromFolder = fromPath(file);
 
-    const artistName = tag(tags, 'album_artist', 'albumartist', 'artist') ?? folderArtist ?? 'Artista sconosciuto';
-    const albumTitle = tag(tags, 'album') ?? folderAlbum ?? 'Album sconosciuto';
+    const artistName = tag(tags, 'album_artist', 'albumartist', 'artist')
+      ?? fromFolder.artist ?? 'Artista sconosciuto';
+    const albumTitle = tag(tags, 'album') ?? fromFolder.album;
     const title = tag(tags, 'title') ?? path.basename(file, path.extname(file));
     const year = num(tag(tags, 'date', 'year', 'originalyear'));
     const genre = tag(tags, 'genre');
@@ -245,7 +282,7 @@ export async function scanLibrary(onFile?: (line: string) => void): Promise<Scan
       aId,
       title,
       num(tag(tags, 'track', 'tracknumber')) ?? null,
-      num(tag(tags, 'disc', 'discnumber')) ?? 1,
+      num(tag(tags, 'disc', 'discnumber')) ?? fromFolder.disc ?? 1,
       Number(info.format?.duration ?? 0),
       file,
       st.size,

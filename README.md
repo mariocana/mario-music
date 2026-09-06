@@ -28,14 +28,20 @@ npm run build && npm run dev:server   # tutto su http://localhost:4000
 ## Come aggiungere la tua musica
 
 Metti i file in `media/library/`. Contano i tag dentro al file, non i nomi
-delle cartelle; queste servono solo come ripiego per i file senza metadati:
+delle cartelle; queste servono solo come ripiego per i file senza metadati.
+Puoi buttare dentro i file sciolti o raggrupparli per album, come preferisci:
 
 ```
 media/library/
+├── canzone.mp3                    → nessun album: finisce in "Singoli"
+├── Nome Album (2024)/
+│   ├── 01 - Titolo.mp3
+│   └── cover.jpg                  ← usata se la copertina non è nei tag
+├── Cofanetto/
+│   ├── CD1/ …                     → stesso album, disco 1
+│   └── CD2/ …                     → stesso album, disco 2
 └── Nome Artista/
-    └── Nome Album (2024)/
-        ├── 01 - Titolo.mp3
-        └── cover.jpg          ← usata se la copertina non è nei tag
+    └── Nome Album/ …              → anche questa disposizione va bene
 ```
 
 Poi `npm run scan`. È idempotente: confronta dimensione e data di modifica e
