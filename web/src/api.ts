@@ -34,6 +34,13 @@ export type Track = {
 export type AlbumDetail = Omit<Album, 'trackCount' | 'duration'> & { tracks: Track[] };
 export type Artist = { id: number; name: string; albumCount: number; trackCount: number };
 export type ArtistDetail = { id: number; name: string; albums: Album[] };
+export type LyricLine = { t: number; text: string };
+export type Lyrics = {
+  source: 'lrclib' | 'tag' | 'none';
+  synced: LyricLine[] | null;
+  plain: string | null;
+};
+
 export type Stats = { artists: number; albums: number; tracks: number; duration: number };
 
 async function get<T>(path: string): Promise<T> {
@@ -50,6 +57,7 @@ export const api = {
   artist: (id: number) => get<ArtistDetail>(`/api/artists/${id}`),
   tracks: () => get<Track[]>('/api/tracks'),
   search: (q: string) => get<Track[]>(`/api/search?q=${encodeURIComponent(q)}`),
+  lyrics: (trackId: number) => get<Lyrics>(`/api/tracks/${trackId}/lyrics`),
 };
 
 /**

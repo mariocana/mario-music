@@ -9,7 +9,8 @@ import { scanLibrary, LibraryMissingError } from '../server/scanner.ts';
 try {
   const r = await scanLibrary((line) => process.stdout.write(`${line}\n`));
   console.log(
-    `\nAggiunte ${r.added}, aggiornate ${r.updated}, invariate ${r.skipped}, rimosse ${r.removed}.` +
+    `\nAggiunte ${r.added}, aggiornate ${r.updated}, invariate ${r.skipped}, rimosse ${r.removed}` +
+    (r.failed ? `, saltate ${r.failed}` : '') + '.' +
     `\nIn libreria: ${r.total} tracce. (${(r.ms / 1000).toFixed(1)}s)`,
   );
 } catch (err) {

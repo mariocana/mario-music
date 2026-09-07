@@ -14,7 +14,7 @@
  */
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { readdir as readDir, unlink } from 'node:fs/promises';
 import { mkdir, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
@@ -107,7 +107,11 @@ const DISC_FOLDER = /^(?:cd|disc|disco|disk)\s*[-_]?\s*(\d{1,2})$/i;
  * sempre di due livelli: sui file sciolti finiva per chiamare l'album
  * "library" e l'artista "media", cioè pezzi del percorso del progetto.
  */
-function fromPath(file: string): { album: string; artist?: string; disc?: number } {
+export function fromPath(
+  file: string,
+  /** dice se una cartella contiene altre cartelle: serve a capire cos'è */
+  haSottocartelle: (dir: string) => boolean,
+): { album: string; artist?: string; disc?: number } {
   const relative = path.relative(LIBRARY, path.dirname(file));
   const parts = relative === '' || relative === '.' ? [] : relative.split(path.sep);
 
@@ -119,11 +123,29 @@ function fromPath(file: string): { album: string; artist?: string; disc?: number
     parts.pop();
   }
 
+  // Direttamente nella radice: un singolo che non appartiene a nessun album.
   if (parts.length === 0) return { album: 'Singoli', disc };
 
-  // "Nome album (2014)" → "Nome album"
-  const album = parts.at(-1)!.replace(/\s*[([]\d{4}[)\]]\s*$/, '').trim();
-  return { album: album || 'Singoli', artist: parts.at(-2), disc };
+  /** "Nome album (2014)" → "Nome album" */
+  const pulisci = (nome: string) => nome.replace(/\s*[([]\d{4}[)\]]\s*$/, '').trim();
+
+  if (parts.length === 1) {
+    // Una cartella sola è ambigua: può essere un album, oppure la cartella
+    // di un artista con dentro i suoi singoli. Le si distingue guardando se
+    // contiene altre cartelle — un artista ha dentro gli album, un album no.
+    //
+    // Tranne quando abbiamo appena scartato una cartella di disco: allora
+    // le sottocartelle sono i CD, e questa è un album per definizione.
+    // Senza questa eccezione un cofanetto diventerebbe un artista.
+    const dir = path.join(LIBRARY, ...parts);
+    if (disc === undefined && haSottocartelle(dir)) {
+      return { album: 'Singoli', artist: parts[0], disc };
+    }
+    return { album: pulisci(parts[0]) || 'Singoli', disc };
+  }
+
+  // Due o più livelli: .../Artista/Album/brano
+  return { album: pulisci(parts.at(-1)!) || 'Singoli', artist: parts.at(-2), disc };
 }
 
 /** "3/12" → 3, "07" → 7, "" → undefined */
@@ -185,6 +207,8 @@ export type ScanResult = {
   added: number;
   updated: number;
   skipped: number;
+  /** file saltati perché illeggibili o spariti durante lo scan */
+  failed: number;
   removed: number;
   total: number;
   /** millisecondi impiegati: utile per capire se lo scan periodico pesa */
@@ -223,14 +247,16 @@ export async function scanLibrary(onFile?: (line: string) => void): Promise<Scan
   const findTrack = db.prepare('SELECT id, size, mtime FROM tracks WHERE path = ?');
   const upsertTrack = db.prepare(`
     INSERT INTO tracks (album_id, artist_id, title, track_no, disc_no, duration,
-                        path, size, mtime, codec, mime, bitrate, sample_rate, channels)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        path, size, mtime, codec, mime, bitrate, sample_rate, channels,
+                        embedded_lyrics)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(path) DO UPDATE SET
       album_id = excluded.album_id, artist_id = excluded.artist_id,
       title = excluded.title, track_no = excluded.track_no, disc_no = excluded.disc_no,
       duration = excluded.duration, size = excluded.size, mtime = excluded.mtime,
       codec = excluded.codec, mime = excluded.mime, bitrate = excluded.bitrate,
-      sample_rate = excluded.sample_rate, channels = excluded.channels
+      sample_rate = excluded.sample_rate, channels = excluded.channels,
+      embedded_lyrics = excluded.embedded_lyrics
   `);
 
   function artistId(name: string): number {
@@ -246,12 +272,39 @@ export async function scanLibrary(onFile?: (line: string) => void): Promise<Scan
     return { id, cover_path: null };
   }
 
+  // Una readdir per cartella, non per file: la libreria ne ha un centinaio.
+  const cacheSottocartelle = new Map<string, boolean>();
+  const haSottocartelle = (dir: string): boolean => {
+    let risposta = cacheSottocartelle.get(dir);
+    if (risposta === undefined) {
+      try {
+        risposta = readdirSync(dir, { withFileTypes: true })
+          .some((e) => e.isDirectory() && !e.name.startsWith('.'));
+      } catch {
+        risposta = false;
+      }
+      cacheSottocartelle.set(dir, risposta);
+    }
+    return risposta;
+  };
+
   const seen = new Set<string>();
-  let added = 0, updated = 0, skipped = 0;
+  let added = 0, updated = 0, skipped = 0, failed = 0;
 
   for await (const file of walk(LIBRARY)) {
     seen.add(file);
-    const st = await stat(file);
+
+    let st;
+    try {
+      st = await stat(file);
+    } catch {
+      // Sparito fra l'elenco della cartella e adesso: capita di continuo
+      // mentre si riordina la libreria. Si toglie da `seen` così la pulizia
+      // finale lo rimuove anche dal database, e si va avanti.
+      seen.delete(file);
+      failed++;
+      continue;
+    }
     const mtime = Math.floor(st.mtimeMs);
 
     const existing = findTrack.get(file) as { id: number; size: number; mtime: number } | undefined;
@@ -260,12 +313,23 @@ export async function scanLibrary(onFile?: (line: string) => void): Promise<Scan
       continue;
     }
 
-    const info = await probe(file);
+    let info: Probe;
+    try {
+      info = await probe(file);
+    } catch (err) {
+      // File illeggibile o scomparso: si salta quello, non l'intera libreria.
+      // Se esiste ancora resta in `seen`, così una riga valida non viene
+      // cancellata per un errore momentaneo di lettura.
+      if (!existsSync(file)) seen.delete(file);
+      failed++;
+      onFile?.(`  ! ${path.basename(file)}: ${(err as Error).message.split('\n')[0]}`);
+      continue;
+    }
     const tags = info.format?.tags;
     const audio = info.streams?.find((s) => s.codec_type === 'audio');
 
     // I tag vincono; il percorso è solo il ripiego per i file senza metadati.
-    const fromFolder = fromPath(file);
+    const fromFolder = fromPath(file, haSottocartelle);
 
     const artistName = tag(tags, 'album_artist', 'albumartist', 'artist')
       ?? fromFolder.artist ?? 'Artista sconosciuto';
@@ -292,6 +356,14 @@ export async function scanLibrary(onFile?: (line: string) => void): Promise<Scan
       Number(info.format?.bit_rate ?? 0) || null,
       Number(audio?.sample_rate ?? 0) || null,
       audio?.channels ?? null,
+      // I testi nei tag si chiamano in mille modi diversi ("lyrics-XXX",
+      // "unsyncedlyrics", "USLT"): si prende il primo campo che contiene
+      // "lyric" nel nome. Non sono sincronizzati, servono da ripiego.
+      (() => {
+        const chiave = Object.keys(tags ?? {}).find((k) => /lyric/i.test(k));
+        const testo = chiave ? tags![chiave] : undefined;
+        return testo?.trim() || null;
+      })(),
     );
 
     if (existing) updated++; else added++;
@@ -345,5 +417,5 @@ export async function scanLibrary(onFile?: (line: string) => void): Promise<Scan
   const total = (db.prepare('SELECT COUNT(*) AS n FROM tracks').get() as { n: number }).n;
   db.close();
 
-  return { added, updated, skipped, removed: gone.length, total, ms: Date.now() - startedAt };
+  return { added, updated, skipped, failed, removed: gone.length, total, ms: Date.now() - startedAt };
 }

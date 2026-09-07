@@ -53,6 +53,13 @@ type PlayerApi = PlayerState & {
   next: () => void;
   previous: () => void;
   seek: (seconds: number) => void;
+  /**
+   * Tempo corrente letto direttamente dall'elemento audio.
+   * `currentTime` nello stato si aggiorna ~4 volte al secondo (è la cadenza
+   * dell'evento timeupdate): abbastanza per una barra, troppo poco per far
+   * scorrere un testo a tempo senza scatti.
+   */
+  getTime: () => number;
   setVolume: (v: number) => void;
   toggleMute: () => void;
   toggleShuffle: () => void;
@@ -316,6 +323,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         return { ...s, queue: q, index };
       });
     },
+    getTime: () => audioRef.current?.currentTime ?? 0,
     seek: (seconds) => {
       const audio = audioRef.current;
       if (!audio) return;

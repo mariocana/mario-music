@@ -17,11 +17,12 @@ import { Cover } from './Cover.tsx';
 import { Icon } from './Icon.tsx';
 import { Scrubber } from './PlayerBar.tsx';
 import { QueueList, useQueueSummary } from './QueuePanel.tsx';
+import { Lyrics } from './Lyrics.tsx';
 
 /** Oltre questi pixel trascinati verso il basso, la schermata si chiude. */
 const SOGLIA_CHIUSURA = 110;
 
-type Faccia = 'brano' | 'coda';
+type Faccia = 'brano' | 'coda' | 'testo';
 
 export function NowPlaying({ faccia, onFaccia, onClose }: {
   faccia: Faccia;
@@ -44,7 +45,7 @@ export function NowPlaying({ faccia, onFaccia, onClose }: {
 
   const iniziaTrascinamento = (e: React.PointerEvent) => {
     // Non si trascina partendo da un comando: quelli hanno il loro gesto.
-    if ((e.target as HTMLElement).closest('button, .scrubber, .np-queue')) return;
+    if ((e.target as HTMLElement).closest('button, .scrubber, .np-foot, .ly')) return;
     partenza.current = e.clientY;
   };
 
@@ -156,6 +157,10 @@ export function NowPlaying({ faccia, onFaccia, onClose }: {
             <Icon name="volume" size={17} />
           </div>
         </div>
+      ) : faccia === 'testo' ? (
+        <div className="np-body np-body-testo">
+          <Lyrics />
+        </div>
       ) : (
         <div className="np-body np-body-queue">
           <div className="np-queue-head">
@@ -168,7 +173,13 @@ export function NowPlaying({ faccia, onFaccia, onClose }: {
 
       <footer className="np-foot">
         <button
-          className={`icon np-queue ${faccia === 'coda' ? 'on' : ''}`}
+          className={`icon ${faccia === 'testo' ? 'on' : ''}`}
+          onClick={() => onFaccia(faccia === 'testo' ? 'brano' : 'testo')}
+          aria-pressed={faccia === 'testo'}
+          title="Testo"
+        ><Icon name="lyrics" size={20} /></button>
+        <button
+          className={`icon ${faccia === 'coda' ? 'on' : ''}`}
           onClick={() => onFaccia(faccia === 'coda' ? 'brano' : 'coda')}
           aria-pressed={faccia === 'coda'}
           title="Coda di riproduzione"

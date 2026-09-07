@@ -21,7 +21,7 @@ export function App() {
   const [queueOpen, setQueueOpen] = useState(false);
   // Su mobile la coda non è una colonna ma una faccia della schermata piena.
   const isMobile = useIsMobile();
-  const [sheet, setSheet] = useState<'chiusa' | 'brano' | 'coda'>('chiusa');
+  const [sheet, setSheet] = useState<'chiusa' | 'brano' | 'coda' | 'testo'>('chiusa');
   const library = useLibrary();
   const { data: stats } = useAsync(() => api.stats(), [library.revision]);
   const player = usePlayer();
@@ -119,7 +119,7 @@ export function App() {
 
         {isMobile && sheet !== 'chiusa' && (
           <NowPlaying
-            faccia={sheet === 'coda' ? 'coda' : 'brano'}
+            faccia={sheet}
             onFaccia={(f) => setSheet(f)}
             onClose={() => setSheet('chiusa')}
           />

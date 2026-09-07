@@ -8,10 +8,12 @@
  * Il riordino è a frecce e non a trascinamento: il drag-and-drop HTML non
  * funziona al tocco, e questa app si usa soprattutto dal telefono.
  */
+import { useState } from 'react';
 import { formatTime } from '../api.ts';
 import { usePlayer } from '../player.tsx';
 import { Cover } from './Cover.tsx';
 import { Icon } from './Icon.tsx';
+import { Lyrics } from './Lyrics.tsx';
 
 /** Riepilogo testuale della coda, condiviso da pannello e schermata piena. */
 export function useQueueSummary(): string {
@@ -64,21 +66,39 @@ export function QueueList() {
   );
 }
 
+/** La colonna di destra su desktop: coda e testo, due schede sullo stesso spazio. */
 export function QueuePanel({ onClose }: { onClose: () => void }) {
+  const [scheda, setScheda] = useState<'coda' | 'testo'>('coda');
   const riepilogo = useQueueSummary();
 
   return (
-    <aside className="queue" aria-label="Coda di riproduzione">
+    <aside className="queue" aria-label={scheda === 'coda' ? 'Coda di riproduzione' : 'Testo del brano'}>
       <header className="queue-head">
-        <div>
-          <h2>In riproduzione</h2>
-          <span className="dim">{riepilogo}</span>
+        <div className="queue-tabs">
+          <button
+            className={`queue-tab ${scheda === 'coda' ? 'is-attiva' : ''}`}
+            onClick={() => setScheda('coda')}
+            aria-pressed={scheda === 'coda'}
+          >In riproduzione</button>
+          <button
+            className={`queue-tab ${scheda === 'testo' ? 'is-attiva' : ''}`}
+            onClick={() => setScheda('testo')}
+            aria-pressed={scheda === 'testo'}
+          >Testo</button>
         </div>
-        <button className="icon" onClick={onClose} title="Chiudi la coda" aria-label="Chiudi la coda">
+        <button className="icon" onClick={onClose} title="Chiudi" aria-label="Chiudi il pannello">
           <Icon name="close" />
         </button>
       </header>
-      <QueueList />
+
+      {scheda === 'coda' ? (
+        <>
+          <p className="queue-riepilogo dim">{riepilogo}</p>
+          <QueueList />
+        </>
+      ) : (
+        <div className="queue-testo"><Lyrics /></div>
+      )}
     </aside>
   );
 }

@@ -16,6 +16,7 @@ import path from 'node:path';
 import { openDb } from './db.ts';
 import { sendFile } from './stream.ts';
 import { scanLibrary, LibraryMissingError } from './scanner.ts';
+import { getLyrics } from './lyrics.ts';
 
 const PORT = Number(process.env.PORT ?? 4000);
 // Ogni quanti minuti ripassare la libreria. 0 disattiva il ripasso automatico.
@@ -226,6 +227,13 @@ get(/^\/api\/albums\/(\d+)\/cover$/, async (req, res, [id]) => {
     contentType: 'image/jpeg',
     cacheControl: 'private, max-age=31536000, immutable',
   });
+});
+
+// Testi: risolti al volo alla prima richiesta, poi serviti dalla cache in DB.
+get(/^\/api\/tracks\/(\d+)\/lyrics$/, async (_req, res, [id]) => {
+  const result = await getLyrics(db, Number(id));
+  if (!result) return json(res, 404, { error: 'Traccia non trovata' });
+  json(res, 200, result);
 });
 
 // Lo streaming vero e proprio.

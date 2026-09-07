@@ -49,6 +49,17 @@ CREATE TABLE IF NOT EXISTS tracks (
   channels    INTEGER
 );
 
+-- Testi: una riga per traccia, popolata su richiesta e poi riusata.
+-- Si registrano anche i tentativi a vuoto (source = 'none'), altrimenti
+-- ogni apertura del pannello richiederebbe di nuovo la stessa canzone.
+CREATE TABLE IF NOT EXISTS lyrics (
+  track_id   INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
+  synced     TEXT,
+  plain      TEXT,
+  source     TEXT NOT NULL,
+  fetched_at INTEGER NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_tracks_album  ON tracks(album_id, disc_no, track_no);
 CREATE INDEX IF NOT EXISTS idx_tracks_artist ON tracks(artist_id);
 CREATE INDEX IF NOT EXISTS idx_albums_artist ON albums(artist_id);
@@ -66,6 +77,7 @@ export function openDb(): DatabaseSync {
 
   // Migrazione per i database creati prima che cover_key esistesse.
   try { db.exec('ALTER TABLE albums ADD COLUMN cover_key TEXT'); } catch { /* già presente */ }
+  try { db.exec('ALTER TABLE tracks ADD COLUMN embedded_lyrics TEXT'); } catch { /* già presente */ }
 
   return db;
 }

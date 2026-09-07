@@ -66,6 +66,7 @@ Formati riconosciuti: mp3, m4a/aac, flac, ogg/opus, wav, aiff.
 scripts/seed.ts   genera una libreria finta con ffmpeg (accordi sintetizzati)
 scripts/scan.ts   il comando `npm run scan`, un guscio sopra lo scanner
 server/scanner.ts ffprobe → tag e durata → SQLite; estrae le copertine
+server/lyrics.ts  testi da LRCLIB, con ripiego sui tag del file
 server/db.ts      schema: artists → albums → tracks
 server/stream.ts  invio dei file con HTTP Range (il cuore dello streaming)
 server/index.ts   server node:http nudo: API JSON + streaming
@@ -147,6 +148,22 @@ schermata "Scaricati" mostra se la richiesta è stata accolta). I download sono
 legati a quel browser su quel dispositivo: non è una libreria sincronizzata, e
 non c'è nessun DRM.
 
+## Testi
+
+Il pannello dei testi li cerca su [LRCLIB](https://lrclib.net) alla prima
+apertura e poi li tiene in database, compresi i tentativi a vuoto (altrimenti
+ogni apertura rifarebbe la stessa richiesta di rete per una canzone che non
+c'è). Se LRCLIB non ha nulla, si ripiega sul testo nei tag del file, che però
+non è mai sincronizzato.
+
+Quando il testo ha i tempi, il verso in corso si evidenzia e toccarne uno salta
+a quel punto del brano. La posizione si legge da due fonti: `requestAnimation-
+Frame` per la fluidità, e l'evento `timeupdate` come rete di sicurezza, perché
+il primo viene sospeso quando la pagina non è in primo piano.
+
+Cosa esce dal tuo server: titolo, artista, album e durata del brano, verso
+lrclib.net. Nient'altro.
+
 ## Verificare a mano
 
 ```bash
@@ -157,8 +174,9 @@ curl -s -D - -o /dev/null -H "Range: bytes=0-99" localhost:4000/api/tracks/1/str
 
 - [x] **1. Fondamenta** — indicizzazione, catalogo, streaming con Range, player
 - [x] **2. Offline** — service worker, download dei brani, Range ricostruito dalla cache
-- [ ] **3. Transcodifica** — FLAC e formati esotici convertiti al volo per i browser che non li leggono
-- [ ] **4. Playlist e preferiti** — con riordino, e conteggio degli ascolti
-- [ ] **5. Ricerca seria** — SQLite FTS5 al posto di `LIKE`
+- [x] **3. Testi** — sincronizzati da LRCLIB, evidenziati riga per riga
+- [ ] **4. Transcodifica** — FLAC e formati esotici convertiti al volo per i browser che non li leggono
+- [ ] **5. Playlist e preferiti** — con riordino, e conteggio degli ascolti
+- [ ] **6. Ricerca seria** — SQLite FTS5 al posto di `LIKE`
 - [x] **6. Coda visibile** — pannello "in riproduzione", riordino, "riproduci dopo"
 - [ ] **7. Utenti** — login, libreria per utente, streaming autenticato
