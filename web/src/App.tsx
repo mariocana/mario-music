@@ -18,10 +18,12 @@ import { Icon } from './components/Icon.tsx';
 
 export function App() {
   const [view, setView] = useState<View>({ name: 'albums' });
-  const [queueOpen, setQueueOpen] = useState(false);
-  // Su mobile la coda non è una colonna ma una faccia della schermata piena.
+  // Un solo stato per entrambi i formati: su desktop 'coda' e 'testo' sono
+  // le due schede della colonna di destra, su mobile sono due facce della
+  // schermata piena (dove esiste anche 'brano', che su desktop non serve).
   const isMobile = useIsMobile();
-  const [sheet, setSheet] = useState<'chiusa' | 'brano' | 'coda' | 'testo'>('chiusa');
+  const [vista, setVista] = useState<'chiusa' | 'brano' | 'coda' | 'testo'>('chiusa');
+  const colonnaAperta = !isMobile && (vista === 'coda' || vista === 'testo');
   const library = useLibrary();
   const { data: stats } = useAsync(() => api.stats(), [library.revision]);
   const player = usePlayer();
@@ -50,7 +52,7 @@ export function App() {
 
   return (
     <NavContext.Provider value={nav}>
-      <div className={`app${queueOpen ? ' with-queue' : ''}`}>
+      <div className={`app${colonnaAperta ? ' with-queue' : ''}`}>
         <aside className="sidebar">
           <div className="brand">mario<span>music</span></div>
 
@@ -107,22 +109,22 @@ export function App() {
           </main>
         </div>
 
-        {!isMobile && queueOpen && <QueuePanel onClose={() => setQueueOpen(false)} />}
+        {colonnaAperta && (
+          <QueuePanel
+            scheda={vista === 'testo' ? 'testo' : 'coda'}
+            onScheda={setVista}
+            onClose={() => setVista('chiusa')}
+          />
+        )}
 
         <PlayerBar
-          queueOpen={isMobile ? sheet === 'coda' : queueOpen}
-          onToggleQueue={() => (isMobile
-            ? setSheet((s) => (s === 'coda' ? 'chiusa' : 'coda'))
-            : setQueueOpen((v) => !v))}
-          onExpand={isMobile ? () => setSheet('brano') : undefined}
+          vista={vista}
+          onVista={setVista}
+          onExpand={isMobile ? () => setVista('brano') : undefined}
         />
 
-        {isMobile && sheet !== 'chiusa' && (
-          <NowPlaying
-            faccia={sheet}
-            onFaccia={(f) => setSheet(f)}
-            onClose={() => setSheet('chiusa')}
-          />
+        {isMobile && vista !== 'chiusa' && (
+          <NowPlaying faccia={vista} onFaccia={setVista} onClose={() => setVista('chiusa')} />
         )}
       </div>
     </NavContext.Provider>

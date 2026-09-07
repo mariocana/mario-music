@@ -104,12 +104,14 @@ const STROKED: Partial<Record<IconName, React.ReactNode>> = {
     </>
   ),
   up: <path d="m6 15 6-6 6 6" />,
+  // Fumetto con due righe di testo: si distingue a colpo d'occhio dalle tre
+  // righe piene della coda, che altrimenti sarebbero quasi identiche.
   lyrics: (
     <>
-      <rect x="4" y="3" width="16" height="18" rx="2.5" />
-      <path d="M8 8.5h8" />
-      <path d="M8 12h8" />
-      <path d="M8 15.5h5" />
+      <rect x="3" y="4" width="18" height="13" rx="3.5" />
+      <path d="M9 17v3.4L13.2 17" />
+      <path d="M7.5 9h9" />
+      <path d="M7.5 12.5h5.5" />
     </>
   ),
   down: <path d="m6 9 6 6 6-6" />,

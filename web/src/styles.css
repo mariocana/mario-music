@@ -269,7 +269,7 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
 .pb-progress .t { font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; min-width: 38px; }
 .pb-progress .t:last-child { text-align: right; }
 
-.pb-right { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+.pb-right { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
 .pb-volume { width: 90px; }
 .pb-buffering { display: inline-flex; color: var(--dim); }
 
@@ -452,7 +452,7 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
     justify-content: flex-end;
     gap: 0;
   }
-  .pb-mute, .pb-volume, .pb-buffering { display: none; }
+  .pb-mute, .pb-volume, .pb-buffering, .pb-lyrics { display: none; }
   .playerbar-idle { padding: 12px; font-size: 13px; }
 }
 

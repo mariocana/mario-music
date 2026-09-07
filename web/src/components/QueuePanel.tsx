@@ -8,7 +8,6 @@
  * Il riordino è a frecce e non a trascinamento: il drag-and-drop HTML non
  * funziona al tocco, e questa app si usa soprattutto dal telefono.
  */
-import { useState } from 'react';
 import { formatTime } from '../api.ts';
 import { usePlayer } from '../player.tsx';
 import { Cover } from './Cover.tsx';
@@ -67,8 +66,11 @@ export function QueueList() {
 }
 
 /** La colonna di destra su desktop: coda e testo, due schede sullo stesso spazio. */
-export function QueuePanel({ onClose }: { onClose: () => void }) {
-  const [scheda, setScheda] = useState<'coda' | 'testo'>('coda');
+export function QueuePanel({ scheda, onScheda, onClose }: {
+  scheda: 'coda' | 'testo';
+  onScheda: (s: 'coda' | 'testo') => void;
+  onClose: () => void;
+}) {
   const riepilogo = useQueueSummary();
 
   return (
@@ -77,12 +79,12 @@ export function QueuePanel({ onClose }: { onClose: () => void }) {
         <div className="queue-tabs">
           <button
             className={`queue-tab ${scheda === 'coda' ? 'is-attiva' : ''}`}
-            onClick={() => setScheda('coda')}
+            onClick={() => onScheda('coda')}
             aria-pressed={scheda === 'coda'}
           >In riproduzione</button>
           <button
             className={`queue-tab ${scheda === 'testo' ? 'is-attiva' : ''}`}
-            onClick={() => setScheda('testo')}
+            onClick={() => onScheda('testo')}
             aria-pressed={scheda === 'testo'}
           >Testo</button>
         </div>

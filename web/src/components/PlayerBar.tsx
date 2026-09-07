@@ -51,9 +51,11 @@ export function Scrubber({ value, max, buffered = 0, onSeek, ariaLabel }: {
   );
 }
 
-export function PlayerBar({ queueOpen, onToggleQueue, onExpand }: {
-  queueOpen: boolean;
-  onToggleQueue: () => void;
+export type Vista = 'chiusa' | 'brano' | 'coda' | 'testo';
+
+export function PlayerBar({ vista, onVista, onExpand }: {
+  vista: Vista;
+  onVista: (v: Vista) => void;
   /** su mobile: apre la schermata piena; su desktop non viene passata */
   onExpand?: () => void;
 }) {
@@ -64,8 +66,8 @@ export function PlayerBar({ queueOpen, onToggleQueue, onExpand }: {
       <footer className="playerbar playerbar-idle">
         <span>Scegli un brano per iniziare</span>
         <button
-          className={`icon ${queueOpen ? 'on' : ''}`}
-          onClick={onToggleQueue}
+          className={`icon ${vista === 'coda' ? 'on' : ''}`}
+          onClick={() => onVista(vista === 'coda' ? 'chiusa' : 'coda')}
           title="Coda di riproduzione"
         ><Icon name="queue" /></button>
       </footer>
@@ -125,9 +127,15 @@ export function PlayerBar({ queueOpen, onToggleQueue, onExpand }: {
       <div className="pb-right">
         {p.isLoading && <span className="pb-buffering" title="In caricamento"><Icon name="spinner" size={15} /></span>}
         <button
-          className={`icon pb-queue ${queueOpen ? 'on' : ''}`}
-          onClick={onToggleQueue}
-          aria-pressed={queueOpen}
+          className={`icon pb-lyrics ${vista === 'testo' ? 'on' : ''}`}
+          onClick={() => onVista(vista === 'testo' ? 'chiusa' : 'testo')}
+          aria-pressed={vista === 'testo'}
+          title="Testo"
+        ><Icon name="lyrics" /></button>
+        <button
+          className={`icon pb-queue ${vista === 'coda' ? 'on' : ''}`}
+          onClick={() => onVista(vista === 'coda' ? 'chiusa' : 'coda')}
+          aria-pressed={vista === 'coda'}
           title="Coda di riproduzione"
         ><Icon name="queue" /></button>
         <button className="icon pb-mute" onClick={p.toggleMute} title="Muto">

@@ -156,6 +156,10 @@ ogni apertura rifarebbe la stessa richiesta di rete per una canzone che non
 c'è). Se LRCLIB non ha nulla, si ripiega sul testo nei tag del file, che però
 non è mai sincronizzato.
 
+Su telefono il testo è una delle facce della schermata piena del player
+(pulsante 📄); su desktop è una scheda della colonna di destra, accanto a
+"In riproduzione" — si apre con il pulsante della coda nella barra.
+
 Quando il testo ha i tempi, il verso in corso si evidenzia e toccarne uno salta
 a quel punto del brano. La posizione si legge da due fonti: `requestAnimation-
 Frame` per la fluidità, e l'evento `timeupdate` come rete di sicurezza, perché
