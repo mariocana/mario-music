@@ -39,12 +39,15 @@ export type PlaylistSummary = {
   name: string;
   trackCount: number;
   duration: number;
+  /** copertina scelta dall'utente; se manca si ripiega sul mosaico */
+  coverKey: string | null;
   covers: Array<{ albumId: number; coverKey: string | null }>;
 };
 
 export type PlaylistDetail = {
   id: number;
   name: string;
+  coverKey: string | null;
   /** ogni traccia porta la sua posizione: serve per riordino e rimozione */
   tracks: Array<Track & { position: number }>;
 };
@@ -103,6 +106,10 @@ export async function send<T>(path: string, method: 'POST' | 'PATCH' | 'DELETE',
 
 export const coverUrl = (albumId: number, coverKey?: string | null) =>
   `/api/albums/${albumId}/cover${coverKey ? `?v=${coverKey}` : ''}`;
+
+/** Stessa regola delle copertine degli album: l'impronta sta nell'URL. */
+export const playlistCoverUrl = (playlistId: number, coverKey: string) =>
+  `/api/playlists/${playlistId}/cover?v=${coverKey}`;
 export const streamUrl = (trackId: number) => `/api/tracks/${trackId}/stream`;
 
 /** 214 → "3:34" ; 5400 → "1:30:00" */

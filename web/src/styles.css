@@ -659,6 +659,20 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
   font-size: 13px;
 }
 
+/*
+ * In fondo allo schermo stretto c'è la barra schede, non la colonna: l'elenco
+ * delle playlist lì diventava una scheda per ogni playlist, e con un nome
+ * lungo sfondava — allargando l'intera griglia e spingendo fuori anche il
+ * resto della pagina (il pulsante "Crea", per dirne una).
+ *
+ * La regola sta qui e non nel blocco mobile più in alto perché una media
+ * query NON aumenta la specificità: da lassù avrebbe perso contro il
+ * `display: flex` qui sopra per semplice ordine di sorgente.
+ */
+@media (max-width: 700px) {
+  .nav-playlists { display: none; }
+}
+
 .playlist-nuova { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
 .playlist-nuova .search { flex: 1; min-width: 180px; max-width: 340px; }
 
@@ -740,4 +754,29 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
      serve comunque una colonna in più, quindi si stringe il resto. */
   .tracklist.has-extra .track { grid-template-columns: 24px 1fr 26px 40px 28px auto; }
   .menu { width: min(280px, calc(100vw - 24px)); }
+}
+
+/* ── copertina della playlist ── */
+.playlist-head { display: flex; gap: 24px; align-items: flex-start; }
+.playlist-testa-dati { flex: 1; min-width: 0; }
+.playlist-copertina { display: flex; flex-direction: column; gap: 10px; flex: none; }
+.playlist-copertina .cover-lg { border-radius: var(--radius); }
+.playlist-copertina-azioni { display: flex; gap: 8px; }
+/* La <label> fa da pulsante: un input file nudo non si può stilare. */
+.playlist-copertina-azioni label {
+  padding: 6px 12px;
+  border-radius: 7px;
+  background: var(--bg-hover);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.playlist-copertina-azioni label:hover { background: var(--line); }
+.playlist-errore { margin: 0; font-size: 12px; max-width: 210px; }
+
+@media (max-width: 700px) {
+  .playlist-head { flex-direction: column; align-items: center; text-align: center; }
+  .playlist-copertina { align-items: center; }
+  .playlist-testa-dati { width: 100%; }
+  .playlist-head .albumhead-actions { justify-content: center; }
 }

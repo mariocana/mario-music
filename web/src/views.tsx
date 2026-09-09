@@ -1,6 +1,6 @@
 /** Le schermate: griglia album, dettaglio album, artisti, brani, ricerca. */
 import { useState } from 'react';
-import { api, formatLength, formatTime } from './api.ts';
+import { api, formatLength, formatTime, playlistCoverUrl } from './api.ts';
 import type { Album, PlaylistSummary } from './api.ts';
 import { useAsync } from './useAsync.ts';
 import { useNavigate } from './nav.tsx';
@@ -241,8 +241,20 @@ export function DownloadsView() {
 
 /* ─────────────────────────── playlist ─────────────────────────── */
 
-/** Fino a quattro copertine a mosaico: dà un'identità visiva alla playlist. */
-function Mosaico({ covers, name }: { covers: PlaylistSummary['covers']; name: string }) {
+/**
+ * L'immagine di una playlist, in ordine di preferenza: la copertina caricata
+ * dall'utente, poi un mosaico dei primi quattro album, poi una copertina
+ * sola, infine l'iniziale del nome.
+ */
+function Mosaico({ id, covers, name, coverKey }: {
+  id: number;
+  covers: PlaylistSummary['covers'];
+  name: string;
+  coverKey: string | null;
+}) {
+  if (coverKey) {
+    return <img className="cover cover-md" src={playlistCoverUrl(id, coverKey)} alt="" loading="lazy" />;
+  }
   if (covers.length === 0) {
     return <div className="cover cover-md cover-empty" aria-hidden><span>{name.slice(0, 1).toUpperCase()}</span></div>;
   }
@@ -294,7 +306,7 @@ export function PlaylistsView() {
         <div className="grid">
           {playlists.items.map((p) => (
             <button key={p.id} className="albumcard" onClick={() => navigate({ name: 'playlist', id: p.id })}>
-              <Mosaico covers={p.covers} name={p.name} />
+              <Mosaico id={p.id} covers={p.covers} name={p.name} coverKey={p.coverKey} />
               <span className="albumcard-title">{p.name}</span>
               <span className="albumcard-sub">
                 {p.trackCount} {p.trackCount === 1 ? 'brano' : 'brani'}
@@ -315,6 +327,7 @@ export function PlaylistDetailView({ id }: { id: number }) {
   // La revisione del context fa ricaricare dopo ogni modifica.
   const { data, error, loading } = useAsync(() => api.playlist(id), [id, playlists.revision]);
   const [rinomina, setRinomina] = useState<string | null>(null);
+  const [erroreCopertina, setErroreCopertina] = useState<string | null>(null);
 
   if (loading) return <Loading />;
   if (error) return <Failure message={error} />;
@@ -325,6 +338,47 @@ export function PlaylistDetailView({ id }: { id: number }) {
   return (
     <>
       <header className="playlist-head">
+        <div className="playlist-copertina">
+          {data.coverKey ? (
+            <img className="cover cover-lg" src={playlistCoverUrl(id, data.coverKey)} alt="" />
+          ) : (
+            <div className="cover cover-lg cover-empty" aria-hidden>
+              <span>{data.name.slice(0, 1).toUpperCase()}</span>
+            </div>
+          )}
+
+          <div className="playlist-copertina-azioni">
+            {/* Un input file nudo non si può stilare: lo si nasconde e si
+                usa la sua <label> come pulsante. */}
+            <label className="ghost">
+              {data.coverKey ? 'Cambia immagine' : 'Scegli immagine'}
+              <input
+                type="file"
+                accept="image/*"
+                hidden
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  // Si azzera subito: senza, ricaricare lo stesso file non
+                  // scatenerebbe un nuovo change.
+                  e.target.value = '';
+                  if (!file) return;
+                  setErroreCopertina(null);
+                  try {
+                    await playlists.setCover(id, file);
+                  } catch (err) {
+                    setErroreCopertina(err instanceof Error ? err.message : 'Caricamento fallito');
+                  }
+                }}
+              />
+            </label>
+            {data.coverKey && (
+              <button className="ghost" onClick={() => void playlists.clearCover(id)}>Rimuovi</button>
+            )}
+          </div>
+          {erroreCopertina && <p className="hint error playlist-errore">{erroreCopertina}</p>}
+        </div>
+
+        <div className="playlist-testa-dati">
         {rinomina === null ? (
           <h1>{data.name}</h1>
         ) : (
@@ -373,6 +427,7 @@ export function PlaylistDetailView({ id }: { id: number }) {
               navigate({ name: 'playlists' });
             }}
           >Elimina</button>
+        </div>
         </div>
       </header>
 

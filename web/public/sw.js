@@ -192,8 +192,10 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Copertine: immutabili finché non rifai lo scan.
-  if (/^\/api\/albums\/\d+\/cover$/.test(url.pathname)) {
+  // Copertine di album e playlist: l'URL porta l'impronta del contenuto,
+  // quindi una copertina cambiata è un indirizzo diverso e tenere la vecchia
+  // in cache per sempre non fa danni.
+  if (/^\/api\/(albums|playlists)\/\d+\/cover$/.test(url.pathname)) {
     event.respondWith(cacheFirst(request, API));
     return;
   }

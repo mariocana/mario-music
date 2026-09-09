@@ -155,6 +155,18 @@ Si creano dalla sezione Playlist o dal menù ⋯ di un brano o di un album, che
 permette anche di crearne una nuova al volo. Dentro una playlist i brani si
 riordinano con le frecce e si tolgono con la ✕.
 
+Ogni playlist può avere una **copertina scelta da te**: "Scegli immagine"
+nella sua pagina. L'immagine passa per ffmpeg, che la normalizza in un JPEG
+quadrato da 640px e fa anche da controllo — se non riesce a decodificarla, non
+era un'immagine e il caricamento viene rifiutato. Senza copertina si vede un
+mosaico dei primi quattro album.
+
+Il file è nominato con l'impronta del suo contenuto, non con l'id della
+playlist: così cambiando immagine cambia anche l'URL, e nessuna cache può
+servirti quella vecchia. Cambiando o togliendo la copertina, il file vecchio
+viene cancellato — ma solo se nessun'altra playlist lo usa, perché due
+playlist con la stessa immagine condividono lo stesso file.
+
 L'ordine sta in una colonna `position` tenuta sempre contigua. Le riscritture
 cancellano e reinseriscono le righe dentro una transazione invece di
 aggiornarle una a una: la chiave primaria è `(playlist, posizione)`, quindi

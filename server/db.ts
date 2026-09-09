@@ -68,7 +68,10 @@ CREATE TABLE IF NOT EXISTS playlists (
   id         INTEGER PRIMARY KEY,
   name       TEXT NOT NULL,
   created_at INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
+  updated_at INTEGER NOT NULL,
+  -- copertina scelta dall'utente; se manca si usa il mosaico degli album
+  cover_path TEXT,
+  cover_key  TEXT
 );
 
 CREATE TABLE IF NOT EXISTS playlist_tracks (
@@ -98,6 +101,8 @@ export function openDb(): DatabaseSync {
   // Migrazione per i database creati prima che cover_key esistesse.
   try { db.exec('ALTER TABLE albums ADD COLUMN cover_key TEXT'); } catch { /* già presente */ }
   try { db.exec('ALTER TABLE tracks ADD COLUMN embedded_lyrics TEXT'); } catch { /* già presente */ }
+  try { db.exec('ALTER TABLE playlists ADD COLUMN cover_path TEXT'); } catch { /* già presente */ }
+  try { db.exec('ALTER TABLE playlists ADD COLUMN cover_key TEXT'); } catch { /* già presente */ }
 
   return db;
 }

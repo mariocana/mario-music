@@ -19,7 +19,7 @@ import { scanLibrary, LibraryMissingError } from './scanner.ts';
 import { getLyrics } from './lyrics.ts';
 import {
   listPlaylists, getPlaylist, createPlaylist, renamePlaylist, deletePlaylist,
-  addTracks, removeAt, moveTrack,
+  addTracks, removeAt, moveTrack, setCover, clearCover, coverFile,
 } from './playlists.ts';
 
 const PORT = Number(process.env.PORT ?? 4000);
@@ -172,6 +172,23 @@ async function readJson(req: IncomingMessage, maxBytes = 256 * 1024): Promise<un
   return JSON.parse(Buffer.concat(pezzi).toString('utf8'));
 }
 
+/**
+ * Legge il corpo grezzo di una richiesta (l'immagine di una copertina).
+ *
+ * Si carica il file da solo nel corpo, senza multipart: non c'è niente altro
+ * da mandare, e evita di scrivere un parser per una sola richiesta.
+ */
+async function readBinary(req: IncomingMessage, maxBytes = 10 * 1024 * 1024): Promise<Buffer> {
+  const pezzi: Buffer[] = [];
+  let totale = 0;
+  for await (const pezzo of req) {
+    totale += (pezzo as Buffer).length;
+    if (totale > maxBytes) throw new Error('Immagine troppo grande');
+    pezzi.push(pezzo as Buffer);
+  }
+  return Buffer.concat(pezzi);
+}
+
 /** Nome di playlist accettabile: non vuoto e non spropositato. */
 function nomeValido(valore: unknown): string | null {
   if (typeof valore !== 'string') return null;
@@ -307,6 +324,43 @@ patch(/^\/api\/playlists\/(\d+)\/tracks$/, async (req, res, [id]) => {
     return json(res, 400, { error: 'Servono "from" e "to"' });
   }
   if (!moveTrack(db, Number(id), from, to)) return json(res, 404, { error: 'Posizione non valida' });
+  json(res, 200, { ok: true });
+});
+
+// Copertina della playlist: come quella degli album, l'URL porta ?v=<impronta>
+// del contenuto, quindi può restare in cache per sempre senza rischi.
+get(/^\/api\/playlists\/(\d+)\/cover$/, async (req, res, [id]) => {
+  const file = coverFile(db, Number(id));
+  if (!file) return json(res, 404, { error: 'Nessuna copertina' });
+  sendFile(req, res, file, await stat(file), {
+    contentType: 'image/jpeg',
+    cacheControl: 'private, max-age=31536000, immutable',
+  });
+});
+
+post(/^\/api\/playlists\/(\d+)\/cover$/, async (req, res, [id]) => {
+  let dati: Buffer;
+  try {
+    dati = await readBinary(req);
+  } catch (err) {
+    return json(res, 413, { error: (err as Error).message });
+  }
+  if (dati.length === 0) return json(res, 400, { error: 'Nessuna immagine ricevuta' });
+
+  const key = await setCover(db, Number(id), dati);
+  if (key === null) {
+    // setCover torna null sia se la playlist non c'è sia se ffmpeg non è
+    // riuscito a leggere il file: si distingue guardando la playlist.
+    const esiste = getPlaylist(db, Number(id));
+    return esiste
+      ? json(res, 400, { error: "Il file non sembra un'immagine leggibile" })
+      : json(res, 404, { error: 'Playlist non trovata' });
+  }
+  json(res, 200, { coverKey: key });
+});
+
+del(/^\/api\/playlists\/(\d+)\/cover$/, (_req, res, [id]) => {
+  if (!clearCover(db, Number(id))) return json(res, 404, { error: 'Playlist non trovata' });
   json(res, 200, { ok: true });
 });
 

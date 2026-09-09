@@ -23,6 +23,8 @@ type PlaylistsApi = {
   remove: (id: number) => Promise<void>;
   addTracks: (id: number, trackIds: number[]) => Promise<number>;
   removeAt: (id: number, position: number) => Promise<void>;
+  setCover: (id: number, file: File) => Promise<void>;
+  clearCover: (id: number) => Promise<void>;
   move: (id: number, from: number, to: number) => Promise<void>;
 };
 
@@ -81,6 +83,19 @@ export function PlaylistsProvider({ children }: { children: ReactNode }) {
     },
     removeAt: async (id, position) => {
       await send(`/api/playlists/${id}/tracks/${position}`, 'DELETE');
+      await dopoModifica();
+    },
+    setCover: async (id, file) => {
+      // Il file va nel corpo così com'è: niente multipart, non c'è altro da mandare.
+      const res = await fetch(`/api/playlists/${id}/cover`, { method: 'POST', body: file });
+      if (!res.ok) {
+        const dettaglio = await res.json().catch(() => null) as { error?: string } | null;
+        throw new Error(dettaglio?.error ?? `HTTP ${res.status}`);
+      }
+      await dopoModifica();
+    },
+    clearCover: async (id) => {
+      await send(`/api/playlists/${id}/cover`, 'DELETE');
       await dopoModifica();
     },
     move: async (id, from, to) => {
