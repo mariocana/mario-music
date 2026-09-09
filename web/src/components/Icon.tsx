@@ -15,7 +15,8 @@ export type IconName =
   | 'shuffle' | 'repeat' | 'repeatOne'
   | 'volume' | 'mute'
   | 'download' | 'check' | 'refresh' | 'spinner'
-  | 'queue' | 'queueNext' | 'close' | 'up' | 'down' | 'lyrics';
+  | 'queue' | 'queueNext' | 'close' | 'up' | 'down' | 'lyrics'
+  | 'more' | 'plus' | 'playlist' | 'trash';
 
 /** Icone piene: sagome compatte, leggibili anche a 14px. */
 const FILLED: Partial<Record<IconName, React.ReactNode>> = {
@@ -104,6 +105,35 @@ const STROKED: Partial<Record<IconName, React.ReactNode>> = {
     </>
   ),
   up: <path d="m6 15 6-6 6 6" />,
+  more: (
+    <>
+      <circle cx="5" cy="12" r="1.4" />
+      <circle cx="12" cy="12" r="1.4" />
+      <circle cx="19" cy="12" r="1.4" />
+    </>
+  ),
+  plus: (
+    <>
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </>
+  ),
+  playlist: (
+    <>
+      <path d="M4 7h11" />
+      <path d="M4 12h11" />
+      <path d="M4 17h6" />
+      <circle cx="17.5" cy="16.5" r="2.5" />
+      <path d="M20 16.5V8l1.5 1" />
+    </>
+  ),
+  trash: (
+    <>
+      <path d="M4 7h16" />
+      <path d="M9.5 7V5h5v2" />
+      <path d="M6.5 7l.8 12.2a1 1 0 0 0 1 .8h7.4a1 1 0 0 0 1-.8L17.5 7" />
+    </>
+  ),
   // Fumetto con due righe di testo: si distingue a colpo d'occhio dalle tre
   // righe piene della coda, che altrimenti sarebbero quasi identiche.
   lyrics: (

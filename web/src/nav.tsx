@@ -7,6 +7,8 @@ export type View =
   | { name: 'artist'; id: number }
   | { name: 'songs' }
   | { name: 'downloads' }
+  | { name: 'playlists' }
+  | { name: 'playlist'; id: number }
   | { name: 'search' };
 
 /** Navigazione minimale: niente router, solo uno stato in App più questo context. */

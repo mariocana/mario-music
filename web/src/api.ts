@@ -34,6 +34,21 @@ export type Track = {
 export type AlbumDetail = Omit<Album, 'trackCount' | 'duration'> & { tracks: Track[] };
 export type Artist = { id: number; name: string; albumCount: number; trackCount: number };
 export type ArtistDetail = { id: number; name: string; albums: Album[] };
+export type PlaylistSummary = {
+  id: number;
+  name: string;
+  trackCount: number;
+  duration: number;
+  covers: Array<{ albumId: number; coverKey: string | null }>;
+};
+
+export type PlaylistDetail = {
+  id: number;
+  name: string;
+  /** ogni traccia porta la sua posizione: serve per riordino e rimozione */
+  tracks: Array<Track & { position: number }>;
+};
+
 export type LyricLine = { t: number; text: string };
 export type Lyrics = {
   source: 'lrclib' | 'tag' | 'none';
@@ -58,6 +73,9 @@ export const api = {
   tracks: () => get<Track[]>('/api/tracks'),
   search: (q: string) => get<Track[]>(`/api/search?q=${encodeURIComponent(q)}`),
   lyrics: (trackId: number) => get<Lyrics>(`/api/tracks/${trackId}/lyrics`),
+
+  playlists: () => get<PlaylistSummary[]>('/api/playlists'),
+  playlist: (id: number) => get<PlaylistDetail>(`/api/playlists/${id}`),
 };
 
 /**
@@ -68,6 +86,21 @@ export const api = {
  * non scade la cache. Con ?v=<impronta>, una copertina diversa è un URL
  * diverso — e quello vecchio può restare in cache per sempre senza danni.
  */
+/** Richiesta che modifica qualcosa: manda JSON e riporta l'errore del server. */
+export async function send<T>(path: string, method: 'POST' | 'PATCH' | 'DELETE', body?: unknown): Promise<T> {
+  const res = await fetch(path, {
+    method,
+    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) {
+    // Il server spiega sempre il perché in `error`: meglio quello di "HTTP 400".
+    const dettaglio = await res.json().catch(() => null) as { error?: string } | null;
+    throw new Error(dettaglio?.error ?? `${res.status} su ${path}`);
+  }
+  return res.json() as Promise<T>;
+}
+
 export const coverUrl = (albumId: number, coverKey?: string | null) =>
   `/api/albums/${albumId}/cover${coverKey ? `?v=${coverKey}` : ''}`;
 export const streamUrl = (trackId: number) => `/api/tracks/${trackId}/stream`;

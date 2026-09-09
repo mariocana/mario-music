@@ -67,6 +67,7 @@ scripts/seed.ts   genera una libreria finta con ffmpeg (accordi sintetizzati)
 scripts/scan.ts   il comando `npm run scan`, un guscio sopra lo scanner
 server/scanner.ts ffprobe → tag e durata → SQLite; estrae le copertine
 server/lyrics.ts  testi da LRCLIB, con ripiego sui tag del file
+server/playlists.ts creazione e ordinamento delle playlist
 server/db.ts      schema: artists → albums → tracks
 server/stream.ts  invio dei file con HTTP Range (il cuore dello streaming)
 server/index.ts   server node:http nudo: API JSON + streaming
@@ -148,6 +149,19 @@ schermata "Scaricati" mostra se la richiesta è stata accolta). I download sono
 legati a quel browser su quel dispositivo: non è una libreria sincronizzata, e
 non c'è nessun DRM.
 
+## Playlist
+
+Si creano dalla sezione Playlist o dal menù ⋯ di un brano o di un album, che
+permette anche di crearne una nuova al volo. Dentro una playlist i brani si
+riordinano con le frecce e si tolgono con la ✕.
+
+L'ordine sta in una colonna `position` tenuta sempre contigua. Le riscritture
+cancellano e reinseriscono le righe dentro una transazione invece di
+aggiornarle una a una: la chiave primaria è `(playlist, posizione)`, quindi
+aggiornare in sequenza colliderebbe a metà strada con una posizione ancora
+occupata. La chiave *non* è `(playlist, brano)` apposta — lo stesso brano può
+comparire due volte nella stessa playlist, ed è legittimo.
+
 ## Testi
 
 Il pannello dei testi li cerca su [LRCLIB](https://lrclib.net) alla prima
@@ -180,7 +194,8 @@ curl -s -D - -o /dev/null -H "Range: bytes=0-99" localhost:4000/api/tracks/1/str
 - [x] **2. Offline** — service worker, download dei brani, Range ricostruito dalla cache
 - [x] **3. Testi** — sincronizzati da LRCLIB, evidenziati riga per riga
 - [ ] **4. Transcodifica** — FLAC e formati esotici convertiti al volo per i browser che non li leggono
-- [ ] **5. Playlist e preferiti** — con riordino, e conteggio degli ascolti
+- [x] **5. Playlist** — creazione, riordino, rimozione, aggiunta dal menù ⋯
+- [ ] **8. Preferiti e ascolti** — un cuore sui brani e il conteggio delle riproduzioni
 - [ ] **6. Ricerca seria** — SQLite FTS5 al posto di `LIKE`
 - [x] **6. Coda visibile** — pannello "in riproduzione", riordino, "riproduci dopo"
 - [ ] **7. Utenti** — login, libreria per utente, streaming autenticato

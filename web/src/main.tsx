@@ -4,6 +4,7 @@ import { App } from './App.tsx';
 import { PlayerProvider } from './player.tsx';
 import { DownloadsProvider } from './downloads.tsx';
 import { LibraryProvider } from './library.tsx';
+import { PlaylistsProvider } from './playlists.tsx';
 import './styles.css';
 
 /**
@@ -53,11 +54,13 @@ if ('serviceWorker' in navigator) {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <LibraryProvider>
-      <DownloadsProvider>
-        <PlayerProvider>
-          <App />
-        </PlayerProvider>
-      </DownloadsProvider>
+      <PlaylistsProvider>
+        <DownloadsProvider>
+          <PlayerProvider>
+            <App />
+          </PlayerProvider>
+        </DownloadsProvider>
+      </PlaylistsProvider>
     </LibraryProvider>
   </StrictMode>,
 );

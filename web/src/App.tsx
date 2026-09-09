@@ -10,8 +10,9 @@ import { useIsMobile } from './useMediaQuery.ts';
 import { usePlayer } from './player.tsx';
 import {
   AlbumsView, AlbumDetailView, ArtistsView, ArtistDetailView, SongsView, SearchView,
-  DownloadsView,
+  DownloadsView, PlaylistsView, PlaylistDetailView,
 } from './views.tsx';
+import { usePlaylists } from './playlists.tsx';
 import { useDownloads } from './downloads.tsx';
 import { useLibrary } from './library.tsx';
 import { Icon } from './components/Icon.tsx';
@@ -28,6 +29,7 @@ export function App() {
   const { data: stats } = useAsync(() => api.stats(), [library.revision]);
   const player = usePlayer();
   const downloads = useDownloads();
+  const playlists = usePlaylists();
 
   // La barra spaziatrice mette in pausa, come in Apple Music — ma non mentre
   // si sta scrivendo nel campo di ricerca.
@@ -62,6 +64,7 @@ export function App() {
             {item('albums', 'Album', { name: 'albums' })}
             {item('artists', 'Artisti', { name: 'artists' })}
             {item('songs', 'Brani', { name: 'songs' })}
+            {item('playlists', 'Playlist', { name: 'playlists' })}
             {downloads.supported && (
               <button
                 className={`navitem ${view.name === 'downloads' ? 'is-current' : ''}`}
@@ -72,6 +75,20 @@ export function App() {
               </button>
             )}
           </nav>
+
+          {playlists.items.length > 0 && (
+            <nav className="nav-playlists">
+              <span className="navlabel">Le tue playlist</span>
+              {playlists.items.map((p) => (
+                <button
+                  key={p.id}
+                  className={`navitem ${view.name === 'playlist' && view.id === p.id ? 'is-current' : ''}`}
+                  onClick={() => nav({ name: 'playlist', id: p.id })}
+                  title={p.name}
+                >{p.name}</button>
+              ))}
+            </nav>
+          )}
 
           <div className="sidebar-foot">
             <button
@@ -106,6 +123,8 @@ export function App() {
           {view.name === 'songs' && <SongsView />}
           {view.name === 'search' && <SearchView />}
           {view.name === 'downloads' && <DownloadsView />}
+          {view.name === 'playlists' && <PlaylistsView />}
+          {view.name === 'playlist' && <PlaylistDetailView id={view.id} />}
           </main>
         </div>
 

@@ -17,6 +17,10 @@ import { openDb } from './db.ts';
 import { sendFile } from './stream.ts';
 import { scanLibrary, LibraryMissingError } from './scanner.ts';
 import { getLyrics } from './lyrics.ts';
+import {
+  listPlaylists, getPlaylist, createPlaylist, renamePlaylist, deletePlaylist,
+  addTracks, removeAt, moveTrack,
+} from './playlists.ts';
 
 const PORT = Number(process.env.PORT ?? 4000);
 // Ogni quanti minuti ripassare la libreria. 0 disattiva il ripasso automatico.
@@ -143,6 +147,37 @@ const get = (pattern: RegExp, handler: Handler) => {
 const post = (pattern: RegExp, handler: Handler) => {
   routes.push({ method: 'POST', pattern, handler });
 };
+const patch = (pattern: RegExp, handler: Handler) => {
+  routes.push({ method: 'PATCH', pattern, handler });
+};
+const del = (pattern: RegExp, handler: Handler) => {
+  routes.push({ method: 'DELETE', pattern, handler });
+};
+
+/**
+ * Legge il corpo JSON di una richiesta.
+ *
+ * Il limite non è pignoleria: senza, una richiesta malevola (o solo sbagliata)
+ * può far crescere il buffer finché il processo non finisce la memoria.
+ */
+async function readJson(req: IncomingMessage, maxBytes = 256 * 1024): Promise<unknown> {
+  const pezzi: Buffer[] = [];
+  let totale = 0;
+  for await (const pezzo of req) {
+    totale += (pezzo as Buffer).length;
+    if (totale > maxBytes) throw new Error('Corpo della richiesta troppo grande');
+    pezzi.push(pezzo as Buffer);
+  }
+  if (totale === 0) return {};
+  return JSON.parse(Buffer.concat(pezzi).toString('utf8'));
+}
+
+/** Nome di playlist accettabile: non vuoto e non spropositato. */
+function nomeValido(valore: unknown): string | null {
+  if (typeof valore !== 'string') return null;
+  const pulito = valore.trim().replace(/\s+/g, ' ');
+  return pulito.length > 0 && pulito.length <= 120 ? pulito : null;
+}
 
 /* ────────────────────── ripasso della libreria ────────────────────── */
 
@@ -212,6 +247,67 @@ post(/^\/api\/scan$/, async (_req, res) => {
   const result = await runScan('richiesto');
   if (!result) return json(res, 500, { error: 'Scan fallito: controlla i log del server' });
   json(res, 200, result);
+});
+
+/* ─────────────────────────── playlist ─────────────────────────── */
+
+get(/^\/api\/playlists$/, (_req, res) => json(res, 200, listPlaylists(db)));
+
+get(/^\/api\/playlists\/(\d+)$/, (_req, res, [id]) => {
+  const playlist = getPlaylist(db, Number(id));
+  if (!playlist) return json(res, 404, { error: 'Playlist non trovata' });
+  json(res, 200, playlist);
+});
+
+post(/^\/api\/playlists$/, async (req, res) => {
+  const corpo = await readJson(req) as { name?: unknown };
+  const name = nomeValido(corpo.name);
+  if (!name) return json(res, 400, { error: 'Serve un nome' });
+  json(res, 201, createPlaylist(db, name));
+});
+
+patch(/^\/api\/playlists\/(\d+)$/, async (req, res, [id]) => {
+  const corpo = await readJson(req) as { name?: unknown };
+  const name = nomeValido(corpo.name);
+  if (!name) return json(res, 400, { error: 'Serve un nome' });
+  if (!renamePlaylist(db, Number(id), name)) return json(res, 404, { error: 'Playlist non trovata' });
+  json(res, 200, { id: Number(id), name });
+});
+
+del(/^\/api\/playlists\/(\d+)$/, (_req, res, [id]) => {
+  if (!deletePlaylist(db, Number(id))) return json(res, 404, { error: 'Playlist non trovata' });
+  json(res, 200, { ok: true });
+});
+
+// Accetta un brano solo o una lista: aggiungere un album intero è una sola richiesta.
+post(/^\/api\/playlists\/(\d+)\/tracks$/, async (req, res, [id]) => {
+  const corpo = await readJson(req) as { trackIds?: unknown; trackId?: unknown };
+  const grezzi = Array.isArray(corpo.trackIds) ? corpo.trackIds
+    : corpo.trackId !== undefined ? [corpo.trackId] : [];
+  const trackIds = grezzi.map(Number).filter((n) => Number.isInteger(n) && n > 0);
+  if (trackIds.length === 0) return json(res, 400, { error: 'Nessun brano indicato' });
+
+  const aggiunti = addTracks(db, Number(id), trackIds);
+  if (aggiunti < 0) return json(res, 404, { error: 'Playlist non trovata' });
+  json(res, 200, { added: aggiunti });
+});
+
+del(/^\/api\/playlists\/(\d+)\/tracks\/(\d+)$/, (_req, res, [id, position]) => {
+  if (!removeAt(db, Number(id), Number(position))) {
+    return json(res, 404, { error: 'Posizione non valida' });
+  }
+  json(res, 200, { ok: true });
+});
+
+patch(/^\/api\/playlists\/(\d+)\/tracks$/, async (req, res, [id]) => {
+  const corpo = await readJson(req) as { from?: unknown; to?: unknown };
+  const from = Number(corpo.from);
+  const to = Number(corpo.to);
+  if (!Number.isInteger(from) || !Number.isInteger(to)) {
+    return json(res, 400, { error: 'Servono "from" e "to"' });
+  }
+  if (!moveTrack(db, Number(id), from, to)) return json(res, 404, { error: 'Posizione non valida' });
+  json(res, 200, { ok: true });
 });
 
 // Copertina dell'album: file su disco, estratto dai tag durante lo scan.

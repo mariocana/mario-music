@@ -60,6 +60,26 @@ CREATE TABLE IF NOT EXISTS lyrics (
   fetched_at INTEGER NOT NULL
 );
 
+-- Playlist: l'ordine è una colonna esplicita, non l'ordine di inserimento.
+-- La chiave primaria è (playlist, posizione) e non (playlist, brano) apposta:
+-- lo stesso brano può comparire due volte nella stessa playlist, ed è
+-- legittimo (una compilation che ripete un pezzo, un intro e la sua reprise).
+CREATE TABLE IF NOT EXISTS playlists (
+  id         INTEGER PRIMARY KEY,
+  name       TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS playlist_tracks (
+  playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+  track_id    INTEGER NOT NULL REFERENCES tracks(id)    ON DELETE CASCADE,
+  position    INTEGER NOT NULL,
+  PRIMARY KEY (playlist_id, position)
+);
+
+CREATE INDEX IF NOT EXISTS idx_playlist_tracks ON playlist_tracks(track_id);
+
 CREATE INDEX IF NOT EXISTS idx_tracks_album  ON tracks(album_id, disc_no, track_no);
 CREATE INDEX IF NOT EXISTS idx_tracks_artist ON tracks(artist_id);
 CREATE INDEX IF NOT EXISTS idx_albums_artist ON albums(artist_id);

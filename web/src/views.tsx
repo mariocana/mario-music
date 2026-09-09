@@ -1,7 +1,7 @@
 /** Le schermate: griglia album, dettaglio album, artisti, brani, ricerca. */
 import { useState } from 'react';
 import { api, formatLength, formatTime } from './api.ts';
-import type { Album } from './api.ts';
+import type { Album, PlaylistSummary } from './api.ts';
 import { useAsync } from './useAsync.ts';
 import { useNavigate } from './nav.tsx';
 import { useLibrary } from './library.tsx';
@@ -10,6 +10,8 @@ import { Cover } from './components/Cover.tsx';
 import { Icon } from './components/Icon.tsx';
 import { TrackList } from './components/TrackList.tsx';
 import { DownloadButton } from './components/DownloadButton.tsx';
+import { AddMenu } from './components/AddMenu.tsx';
+import { usePlaylists } from './playlists.tsx';
 import { formatBytes, useDownloads } from './downloads.tsx';
 
 function Loading() { return <p className="hint">Carico…</p>; }
@@ -80,6 +82,7 @@ export function AlbumDetailView({ id }: { id: number }) {
               }}
             ><Icon name="shuffle" size={15} /> Casuale</button>
             <DownloadButton tracks={data.tracks} label="Scarica" />
+            <AddMenu tracks={data.tracks} variant="button" label="Playlist" />
           </div>
         </div>
       </header>
@@ -231,6 +234,174 @@ export function DownloadsView() {
           </p>
           <TrackList tracks={tracks} showAlbum />
         </>
+      )}
+    </>
+  );
+}
+
+/* ─────────────────────────── playlist ─────────────────────────── */
+
+/** Fino a quattro copertine a mosaico: dà un'identità visiva alla playlist. */
+function Mosaico({ covers, name }: { covers: PlaylistSummary['covers']; name: string }) {
+  if (covers.length === 0) {
+    return <div className="cover cover-md cover-empty" aria-hidden><span>{name.slice(0, 1).toUpperCase()}</span></div>;
+  }
+  if (covers.length < 4) {
+    return <Cover albumId={covers[0].albumId} title={name} coverKey={covers[0].coverKey} />;
+  }
+  return (
+    <div className="mosaico" aria-hidden>
+      {covers.slice(0, 4).map((c, i) => (
+        <Cover key={i} albumId={c.albumId} title={name} coverKey={c.coverKey} size="sm" />
+      ))}
+    </div>
+  );
+}
+
+export function PlaylistsView() {
+  const playlists = usePlaylists();
+  const navigate = useNavigate();
+  const [nome, setNome] = useState('');
+
+  return (
+    <>
+      <h1>Playlist</h1>
+
+      <form
+        className="playlist-nuova"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!nome.trim()) return;
+          const creata = await playlists.create(nome.trim());
+          setNome('');
+          if (creata) navigate({ name: 'playlist', id: creata.id });
+        }}
+      >
+        <input
+          className="search"
+          placeholder="Nome della nuova playlist"
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+        />
+        <button className="primary" type="submit" disabled={!nome.trim()}>Crea</button>
+      </form>
+
+      {playlists.error && <p className="hint error">{playlists.error}</p>}
+
+      {playlists.items.length === 0 ? (
+        <p className="hint">Nessuna playlist. Creane una qui sopra, oppure dal menù ⋯ di un brano.</p>
+      ) : (
+        <div className="grid">
+          {playlists.items.map((p) => (
+            <button key={p.id} className="albumcard" onClick={() => navigate({ name: 'playlist', id: p.id })}>
+              <Mosaico covers={p.covers} name={p.name} />
+              <span className="albumcard-title">{p.name}</span>
+              <span className="albumcard-sub">
+                {p.trackCount} {p.trackCount === 1 ? 'brano' : 'brani'}
+                {p.trackCount > 0 && ` · ${formatLength(p.duration)}`}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+export function PlaylistDetailView({ id }: { id: number }) {
+  const playlists = usePlaylists();
+  const player = usePlayer();
+  const navigate = useNavigate();
+  // La revisione del context fa ricaricare dopo ogni modifica.
+  const { data, error, loading } = useAsync(() => api.playlist(id), [id, playlists.revision]);
+  const [rinomina, setRinomina] = useState<string | null>(null);
+
+  if (loading) return <Loading />;
+  if (error) return <Failure message={error} />;
+  if (!data) return null;
+
+  const totale = data.tracks.reduce((somma, t) => somma + t.duration, 0);
+
+  return (
+    <>
+      <header className="playlist-head">
+        {rinomina === null ? (
+          <h1>{data.name}</h1>
+        ) : (
+          <form
+            className="playlist-nuova"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (rinomina.trim()) await playlists.rename(id, rinomina.trim());
+              setRinomina(null);
+            }}
+          >
+            <input autoFocus className="search" value={rinomina} onChange={(e) => setRinomina(e.target.value)} />
+            <button className="primary" type="submit">Salva</button>
+            <button className="ghost" type="button" onClick={() => setRinomina(null)}>Annulla</button>
+          </form>
+        )}
+
+        <p className="dim">
+          {data.tracks.length} {data.tracks.length === 1 ? 'brano' : 'brani'}
+          {data.tracks.length > 0 && ` · ${formatLength(totale)}`}
+        </p>
+
+        <div className="albumhead-actions">
+          <button
+            className="primary"
+            disabled={data.tracks.length === 0}
+            onClick={() => player.playQueue(data.tracks, 0)}
+          >▶ Riproduci</button>
+          <button
+            className="ghost"
+            disabled={data.tracks.length === 0}
+            onClick={() => {
+              if (!player.shuffle) player.toggleShuffle();
+              player.playQueue(data.tracks, Math.floor(Math.random() * data.tracks.length));
+            }}
+          >⤨ Casuale</button>
+          {rinomina === null && (
+            <button className="ghost" onClick={() => setRinomina(data.name)}>Rinomina</button>
+          )}
+          <button
+            className="ghost pericolo"
+            onClick={async () => {
+              // Cancellare una playlist non si annulla: si chiede conferma.
+              if (!confirm(`Eliminare la playlist "${data.name}"? I brani restano in libreria.`)) return;
+              await playlists.remove(id);
+              navigate({ name: 'playlists' });
+            }}
+          >Elimina</button>
+        </div>
+      </header>
+
+      {data.tracks.length === 0 ? (
+        <p className="hint">Playlist vuota. Aggiungi brani dal menù ⋯ di una traccia o di un album.</p>
+      ) : (
+        <TrackList
+          tracks={data.tracks}
+          showAlbum
+          extra={(_t, i) => (
+            <span className="playlist-azioni">
+              <button
+                className="icon" disabled={i === 0}
+                onClick={() => void playlists.move(id, i, i - 1)}
+                title="Sposta su" aria-label="Sposta su"
+              ><Icon name="up" size={15} /></button>
+              <button
+                className="icon" disabled={i === data.tracks.length - 1}
+                onClick={() => void playlists.move(id, i, i + 1)}
+                title="Sposta giù" aria-label="Sposta giù"
+              ><Icon name="down" size={15} /></button>
+              <button
+                className="icon"
+                onClick={() => void playlists.removeAt(id, i)}
+                title="Togli dalla playlist" aria-label="Togli dalla playlist"
+              ><Icon name="close" size={15} /></button>
+            </span>
+          )}
+        />
       )}
     </>
   );
