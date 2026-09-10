@@ -231,5 +231,5 @@ curl -s -D - -o /dev/null -H "Range: bytes=0-99" localhost:4000/api/tracks/1/str
 - [x] **6. Ricerca** — indice full-text SQLite FTS5 al posto di `LIKE`
 - [ ] **7. Transcodifica** — FLAC e formati esotici convertiti al volo per i browser che non li leggono
 - [ ] **8. Preferiti e ascolti** — un cuore sui brani e il conteggio delle riproduzioni
-- [ ] **10. Utenti** — login, libreria per utente, streaming autenticato
+- [ ] **9. Utenti** — login, libreria per utente, streaming autenticato
       (prerequisito se il server esce di casa)
