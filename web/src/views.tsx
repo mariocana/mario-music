@@ -142,7 +142,7 @@ export function SongsView() {
   return (
     <>
       <h1>Brani</h1>
-      <TrackList tracks={data} showAlbum />
+      <TrackList tracks={data} showAlbum numbering="nessuno" />
     </>
   );
 }
@@ -175,23 +175,8 @@ export function SearchView() {
         : error ? <Failure message={error} />
         : !data?.length ? <p className="hint">Nessun risultato per “{term}”.</p>
         : (
-          <ul className="rows">
-            {data.map((hit, i) => (
-              <li key={hit.id}>
-                <button
-                  className="row"
-                  // I risultati diventano la coda: cliccarne uno fa partire da lì.
-                  onClick={() => player.playQueue(data, i)}
-                  onDoubleClick={() => navigate({ name: 'album', id: hit.albumId })}
-                >
-                  <Cover albumId={hit.albumId} title={hit.album} coverKey={hit.coverKey} size="sm" />
-                  <span className="row-title">{hit.title}</span>
-                  <span className="dim">{hit.artist} — {hit.album}</span>
-                  <span className="dim">{formatTime(hit.duration)}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          // Stessa lista delle altre schermate: i risultati diventano la coda.
+          <TrackList tracks={data} showAlbum numbering="nessuno" />
         )}
     </>
   );
@@ -232,7 +217,7 @@ export function DownloadsView() {
             {d.usage && ` · ${formatBytes(d.usage.used)} di ${formatBytes(d.usage.quota)} concessi dal browser`}
             {d.usage && !d.usage.persisted && ' · spazio revocabile dal browser se il disco si riempie'}
           </p>
-          <TrackList tracks={tracks} showAlbum />
+          <TrackList tracks={tracks} showAlbum numbering="nessuno" />
         </>
       )}
     </>
@@ -437,25 +422,14 @@ export function PlaylistDetailView({ id }: { id: number }) {
         <TrackList
           tracks={data.tracks}
           showAlbum
-          extra={(_t, i) => (
-            <span className="playlist-azioni">
-              <button
-                className="icon" disabled={i === 0}
-                onClick={() => void playlists.move(id, i, i - 1)}
-                title="Sposta su" aria-label="Sposta su"
-              ><Icon name="up" size={15} /></button>
-              <button
-                className="icon" disabled={i === data.tracks.length - 1}
-                onClick={() => void playlists.move(id, i, i + 1)}
-                title="Sposta giù" aria-label="Sposta giù"
-              ><Icon name="down" size={15} /></button>
-              <button
-                className="icon"
-                onClick={() => void playlists.removeAt(id, i)}
-                title="Togli dalla playlist" aria-label="Togli dalla playlist"
-              ><Icon name="close" size={15} /></button>
-            </span>
-          )}
+          numbering="nessuno"
+          // Riordino e rimozione stanno nel menù ⋯ e non in riga: erano tre
+          // simboli in più su ogni traccia, oltre a download e menù.
+          menuItems={(_t, i) => [
+            { label: 'Sposta su', icon: 'up', disabled: i === 0, onClick: () => void playlists.move(id, i, i - 1) },
+            { label: 'Sposta giù', icon: 'down', disabled: i === data.tracks.length - 1, onClick: () => void playlists.move(id, i, i + 1) },
+            { label: 'Togli dalla playlist', icon: 'trash', onClick: () => void playlists.removeAt(id, i) },
+          ]}
         />
       )}
     </>

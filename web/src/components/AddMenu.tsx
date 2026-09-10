@@ -13,18 +13,35 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Track } from '../api.ts';
 import { usePlayer } from '../player.tsx';
 import { usePlaylists } from '../playlists.tsx';
+import { useNavigate } from '../nav.tsx';
 import { Icon } from './Icon.tsx';
+import type { IconName } from './Icon.tsx';
+
+/** Voce extra del menù, fornita da chi usa la lista (es. una playlist). */
+export type VoceMenu = {
+  label: string;
+  icon: IconName;
+  onClick: () => void;
+  disabled?: boolean;
+};
 
 type Props = {
   tracks: Track[];
+  /**
+   * Azioni proprie del contesto, in cima al menù. Stanno qui e non come
+   * pulsanti in riga: cinque simboli affiancati su ogni traccia erano
+   * troppi, e in un menù ce ne stanno quanti se ne vuole.
+   */
+  voci?: VoceMenu[];
   /** 'icon' per le righe dei brani, 'button' per la testata dell'album */
   variant?: 'icon' | 'button';
   label?: string;
 };
 
-export function AddMenu({ tracks, variant = 'icon', label = 'Aggiungi' }: Props) {
+export function AddMenu({ tracks, voci = [], variant = 'icon', label = 'Aggiungi' }: Props) {
   const player = usePlayer();
   const playlists = usePlaylists();
+  const navigate = useNavigate();
   const [aperto, setAperto] = useState(false);
   const [nuova, setNuova] = useState(false);
   const [nome, setNome] = useState('');
@@ -112,12 +129,37 @@ export function AddMenu({ tracks, variant = 'icon', label = 'Aggiungi' }: Props)
             <p className="menu-esito">{esito}</p>
           ) : (
             <>
+              {voci.map((v) => (
+                <button
+                  key={v.label}
+                  className="menu-voce"
+                  disabled={v.disabled}
+                  onClick={() => { v.onClick(); chiudi(); }}
+                >
+                  <Icon name={v.icon} size={15} /> {v.label}
+                </button>
+              ))}
+              {voci.length > 0 && <div className="menu-separatore" />}
+
               <button
                 className="menu-voce"
                 onClick={() => { tracks.forEach((t) => player.playNext(t)); chiudi(); }}
               >
                 <Icon name="queueNext" size={15} /> Riproduci dopo
               </button>
+
+              {tracks.length === 1 && (
+                <>
+                  <button
+                    className="menu-voce"
+                    onClick={() => { navigate({ name: 'album', id: tracks[0].albumId }); chiudi(); }}
+                  ><Icon name="queue" size={15} /> Vai all'album</button>
+                  <button
+                    className="menu-voce"
+                    onClick={() => { navigate({ name: 'artist', id: tracks[0].artistId }); chiudi(); }}
+                  ><Icon name="playlist" size={15} /> Vai all'artista</button>
+                </>
+              )}
 
               <div className="menu-titolo">Aggiungi a playlist</div>
 

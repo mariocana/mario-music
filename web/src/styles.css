@@ -170,7 +170,9 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
 
 .track {
   display: grid;
-  grid-template-columns: 34px 1fr 30px auto 52px 34px;
+  /* Dentro un album: numero, titolo, codec, download, durata, menù. */
+  grid-template-columns: 34px 1fr auto 30px 52px 30px;
+  cursor: pointer;
   align-items: center;
   gap: 12px;
   padding: 7px 10px;
@@ -196,6 +198,46 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
 .track-title, .track-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .track-sub { font-size: 12px; color: var(--dim); }
 .track-format { font-size: 11px; color: var(--dim); }
+
+/* Fuori da un album la riga comincia con la copertina invece che con un
+   numero: identifica il brano molto meglio di una cifra, e fa da pulsante. */
+.tracklist.con-copertina .track { grid-template-columns: 44px 1fr 30px 52px 30px; }
+.tracklist.con-copertina.con-colonne .track {
+  grid-template-columns: 44px minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1.2fr) 30px 52px 30px;
+}
+
+.track-art {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.track-art .cover { width: 40px; height: 40px; border-radius: 0; }
+
+/* Il play compare sopra la copertina al passaggio del mouse. Al tocco no:
+   lì si tocca la riga, e mostrarlo sempre sarebbe solo un simbolo in più. */
+.track-art-sopra {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: rgb(0 0 0 / 0.5);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.track:hover .track-art-sopra { opacity: 1; }
+/* Messa dall'elemento stesso (0,2,0): vince sempre sulla regola di base. */
+.track-art-sopra.is-visibile { opacity: 1; }
+
+.track-artista, .track-album {
+  color: var(--dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .track-time { color: var(--dim); text-align: right; font-variant-numeric: tabular-nums; }
 
 /* Equalizzatore animato sul brano in riproduzione. */
@@ -349,6 +391,9 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
    download, la manopola della barra di avanzamento e il triangolo play.
    Qui li rendiamo sempre visibili, e allarghiamo i bersagli da toccare. */
 @media (hover: none) {
+  /* Al tocco il play non compare passandoci sopra: si tocca la riga. */
+  .track:hover .track-art-sopra { opacity: 0; }
+  .track-art-sopra.is-visibile { opacity: 1; }
   .track .dl { opacity: 1; }
   .scrubber-knob { transform: translateY(-50%) scale(1); }
   .scrubber { padding: 11px 0; }
@@ -409,7 +454,8 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
   .albumhead-actions { flex-wrap: wrap; justify-content: center; }
 
   /* Il codec non serve su schermo stretto: via la colonna. */
-  .track { grid-template-columns: 26px 1fr 28px 44px 30px; gap: 6px; }
+  .track { grid-template-columns: 26px 1fr auto 28px 44px 28px; gap: 6px; }
+  .tracklist.con-copertina .track { grid-template-columns: 40px 1fr 28px 44px 28px; }
   .track-format { display: none; }
 
   /* Righe di artisti e ricerca: titolo sopra, dettagli sotto. */
@@ -697,11 +743,6 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
 .mosaico .cover { width: 100%; height: 100%; border-radius: 0; }
 
 /* Colonna in più solo dove serve: la lista base resta a sei colonne. */
-.tracklist.has-extra .track { grid-template-columns: 34px 1fr 30px auto 52px 34px auto; }
-.playlist-azioni { display: flex; opacity: 0; }
-.track:hover .playlist-azioni { opacity: 1; }
-.playlist-azioni .icon { padding: 3px; }
-.playlist-azioni .icon:disabled { opacity: 0.25; cursor: default; }
 
 /* ── menù ⋯ ── */
 .track-menu { opacity: 0; padding: 3px; }
@@ -749,13 +790,12 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
 .menu-esito { margin: 0; padding: 14px 12px; text-align: center; color: var(--accent); font-size: 13px; }
 
 @media (hover: none) {
-  .track-menu, .playlist-azioni { opacity: 1; }
+  .track-menu { opacity: 1; }
 }
 
 @media (max-width: 700px) {
   /* Al telefono la lista base perde il codec; con le azioni di playlist
      serve comunque una colonna in più, quindi si stringe il resto. */
-  .tracklist.has-extra .track { grid-template-columns: 24px 1fr 26px 40px 28px auto; }
   .menu { width: min(280px, calc(100vw - 24px)); }
 }
 
@@ -783,3 +823,7 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
   .playlist-testa-dati { width: 100%; }
   .playlist-head .albumhead-actions { justify-content: center; }
 }
+
+.menu-separatore { height: 1px; background: var(--line); margin: 4px 0; }
+.menu-voce:disabled { opacity: 0.35; cursor: default; }
+.menu-voce:disabled:hover { background: none; }
