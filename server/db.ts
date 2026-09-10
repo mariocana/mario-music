@@ -83,6 +83,17 @@ CREATE TABLE IF NOT EXISTS playlist_tracks (
 
 CREATE INDEX IF NOT EXISTS idx_playlist_tracks ON playlist_tracks(track_id);
 
+-- Indice full-text per la ricerca. È una tabella a sé, non collegata a
+-- tracks, con rowid = tracks.id: artista e album stanno in altre tabelle,
+-- quindi non si può usare la modalità "external content" di FTS5.
+--
+-- remove_diacritics 2: "cafe" trova "Café", che con una libreria italiana
+-- (e francese, e spagnola) serve di continuo.
+CREATE VIRTUAL TABLE IF NOT EXISTS tracks_fts USING fts5(
+  title, artist, album,
+  tokenize='unicode61 remove_diacritics 2'
+);
+
 CREATE INDEX IF NOT EXISTS idx_tracks_album  ON tracks(album_id, disc_no, track_no);
 CREATE INDEX IF NOT EXISTS idx_tracks_artist ON tracks(artist_id);
 CREATE INDEX IF NOT EXISTS idx_albums_artist ON albums(artist_id);

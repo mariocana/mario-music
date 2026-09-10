@@ -20,6 +20,7 @@ import { mkdir, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import { openDb, DATA_DIR } from './db.ts';
+import { rebuildSearchIndex } from './search.ts';
 
 const run = promisify(execFile);
 
@@ -413,6 +414,11 @@ export async function scanLibrary(onFile?: (line: string) => void): Promise<Scan
       if (!wanted.has(name)) await unlink(path.join(COVERS, name));
     }
   } catch { /* la cartella può non esistere ancora */ }
+
+  // L'indice di ricerca si rifà da zero: lo scanner è l'unico che tocca le
+  // tracce, e un rebuild completo non può andare fuori sincrono come farebbero
+  // dei trigger tenuti allineati a mano.
+  rebuildSearchIndex(db);
 
   const total = (db.prepare('SELECT COUNT(*) AS n FROM tracks').get() as { n: number }).n;
   db.close();

@@ -17,6 +17,7 @@ import { openDb } from './db.ts';
 import { sendFile } from './stream.ts';
 import { scanLibrary, LibraryMissingError } from './scanner.ts';
 import { getLyrics } from './lyrics.ts';
+import { searchTracks, rebuildSearchIndex, indexIsStale } from './search.ts';
 import {
   listPlaylists, getPlaylist, createPlaylist, renamePlaylist, deletePlaylist,
   addTracks, removeAt, moveTrack, setCover, clearCover, coverFile,
@@ -99,18 +100,6 @@ const q = {
   `),
   trackFile: db.prepare('SELECT path, mime, title FROM tracks WHERE id = ?'),
   coverFile: db.prepare('SELECT cover_path AS coverPath FROM albums WHERE id = ?'),
-  searchTracks: db.prepare(`
-    SELECT t.id, t.title, t.track_no AS trackNo, t.disc_no AS discNo, t.duration,
-           t.codec, t.bitrate, t.sample_rate AS sampleRate, t.channels, t.size,
-           al.id AS albumId, al.title AS album, al.cover_key AS coverKey,
-           ar.id AS artistId, ar.name AS artist
-    FROM tracks t
-    JOIN albums al ON al.id = t.album_id
-    JOIN artists ar ON ar.id = t.artist_id
-    WHERE t.title LIKE ? OR al.title LIKE ? OR ar.name LIKE ?
-    ORDER BY t.title COLLATE NOCASE
-    LIMIT 50
-  `),
   stats: db.prepare(`
     SELECT (SELECT COUNT(*) FROM artists) AS artists,
            (SELECT COUNT(*) FROM albums)  AS albums,
@@ -252,10 +241,7 @@ get(/^\/api\/tracks$/, (_req, res) => json(res, 200, q.allTracks.all()));
 get(/^\/api\/search$/, (_req, res, _params, url) => {
   const term = (url.searchParams.get('q') ?? '').trim();
   if (term.length < 2) return json(res, 200, []);
-  // LIKE con i caratteri jolly di SQLite messi in escape, altrimenti un
-  // titolo che contiene % o _ cambierebbe il senso della query.
-  const like = `%${term.replace(/[%_]/g, (c) => `\\${c}`)}%`;
-  json(res, 200, q.searchTracks.all(like, like, like));
+  json(res, 200, searchTracks(db, term));
 });
 
 // Ripasso su richiesta, dal pulsante "Aggiorna" nell'interfaccia.
@@ -472,6 +458,13 @@ server.listen(PORT, () => {
   console.log(`mario-music su http://localhost:${PORT}`);
   console.log(`Libreria: ${s.tracks} brani, ${s.albums} album, ${s.artists} artisti`);
   if (s.tracks === 0) console.log('Libreria vuota → npm run seed && npm run scan');
+
+  // Database creato prima che esistesse l'indice, o mai scansionato da allora:
+  // senza questo la ricerca risponderebbe sempre a vuoto, in silenzio.
+  if (indexIsStale(db)) {
+    const n = rebuildSearchIndex(db);
+    console.log(`Indice di ricerca ricostruito: ${n} tracce`);
+  }
 
   if (SCAN_EVERY_MIN > 0) {
     console.log(`Ripasso automatico della libreria ogni ${SCAN_EVERY_MIN} minuti`);

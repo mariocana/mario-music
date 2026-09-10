@@ -149,6 +149,27 @@ schermata "Scaricati" mostra se la richiesta è stata accolta). I download sono
 legati a quel browser su quel dispositivo: non è una libreria sincronizzata, e
 non c'è nessun DRM.
 
+## Ricerca
+
+Indice full-text FTS5, ricostruito da zero alla fine di ogni scan. Niente
+trigger per tenerlo allineato: lo scanner è l'unico che modifica le tracce, e
+un rebuild completo costa millisecondi e non può andare fuori sincrono.
+
+Il tokenizer usa `remove_diacritics 2`, quindi "celine" trova "Céline Dion" e
+"eternite" trova "Éternité". L'ordinamento è per punteggio bm25 con pesi
+diversi per colonna: il titolo conta più dell'artista, che conta più dell'album.
+
+**Il testo digitato non finisce mai grezzo dentro `MATCH`.** FTS5 ha una
+sintassi con operatori (`AND`, `OR`, `NOT`, virgolette, `*`, `:`, `^`): una
+virgoletta spaiata farebbe fallire l'intera query con un errore di sintassi. Si
+estraggono solo lettere e numeri e ogni parola si racchiude fra virgolette, con
+un `*` finale per la ricerca per prefisso mentre si scrive.
+
+**Differenza rispetto a prima:** `LIKE '%testo%'` trovava le sottostringhe in
+mezzo alle parole, FTS5 no. "onder" non trova più "Wonderwall". In cambio c'è
+un indice vero al posto di una scansione completa a ogni tasto, l'ordinamento
+per pertinenza e la tolleranza agli accenti.
+
 ## Playlist
 
 Si creano dalla sezione Playlist o dal menù ⋯ di un brano o di un album, che
@@ -205,9 +226,10 @@ curl -s -D - -o /dev/null -H "Range: bytes=0-99" localhost:4000/api/tracks/1/str
 - [x] **1. Fondamenta** — indicizzazione, catalogo, streaming con Range, player
 - [x] **2. Offline** — service worker, download dei brani, Range ricostruito dalla cache
 - [x] **3. Testi** — sincronizzati da LRCLIB, evidenziati riga per riga
-- [ ] **4. Transcodifica** — FLAC e formati esotici convertiti al volo per i browser che non li leggono
-- [x] **5. Playlist** — creazione, riordino, rimozione, aggiunta dal menù ⋯
+- [x] **4. Coda visibile** — pannello "in riproduzione", riordino, "riproduci dopo"
+- [x] **5. Playlist** — creazione, riordino, rimozione, copertina personalizzata
+- [x] **6. Ricerca** — indice full-text SQLite FTS5 al posto di `LIKE`
+- [ ] **7. Transcodifica** — FLAC e formati esotici convertiti al volo per i browser che non li leggono
 - [ ] **8. Preferiti e ascolti** — un cuore sui brani e il conteggio delle riproduzioni
-- [ ] **6. Ricerca seria** — SQLite FTS5 al posto di `LIKE`
-- [x] **6. Coda visibile** — pannello "in riproduzione", riordino, "riproduci dopo"
-- [ ] **7. Utenti** — login, libreria per utente, streaming autenticato
+- [ ] **10. Utenti** — login, libreria per utente, streaming autenticato
+      (prerequisito se il server esce di casa)
