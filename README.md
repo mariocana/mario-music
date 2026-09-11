@@ -215,6 +215,22 @@ aggiornare in sequenza colliderebbe a metà strada con una posizione ancora
 occupata. La chiave *non* è `(playlist, brano)` apposta — lo stesso brano può
 comparire due volte nella stessa playlist, ed è legittimo.
 
+## Cos'è "mobile"
+
+Uno schermo stretto (≤ 700px) **oppure** un touchscreen basso (≤ 520px di
+altezza). La seconda condizione serve per il telefono girato in orizzontale: un
+iPhone in landscape è largo 852px e passava il limite, quindi l'app saltava al
+layout desktop con la colonna laterale. Un iPad in orizzontale è alto 768 e
+resta desktop.
+
+La condizione è scritta due volte, identica: nel CSS (aspetto) e in
+`useMediaQuery.ts` (cosa React monta). Se divergono, si monta la schermata
+piena del telefono sopra il layout a colonne.
+
+Installata sulla Home, l'app è bloccata in verticale (`orientation` nel
+manifest): il browser lo rispetta solo per le app installate, non nella scheda
+di Safari — per quella vale la regola qui sopra.
+
 ## Barra in fondo, su telefono
 
 Una pillola con quattro schede — Album, Libreria, Playlist, Preferiti — e un

@@ -405,7 +405,20 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
 }
 
 /* ══════════════════════ mobile ══════════════════════ */
-@media (max-width: 700px) {
+/*
+ * Cos'è "mobile": uno schermo stretto, OPPURE un touchscreen basso.
+ *
+ * La seconda condizione serve per il telefono girato in orizzontale: un
+ * iPhone in landscape è largo 852px e passava il limite dei 700, quindi l'app
+ * saltava al layout desktop — colonna laterale e tutto. Un touchscreen alto
+ * meno di 520px non è un desktop, è un telefono di traverso. Un iPad in
+ * orizzontale è alto 768 e resta desktop, com'è giusto.
+ *
+ * La stessa condizione, identica, sta in useMediaQuery.ts: CSS e React devono
+ * essere d'accordo su cosa sia un telefono, o si monta la schermata piena
+ * sopra un layout a colonne.
+ */
+@media (max-width: 700px), ((pointer: coarse) and (max-height: 520px)) {
   /* La sidebar diventa la barra schede in fondo, sotto al player:
      stesse tre aree della griglia, impilate. */
   .app {
@@ -544,7 +557,7 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
   .queue-actions, .track-queue { opacity: 1; }
 }
 
-@media (max-width: 700px) {
+@media (max-width: 700px), ((pointer: coarse) and (max-height: 520px)) {
   /* Su schermo stretto la coda prende il posto del contenuto. */
   .app.with-queue {
     grid-template-columns: 1fr;
@@ -766,7 +779,7 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
   .track-menu { opacity: 1; }
 }
 
-@media (max-width: 700px) {
+@media (max-width: 700px), ((pointer: coarse) and (max-height: 520px)) {
   /* Al telefono la lista base perde il codec; con le azioni di playlist
      serve comunque una colonna in più, quindi si stringe il resto. */
   .menu { width: min(280px, calc(100vw - 24px)); }
@@ -790,7 +803,7 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
 .playlist-copertina-azioni label:hover { background: var(--line); }
 .playlist-errore { margin: 0; font-size: 12px; max-width: 210px; }
 
-@media (max-width: 700px) {
+@media (max-width: 700px), ((pointer: coarse) and (max-height: 520px)) {
   .playlist-head { flex-direction: column; align-items: center; text-align: center; }
   .playlist-copertina { align-items: center; }
   .playlist-testa-dati { width: 100%; }
