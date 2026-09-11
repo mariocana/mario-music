@@ -252,6 +252,22 @@ ci stanno (Artisti, Brani, Ascolti, Scaricati) sono dentro **Libreria**, che è
 una pagina-elenco. Otto etichette in fila entravano nei 393px per un pelo, a
 47px l'una: leggibili ma senza nessuna gerarchia.
 
+## Ripresa dopo la chiusura
+
+Coda, brano e posizione si salvano in `localStorage` mentre si ascolta: al
+massimo ogni 5 secondi, più a ogni pausa e quando l'app va in secondo piano
+(`visibilitychange`), che su iOS è l'ultimo momento affidabile prima che una
+PWA venga chiusa senza preavviso.
+
+Alla riapertura il brano torna nella barra **in pausa**, al secondo salvato.
+Non parte da solo: il browser lo vieterebbe senza un tocco, e riaprire l'app
+non vuol dire voler subito la musica. La posizione si applica a
+`loadedmetadata`, non prima: impostare `currentTime` quando l'audio non
+conosce ancora la propria durata non attacca su tutti i browser, iOS in testa.
+
+L'ascolto non viene ricontato alla ripresa: era già stato conteggiato prima
+della chiusura.
+
 ## Testi
 
 Il pannello dei testi li cerca su [LRCLIB](https://lrclib.net) alla prima

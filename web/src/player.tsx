@@ -97,6 +97,24 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // timeupdate oltre la soglia manderebbe una richiesta (quattro al secondo).
   const contatoRef = useRef<number | null>(null);
 
+  /*
+   * Ripresa dopo la chiusura dell'app.
+   *
+   * Coda, brano e posizione vengono salvati in localStorage mentre si
+   * ascolta; al riavvio si rimettono nella barra IN PAUSA, al secondo in cui
+   * ci si era fermati. Non si fa partire nulla: il browser lo vieterebbe
+   * comunque senza un tocco, e comunque riaprire l'app non vuol dire voler
+   * sentire subito la musica.
+   *
+   * La posizione si scrive al massimo ogni 5 secondi, più a ogni pausa e
+   * quando l'app va in secondo piano: su iOS una PWA può essere chiusa senza
+   * preavviso, e 'visibilitychange' è l'ultimo momento affidabile per farlo.
+   */
+  const CHIAVE_RIPRESA = 'mario-music.ripresa';
+  const ultimoSalvataggio = useRef(0);
+  /** posizione da applicare appena l'audio conosce la propria durata */
+  const seekInSospeso = useRef<number | null>(null);
+
   const [state, setState] = useState<PlayerState>({
     queue: [], index: -1, current: null,
     isPlaying: false, isLoading: false,
@@ -116,6 +134,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
     audio.src = streamUrl(track.id);
     contatoRef.current = null;
+    seekInSospeso.current = null;
     patch({ queue, index, current: track, currentTime: 0, duration: track.duration, buffered: 0, error: null, isLoading: true });
 
     if (autoplay) {
@@ -178,6 +197,74 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   const stateRef = useRef(state);
   stateRef.current = state;
 
+  /** Scrive coda, brano e posizione. Senza brano in corso, cancella il ricordo. */
+  const salvaRipresa = useCallback(() => {
+    const s = stateRef.current;
+    const audio = audioRef.current;
+    try {
+      if (!s.current || !audio) {
+        localStorage.removeItem(CHIAVE_RIPRESA);
+        return;
+      }
+      localStorage.setItem(CHIAVE_RIPRESA, JSON.stringify({
+        queue: s.queue,
+        index: s.index,
+        time: audio.currentTime,
+        shuffle: s.shuffle,
+        repeat: s.repeat,
+      }));
+    } catch {
+      /* localStorage può non esserci (navigazione privata, quota): si fa senza */
+    }
+  }, []);
+
+  /* ── ripresa: al primo avvio si rimette in barra l'ultimo brano, in pausa ── */
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    let salvato: { queue: Track[]; index: number; time: number; shuffle: boolean; repeat: RepeatMode } | null = null;
+    try {
+      const grezzo = localStorage.getItem(CHIAVE_RIPRESA);
+      salvato = grezzo ? JSON.parse(grezzo) : null;
+    } catch { /* ricordo illeggibile: si parte da zero */ }
+
+    if (!salvato || !Array.isArray(salvato.queue) || salvato.queue.length === 0) return;
+    const index = Math.min(Math.max(0, salvato.index | 0), salvato.queue.length - 1);
+    const track = salvato.queue[index];
+    if (!track?.id) return;
+
+    // Non si passa da load(): quello azzera la posizione e prova a suonare.
+    audio.src = streamUrl(track.id);
+    seekInSospeso.current = Math.max(0, Number(salvato.time) || 0);
+    // L'ascolto era già stato conteggiato prima di chiudere: non si riconta.
+    contatoRef.current = track.id;
+    sourceRef.current = salvato.queue;
+    patch({
+      queue: salvato.queue,
+      index,
+      current: track,
+      // La barra mostra subito la posizione salvata, senza aspettare i metadati.
+      currentTime: seekInSospeso.current,
+      duration: track.duration,
+      shuffle: Boolean(salvato.shuffle),
+      repeat: (['off', 'all', 'one'] as RepeatMode[]).includes(salvato.repeat) ? salvato.repeat : 'off',
+      isPlaying: false,
+      isLoading: false,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /* ── l'app va in secondo piano o si chiude: ultimo salvataggio utile ── */
+  useEffect(() => {
+    const quandoNascosta = () => { if (document.visibilityState === 'hidden') salvaRipresa(); };
+    document.addEventListener('visibilitychange', quandoNascosta);
+    window.addEventListener('pagehide', salvaRipresa);
+    return () => {
+      document.removeEventListener('visibilitychange', quandoNascosta);
+      window.removeEventListener('pagehide', salvaRipresa);
+    };
+  }, [salvaRipresa]);
+
   /* ── eventi dell'elemento audio → stato React ── */
   useEffect(() => {
     const audio = audioRef.current;
@@ -195,6 +282,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       }
       patch({ currentTime: audio.currentTime, buffered: ahead });
 
+      const adesso = Date.now();
+      if (adesso - ultimoSalvataggio.current > 5000) {
+        ultimoSalvataggio.current = adesso;
+        salvaRipresa();
+      }
+
       // Un ascolto conta solo se il brano è stato davvero ascoltato.
       const corrente = stateRef.current.current;
       if (corrente && contatoRef.current !== corrente.id
@@ -203,9 +296,17 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         void send(`/api/tracks/${corrente.id}/play`, 'POST').catch(() => undefined);
       }
     };
-    const onMeta = () => patch({ duration: audio.duration, isLoading: false });
+    const onMeta = () => {
+      // Impostare currentTime prima che l'audio conosca la sua durata non
+      // attacca su tutti i browser (iOS in testa): si aspetta questo evento.
+      if (seekInSospeso.current !== null) {
+        audio.currentTime = Math.min(seekInSospeso.current, audio.duration || Infinity);
+        seekInSospeso.current = null;
+      }
+      patch({ duration: audio.duration, isLoading: false });
+    };
     const onPlay = () => patch({ isPlaying: true, error: null });
-    const onPause = () => patch({ isPlaying: false });
+    const onPause = () => { patch({ isPlaying: false }); salvaRipresa(); };
     const onWaiting = () => patch({ isLoading: true });
     const onPlaying = () => patch({ isLoading: false });
     const onError = () => patch({ isLoading: false, isPlaying: false, error: 'Impossibile leggere questo file audio.' });
