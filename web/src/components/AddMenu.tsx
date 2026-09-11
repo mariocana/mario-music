@@ -34,12 +34,24 @@ type Props = {
    * troppi, e in un menù ce ne stanno quanti se ne vuole.
    */
   voci?: VoceMenu[];
+  /**
+   * Se mostrare "Aggiungi a playlist". Ha senso per brani e album; per una
+   * playlist no — e "aggiungi a se stessa" è proprio senza senso.
+   */
+  playlistTarget?: boolean;
+  /**
+   * Vero quando il menù è quello di UNA riga di brano: mostra preferiti e
+   * "vai a…". Si dichiara, non si deduce dal numero di tracce — un album da
+   * un brano solo veniva scambiato per una traccia, con "Vai all'album"
+   * dentro l'album stesso.
+   */
+  singleTrack?: boolean;
   /** 'icon' per le righe dei brani, 'button' per la testata dell'album */
   variant?: 'icon' | 'button';
   label?: string;
 };
 
-export function AddMenu({ tracks, voci = [], variant = 'icon', label = 'Aggiungi' }: Props) {
+export function AddMenu({ tracks, voci = [], playlistTarget = true, singleTrack = false, variant = 'icon', label = 'Aggiungi' }: Props) {
   const player = usePlayer();
   const playlists = usePlaylists();
   const navigate = useNavigate();
@@ -134,7 +146,7 @@ export function AddMenu({ tracks, voci = [], variant = 'icon', label = 'Aggiungi
             <p className="menu-esito">{esito}</p>
           ) : (
             <>
-              {tracks.length === 1 && (
+              {singleTrack && tracks.length === 1 && (
                 <button
                   className="menu-voce"
                   onClick={() => { void ascolti.toggleFavorite(tracks[0]); chiudi(); }}
@@ -165,7 +177,7 @@ export function AddMenu({ tracks, voci = [], variant = 'icon', label = 'Aggiungi
               </button>
               )}
 
-              {tracks.length === 1 && (
+              {singleTrack && tracks.length === 1 && (
                 <>
                   <button
                     className="menu-voce"
@@ -178,7 +190,7 @@ export function AddMenu({ tracks, voci = [], variant = 'icon', label = 'Aggiungi
                 </>
               )}
 
-              {conTracce && (<>
+              {conTracce && playlistTarget && (<>
               <div className="menu-titolo">Aggiungi a playlist</div>
 
               <div className="menu-lista">

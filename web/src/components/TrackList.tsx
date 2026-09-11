@@ -112,7 +112,7 @@ export function TrackList({ tracks, showAlbum = false, menuItems, numbering = 'a
 
             <DownloadButton tracks={[track]} />
             <span className="track-time">{formatTime(track.duration)}</span>
-            <AddMenu tracks={[track]} voci={menuItems?.(track, i)} />
+            <AddMenu tracks={[track]} singleTrack voci={menuItems?.(track, i)} />
           </li>
         );
       })}

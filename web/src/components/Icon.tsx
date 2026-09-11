@@ -17,7 +17,8 @@ export type IconName =
   | 'download' | 'check' | 'refresh' | 'spinner'
   | 'queue' | 'queueNext' | 'close' | 'up' | 'down' | 'lyrics'
   | 'more' | 'plus' | 'playlist' | 'trash' | 'heart' | 'heartFilled' | 'chart'
-  | 'grid' | 'library' | 'search' | 'artist' | 'note' | 'downloadBox' | 'back';
+  | 'grid' | 'library' | 'search' | 'artist' | 'note' | 'downloadBox' | 'back'
+  | 'edit' | 'image';
 
 /** Icone piene: sagome compatte, leggibili anche a 14px. */
 const FILLED: Partial<Record<IconName, React.ReactNode>> = {
@@ -108,6 +109,19 @@ const STROKED: Partial<Record<IconName, React.ReactNode>> = {
   ),
   up: <path d="m6 15 6-6 6 6" />,
   back: <path d="m15 5-7 7 7 7" />,
+  edit: (
+    <>
+      <path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3Z" />
+      <path d="m13.5 6.5 3 3" />
+    </>
+  ),
+  image: (
+    <>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+      <circle cx="9" cy="10" r="1.6" />
+      <path d="m20.5 16-5-5-8 8" />
+    </>
+  ),
   grid: (
     <>
       <rect x="3.5" y="3.5" width="7" height="7" rx="1.8" />

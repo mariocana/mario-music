@@ -380,9 +380,10 @@ export function PlaylistDetailView({ id }: { id: number }) {
         <div className="albumhead-menu">
           <AddMenu
             tracks={data.tracks}
+            playlistTarget={false}
             voci={[
-              { label: 'Rinomina', icon: 'more', onClick: () => setRinomina(data.name) },
-              { label: data.coverKey ? 'Cambia immagine' : 'Scegli immagine', icon: 'grid', onClick: () => fileRef.current?.click() },
+              { label: 'Rinomina', icon: 'edit', onClick: () => setRinomina(data.name) },
+              { label: data.coverKey ? 'Cambia immagine' : 'Scegli immagine', icon: 'image', onClick: () => fileRef.current?.click() },
               ...(data.coverKey ? [{ label: 'Rimuovi immagine', icon: 'close' as const, onClick: () => void playlists.clearCover(id) }] : []),
               { label: 'Elimina playlist', icon: 'trash', onClick: () => void elimina() },
             ]}
