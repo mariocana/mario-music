@@ -13,6 +13,7 @@
  * e soprattutto non può andare fuori sincrono.
  */
 import type { DatabaseSync } from 'node:sqlite';
+import { COLONNE_TRACCIA } from './listening.ts';
 
 /**
  * Traduce quello che scrive l'utente in una query FTS5.
@@ -54,12 +55,7 @@ export function indexIsStale(db: DatabaseSync): boolean {
   return tracce !== indice;
 }
 
-const SELEZIONE = `
-  t.id, t.title, t.track_no AS trackNo, t.disc_no AS discNo, t.duration,
-  t.codec, t.bitrate, t.sample_rate AS sampleRate, t.channels, t.size,
-  al.id AS albumId, al.title AS album, al.cover_key AS coverKey,
-  ar.id AS artistId, ar.name AS artist
-`;
+
 
 export function searchTracks(db: DatabaseSync, input: string, limit = 50): unknown[] {
   const match = buildMatchQuery(input);
@@ -67,7 +63,7 @@ export function searchTracks(db: DatabaseSync, input: string, limit = 50): unkno
 
   try {
     return db.prepare(`
-      SELECT ${SELEZIONE}
+      SELECT ${COLONNE_TRACCIA}
       FROM tracks_fts f
       JOIN tracks t   ON t.id  = f.rowid
       JOIN albums al  ON al.id = t.album_id

@@ -1,6 +1,7 @@
 import type { Track } from '../api.ts';
 import { formatTime } from '../api.ts';
 import { usePlayer } from '../player.tsx';
+import { useListening } from '../listening.tsx';
 import { useIsMobile } from '../useMediaQuery.ts';
 import { Cover } from './Cover.tsx';
 import { DownloadButton } from './DownloadButton.tsx';
@@ -30,6 +31,7 @@ type Props = {
 export function TrackList({ tracks, showAlbum = false, menuItems, numbering = 'album' }: Props) {
   const player = usePlayer();
   const isMobile = useIsMobile();
+  const ascolti = useListening();
   const conCopertina = numbering === 'nessuno';
 
   /** Colonne separate per artista e album solo dove c'è spazio. */
@@ -93,6 +95,20 @@ export function TrackList({ tracks, showAlbum = false, menuItems, numbering = 'a
             {colonneSeparate && <span className="track-artista">{track.artist}</span>}
             {colonneSeparate && <span className="track-album">{track.album}</span>}
             {!conCopertina && <span className="track-format">{track.codec?.toUpperCase()}</span>}
+
+            {/* Cella sempre presente ma vuota se il brano non è preferito:
+                tenere la colonna evita che le righe si disallineino, e non
+                aggiunge un simbolo su ogni traccia. Si aggiunge dal menù ⋯. */}
+            <span className="track-cuore">
+              {ascolti.isFavorite(track.id) && (
+                <button
+                  className="icon is-preferito"
+                  onClick={() => void ascolti.toggleFavorite(track)}
+                  title="Togli dai preferiti"
+                  aria-label={`Togli ${track.title} dai preferiti`}
+                ><Icon name="heartFilled" size={14} /></button>
+              )}
+            </span>
 
             <DownloadButton tracks={[track]} />
             <span className="track-time">{formatTime(track.duration)}</span>

@@ -19,6 +19,9 @@ import { scanLibrary, LibraryMissingError } from './scanner.ts';
 import { getLyrics } from './lyrics.ts';
 import { searchTracks, rebuildSearchIndex, indexIsStale } from './search.ts';
 import {
+  COLONNE_TRACCIA, setFavorite, listFavorites, recordPlay, recentlyPlayed, mostPlayed,
+} from './listening.ts';
+import {
   listPlaylists, getPlaylist, createPlaylist, renamePlaylist, deletePlaylist,
   addTracks, removeAt, moveTrack, setCover, clearCover, coverFile,
 } from './playlists.ts';
@@ -78,10 +81,7 @@ const q = {
   `),
   artist: db.prepare('SELECT id, name FROM artists WHERE id = ?'),
   tracksOfAlbum: db.prepare(`
-    SELECT t.id, t.title, t.track_no AS trackNo, t.disc_no AS discNo, t.duration,
-           t.codec, t.bitrate, t.sample_rate AS sampleRate, t.channels, t.size,
-           al.id AS albumId, al.title AS album, al.cover_key AS coverKey,
-           ar.id AS artistId, ar.name AS artist
+    SELECT ${COLONNE_TRACCIA}
     FROM tracks t
     JOIN albums al ON al.id = t.album_id
     JOIN artists ar ON ar.id = t.artist_id
@@ -89,10 +89,7 @@ const q = {
     ORDER BY t.disc_no, t.track_no, t.title COLLATE NOCASE
   `),
   allTracks: db.prepare(`
-    SELECT t.id, t.title, t.track_no AS trackNo, t.disc_no AS discNo, t.duration,
-           t.codec, t.bitrate, t.sample_rate AS sampleRate, t.channels, t.size,
-           al.id AS albumId, al.title AS album, al.cover_key AS coverKey,
-           ar.id AS artistId, ar.name AS artist
+    SELECT ${COLONNE_TRACCIA}
     FROM tracks t
     JOIN albums al ON al.id = t.album_id
     JOIN artists ar ON ar.id = t.artist_id
@@ -250,6 +247,34 @@ post(/^\/api\/scan$/, async (_req, res) => {
   const result = await runScan('richiesto');
   if (!result) return json(res, 500, { error: 'Scan fallito: controlla i log del server' });
   json(res, 200, result);
+});
+
+/* ──────────────────── preferiti e ascolti ──────────────────── */
+
+get(/^\/api\/favorites$/, (_req, res) => json(res, 200, listFavorites(db)));
+
+post(/^\/api\/tracks\/(\d+)\/favorite$/, async (req, res, [id]) => {
+  const corpo = await readJson(req) as { favorite?: unknown };
+  const preferito = corpo.favorite !== false;
+  if (!setFavorite(db, Number(id), preferito)) {
+    return json(res, 404, { error: 'Traccia non trovata' });
+  }
+  json(res, 200, { id: Number(id), favorite: preferito });
+});
+
+// Registrato dal client quando il brano è stato davvero ascoltato (metà, o
+// quattro minuti): la soglia sta nel player, qui si prende solo nota.
+post(/^\/api\/tracks\/(\d+)\/play$/, (_req, res, [id]) => {
+  const conteggio = recordPlay(db, Number(id));
+  if (conteggio === null) return json(res, 404, { error: 'Traccia non trovata' });
+  json(res, 200, { id: Number(id), playCount: conteggio });
+});
+
+get(/^\/api\/recent$/, (_req, res) => json(res, 200, recentlyPlayed(db)));
+
+get(/^\/api\/top$/, (_req, res, _params, url) => {
+  const giorni = Number(url.searchParams.get('days'));
+  json(res, 200, mostPlayed(db, 60, Number.isFinite(giorni) && giorni > 0 ? giorni : undefined));
 });
 
 /* ─────────────────────────── playlist ─────────────────────────── */

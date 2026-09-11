@@ -51,6 +51,10 @@ function dbDiProva() {
       duration REAL, codec TEXT, bitrate INTEGER, sample_rate INTEGER,
       channels INTEGER, size INTEGER, album_id INTEGER, artist_id INTEGER
     );
+    -- Le colonne condivise delle tracce leggono anche preferiti e ascolti:
+    -- servono qui, anche se questi test riguardano solo la ricerca.
+    CREATE TABLE favorites (track_id INTEGER PRIMARY KEY, added_at INTEGER);
+    CREATE TABLE plays (id INTEGER PRIMARY KEY, track_id INTEGER, played_at INTEGER);
     CREATE VIRTUAL TABLE tracks_fts USING fts5(
       title, artist, album, tokenize='unicode61 remove_diacritics 2'
     );

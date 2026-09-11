@@ -29,6 +29,9 @@ export type Track = {
   coverKey: string | null;
   artistId: number;
   artist: string;
+  /** 0 o 1: SQLite non ha il tipo booleano */
+  favorite: number;
+  playCount: number;
 };
 
 export type AlbumDetail = Omit<Album, 'trackCount' | 'duration'> & { tracks: Track[] };
@@ -76,6 +79,10 @@ export const api = {
   tracks: () => get<Track[]>('/api/tracks'),
   search: (q: string) => get<Track[]>(`/api/search?q=${encodeURIComponent(q)}`),
   lyrics: (trackId: number) => get<Lyrics>(`/api/tracks/${trackId}/lyrics`),
+
+  favorites: () => get<Track[]>('/api/favorites'),
+  recent: () => get<Track[]>('/api/recent'),
+  top: (days?: number) => get<Track[]>(`/api/top${days ? `?days=${days}` : ''}`),
 
   playlists: () => get<PlaylistSummary[]>('/api/playlists'),
   playlist: (id: number) => get<PlaylistDetail>(`/api/playlists/${id}`),

@@ -18,7 +18,8 @@ import {
 } from 'react';
 import type { ReactNode } from 'react';
 import type { Track } from './api.ts';
-import { streamUrl, coverUrl } from './api.ts';
+import { streamUrl, coverUrl, send } from './api.ts';
+import { sogliaAscolto } from './soglia.ts';
 
 export type RepeatMode = 'off' | 'all' | 'one';
 
@@ -92,6 +93,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // disattiva lo shuffle.
   const sourceRef = useRef<Track[]>([]);
 
+  // Id della traccia già conteggiata in questa riproduzione: senza, ogni
+  // timeupdate oltre la soglia manderebbe una richiesta (quattro al secondo).
+  const contatoRef = useRef<number | null>(null);
+
   const [state, setState] = useState<PlayerState>({
     queue: [], index: -1, current: null,
     isPlaying: false, isLoading: false,
@@ -110,6 +115,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (!audio || !track) return;
 
     audio.src = streamUrl(track.id);
+    contatoRef.current = null;
     patch({ queue, index, current: track, currentTime: 0, duration: track.duration, buffered: 0, error: null, isLoading: true });
 
     if (autoplay) {
@@ -188,6 +194,14 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         }
       }
       patch({ currentTime: audio.currentTime, buffered: ahead });
+
+      // Un ascolto conta solo se il brano è stato davvero ascoltato.
+      const corrente = stateRef.current.current;
+      if (corrente && contatoRef.current !== corrente.id
+          && audio.currentTime >= sogliaAscolto(audio.duration || corrente.duration)) {
+        contatoRef.current = corrente.id;
+        void send(`/api/tracks/${corrente.id}/play`, 'POST').catch(() => undefined);
+      }
     };
     const onMeta = () => patch({ duration: audio.duration, isLoading: false });
     const onPlay = () => patch({ isPlaying: true, error: null });

@@ -13,6 +13,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { Track } from '../api.ts';
 import { usePlayer } from '../player.tsx';
 import { usePlaylists } from '../playlists.tsx';
+import { useListening } from '../listening.tsx';
 import { useNavigate } from '../nav.tsx';
 import { Icon } from './Icon.tsx';
 import type { IconName } from './Icon.tsx';
@@ -42,6 +43,7 @@ export function AddMenu({ tracks, voci = [], variant = 'icon', label = 'Aggiungi
   const player = usePlayer();
   const playlists = usePlaylists();
   const navigate = useNavigate();
+  const ascolti = useListening();
   const [aperto, setAperto] = useState(false);
   const [nuova, setNuova] = useState(false);
   const [nome, setNome] = useState('');
@@ -129,6 +131,16 @@ export function AddMenu({ tracks, voci = [], variant = 'icon', label = 'Aggiungi
             <p className="menu-esito">{esito}</p>
           ) : (
             <>
+              {tracks.length === 1 && (
+                <button
+                  className="menu-voce"
+                  onClick={() => { void ascolti.toggleFavorite(tracks[0]); chiudi(); }}
+                >
+                  <Icon name={ascolti.isFavorite(tracks[0].id) ? 'heartFilled' : 'heart'} size={15} />
+                  {ascolti.isFavorite(tracks[0].id) ? 'Togli dai preferiti' : 'Aggiungi ai preferiti'}
+                </button>
+              )}
+
               {voci.map((v) => (
                 <button
                   key={v.label}

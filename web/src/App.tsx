@@ -10,7 +10,7 @@ import { useIsMobile } from './useMediaQuery.ts';
 import { usePlayer } from './player.tsx';
 import {
   AlbumsView, AlbumDetailView, ArtistsView, ArtistDetailView, SongsView, SearchView,
-  DownloadsView, PlaylistsView, PlaylistDetailView,
+  DownloadsView, PlaylistsView, PlaylistDetailView, FavoritesView, ListeningView,
 } from './views.tsx';
 import { usePlaylists } from './playlists.tsx';
 import { useDownloads } from './downloads.tsx';
@@ -65,6 +65,8 @@ export function App() {
             {item('artists', 'Artisti', { name: 'artists' })}
             {item('songs', 'Brani', { name: 'songs' })}
             {item('playlists', 'Playlist', { name: 'playlists' })}
+            {item('favorites', 'Preferiti', { name: 'favorites' })}
+            {item('listening', 'Ascolti', { name: 'listening' })}
             {downloads.supported && (
               <button
                 className={`navitem ${view.name === 'downloads' ? 'is-current' : ''}`}
@@ -123,6 +125,8 @@ export function App() {
           {view.name === 'songs' && <SongsView />}
           {view.name === 'search' && <SearchView />}
           {view.name === 'downloads' && <DownloadsView />}
+          {view.name === 'favorites' && <FavoritesView />}
+          {view.name === 'listening' && <ListeningView />}
           {view.name === 'playlists' && <PlaylistsView />}
           {view.name === 'playlist' && <PlaylistDetailView id={view.id} />}
           </main>

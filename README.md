@@ -149,6 +149,26 @@ schermata "Scaricati" mostra se la richiesta è stata accolta). I download sono
 legati a quel browser su quel dispositivo: non è una libreria sincronizzata, e
 non c'è nessun DRM.
 
+## Preferiti e ascolti
+
+Il cuore si mette dal menù ⋯ di un brano e compare nella riga solo se il brano
+è preferito — la colonna però c'è sempre, anche vuota, o le righe si
+disallineerebbero fra loro. La schermata **Preferiti** li raccoglie tutti.
+
+**Un ascolto conta solo quando il brano è stato davvero ascoltato:** metà della
+durata, oppure quattro minuti, quello che viene prima. È la convenzione dello
+scrobbling. Contare all'avvio riempirebbe "i più ascoltati" di pezzi saltati
+dopo tre secondi.
+
+Gli ascolti sono **una riga per ascolto**, non un contatore sulla traccia:
+costa qualche migliaio di righe l'anno — niente, per SQLite — e in cambio dà
+gratis "di recente" e "più ascoltati nell'ultimo mese", che da un contatore non
+si ricavano più.
+
+Un limite noto: la soglia guarda la posizione nel brano, non il tempo
+effettivamente ascoltato. Saltando avanti oltre metà, l'ascolto viene contato
+lo stesso.
+
 ## Ricerca
 
 Indice full-text FTS5, ricostruito da zero alla fine di ogni scan. Niente
@@ -230,6 +250,6 @@ curl -s -D - -o /dev/null -H "Range: bytes=0-99" localhost:4000/api/tracks/1/str
 - [x] **5. Playlist** — creazione, riordino, rimozione, copertina personalizzata
 - [x] **6. Ricerca** — indice full-text SQLite FTS5 al posto di `LIKE`
 - [ ] **7. Transcodifica** — FLAC e formati esotici convertiti al volo per i browser che non li leggono
-- [ ] **8. Preferiti e ascolti** — un cuore sui brani e il conteggio delle riproduzioni
+- [x] **8. Preferiti e ascolti** — cuore sui brani, conteggio delle riproduzioni
 - [ ] **9. Utenti** — login, libreria per utente, streaming autenticato
       (prerequisito se il server esce di casa)

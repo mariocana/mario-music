@@ -5,6 +5,7 @@ import { PlayerProvider } from './player.tsx';
 import { DownloadsProvider } from './downloads.tsx';
 import { LibraryProvider } from './library.tsx';
 import { PlaylistsProvider } from './playlists.tsx';
+import { ListeningProvider } from './listening.tsx';
 import './styles.css';
 
 /**
@@ -55,11 +56,13 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <LibraryProvider>
       <PlaylistsProvider>
-        <DownloadsProvider>
+        <ListeningProvider>
+          <DownloadsProvider>
           <PlayerProvider>
             <App />
-          </PlayerProvider>
-        </DownloadsProvider>
+            </PlayerProvider>
+          </DownloadsProvider>
+        </ListeningProvider>
       </PlaylistsProvider>
     </LibraryProvider>
   </StrictMode>,

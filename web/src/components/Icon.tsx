@@ -16,11 +16,12 @@ export type IconName =
   | 'volume' | 'mute'
   | 'download' | 'check' | 'refresh' | 'spinner'
   | 'queue' | 'queueNext' | 'close' | 'up' | 'down' | 'lyrics'
-  | 'more' | 'plus' | 'playlist' | 'trash';
+  | 'more' | 'plus' | 'playlist' | 'trash' | 'heart' | 'heartFilled' | 'chart';
 
 /** Icone piene: sagome compatte, leggibili anche a 14px. */
 const FILLED: Partial<Record<IconName, React.ReactNode>> = {
   play: <path d="M8 5.2v13.6L19 12z" />,
+  heartFilled: <path d="M12 20.3s-8-5-8-10.2A4.7 4.7 0 0 1 12 7.2a4.7 4.7 0 0 1 8 2.9c0 5.2-8 10.2-8 10.2Z" />,
   pause: (
     <>
       <rect x="7" y="5.2" width="3.4" height="13.6" rx="1.2" />
@@ -105,6 +106,14 @@ const STROKED: Partial<Record<IconName, React.ReactNode>> = {
     </>
   ),
   up: <path d="m6 15 6-6 6 6" />,
+  heart: <path d="M12 20s-7.5-4.7-7.5-9.6A4.4 4.4 0 0 1 12 7.6a4.4 4.4 0 0 1 7.5 2.8C19.5 15.3 12 20 12 20Z" />,
+  chart: (
+    <>
+      <path d="M5 20V11" />
+      <path d="M12 20V4" />
+      <path d="M19 20v-6" />
+    </>
+  ),
   more: (
     <>
       <circle cx="5" cy="12" r="1.4" />

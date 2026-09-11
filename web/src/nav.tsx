@@ -7,6 +7,8 @@ export type View =
   | { name: 'artist'; id: number }
   | { name: 'songs' }
   | { name: 'downloads' }
+  | { name: 'favorites' }
+  | { name: 'listening' }
   | { name: 'playlists' }
   | { name: 'playlist'; id: number }
   | { name: 'search' };

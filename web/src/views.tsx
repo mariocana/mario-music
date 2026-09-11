@@ -12,6 +12,7 @@ import { TrackList } from './components/TrackList.tsx';
 import { DownloadButton } from './components/DownloadButton.tsx';
 import { AddMenu } from './components/AddMenu.tsx';
 import { usePlaylists } from './playlists.tsx';
+import { useListening } from './listening.tsx';
 import { formatBytes, useDownloads } from './downloads.tsx';
 
 function Loading() { return <p className="hint">Carico…</p>; }
@@ -432,6 +433,108 @@ export function PlaylistDetailView({ id }: { id: number }) {
           ]}
         />
       )}
+    </>
+  );
+}
+
+/* ──────────────────── preferiti e ascolti ──────────────────── */
+
+export function FavoritesView() {
+  const ascolti = useListening();
+  const player = usePlayer();
+  // La revisione del context fa ricaricare quando si toglie un cuore.
+  const { data, error, loading } = useAsync(() => api.favorites(), [ascolti.revision]);
+
+  if (loading) return <Loading />;
+  if (error) return <Failure message={error} />;
+
+  if (!data?.length) {
+    return (
+      <>
+        <h1>Preferiti</h1>
+        <p className="hint">
+          Nessun preferito. Apri il menù ⋯ di un brano e scegli “Aggiungi ai preferiti”.
+        </p>
+      </>
+    );
+  }
+
+  const totale = data.reduce((somma, t) => somma + t.duration, 0);
+
+  return (
+    <>
+      <h1>Preferiti</h1>
+      <p className="dim sotto-titolo">
+        {data.length} {data.length === 1 ? 'brano' : 'brani'} · {formatLength(totale)}
+      </p>
+      <div className="albumhead-actions">
+        <button className="primary" onClick={() => player.playQueue(data, 0)}>▶ Riproduci</button>
+        <button
+          className="ghost"
+          onClick={() => {
+            if (!player.shuffle) player.toggleShuffle();
+            player.playQueue(data, Math.floor(Math.random() * data.length));
+          }}
+        >⤨ Casuale</button>
+      </div>
+      <TrackList tracks={data} showAlbum numbering="nessuno" />
+    </>
+  );
+}
+
+export function ListeningView() {
+  const [scheda, setScheda] = useState<'recenti' | 'top'>('recenti');
+  const [periodo, setPeriodo] = useState<number | undefined>(undefined);
+  const player = usePlayer();
+
+  const { data, error, loading } = useAsync(
+    () => (scheda === 'recenti' ? api.recent() : api.top(periodo)),
+    [scheda, periodo],
+  );
+
+  return (
+    <>
+      <h1>Ascolti</h1>
+
+      <div className="queue-tabs sotto-titolo">
+        <button
+          className={`queue-tab ${scheda === 'recenti' ? 'is-attiva' : ''}`}
+          onClick={() => setScheda('recenti')}
+        >Di recente</button>
+        <button
+          className={`queue-tab ${scheda === 'top' ? 'is-attiva' : ''}`}
+          onClick={() => setScheda('top')}
+        >Più ascoltati</button>
+      </div>
+
+      {scheda === 'top' && (
+        <div className="queue-tabs sotto-titolo">
+          {([[undefined, 'Sempre'], [30, 'Ultimo mese'], [7, 'Ultima settimana']] as const).map(([g, etichetta]) => (
+            <button
+              key={etichetta}
+              className={`queue-tab ${periodo === g ? 'is-attiva' : ''}`}
+              onClick={() => setPeriodo(g)}
+            >{etichetta}</button>
+          ))}
+        </div>
+      )}
+
+      {loading ? <Loading />
+        : error ? <Failure message={error} />
+        : !data?.length ? (
+          <p className="hint">
+            {scheda === 'recenti'
+              ? 'Ancora nessun ascolto. Un brano conta quando ne hai sentito metà, o quattro minuti.'
+              : 'Nessun ascolto in questo periodo.'}
+          </p>
+        ) : (
+          <>
+            <div className="albumhead-actions">
+              <button className="primary" onClick={() => player.playQueue(data, 0)}>▶ Riproduci</button>
+            </div>
+            <TrackList tracks={data} showAlbum numbering="nessuno" />
+          </>
+        )}
     </>
   );
 }

@@ -13,6 +13,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { DatabaseSync } from 'node:sqlite';
+import { COLONNE_TRACCIA } from './listening.ts';
 import { promisify } from 'node:util';
 import { DATA_DIR } from './db.ts';
 
@@ -30,12 +31,7 @@ export type PlaylistSummary = {
   covers: Array<{ albumId: number; coverKey: string | null }>;
 };
 
-const COLONNE_TRACCIA = `
-  t.id, t.title, t.track_no AS trackNo, t.disc_no AS discNo, t.duration,
-  t.codec, t.bitrate, t.sample_rate AS sampleRate, t.channels, t.size,
-  al.id AS albumId, al.title AS album, al.cover_key AS coverKey,
-  ar.id AS artistId, ar.name AS artist
-`;
+
 
 export function listPlaylists(db: DatabaseSync): PlaylistSummary[] {
   const righe = db.prepare(`

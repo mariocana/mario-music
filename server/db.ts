@@ -83,6 +83,24 @@ CREATE TABLE IF NOT EXISTS playlist_tracks (
 
 CREATE INDEX IF NOT EXISTS idx_playlist_tracks ON playlist_tracks(track_id);
 
+CREATE TABLE IF NOT EXISTS favorites (
+  track_id INTEGER PRIMARY KEY REFERENCES tracks(id) ON DELETE CASCADE,
+  added_at INTEGER NOT NULL
+);
+
+-- Una riga per ascolto, non un contatore sulla traccia.
+-- Costa qualche migliaio di righe l'anno (niente, per SQLite) e in cambio dà
+-- gratis "ascoltati di recente" e "quante volte nell'ultimo mese", che da un
+-- contatore non si ricavano più.
+CREATE TABLE IF NOT EXISTS plays (
+  id        INTEGER PRIMARY KEY,
+  track_id  INTEGER NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
+  played_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_plays_track ON plays(track_id);
+CREATE INDEX IF NOT EXISTS idx_plays_time  ON plays(played_at DESC);
+
 -- Indice full-text per la ricerca. È una tabella a sé, non collegata a
 -- tracks, con rowid = tracks.id: artista e album stanno in altre tabelle,
 -- quindi non si può usare la modalità "external content" di FTS5.
