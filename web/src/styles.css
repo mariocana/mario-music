@@ -178,6 +178,11 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
   opacity: 1;
 }
 .round:hover, .albumhead-actions .dl:hover { background: var(--line); }
+.round:disabled, .pill-play:disabled { opacity: 0.4; cursor: default; }
+.round:disabled:hover { background: var(--bg-hover); }
+.pill-play:disabled:hover { filter: none; }
+/* Il modulo di rinomina prende il posto del titolo. */
+.albumhead-meta .playlist-nuova { margin-bottom: 4px; }
 .albumhead-actions .dl-done { color: var(--accent); }
 .albumhead-actions .dl-busy { cursor: default; }
 
@@ -769,10 +774,7 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
 .playlist-nuova { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
 .playlist-nuova .search { flex: 1; min-width: 180px; max-width: 340px; }
 
-.playlist-head { margin-bottom: 22px; }
-.playlist-head h1 { margin: 0 0 4px; }
-.playlist-head .dim { margin: 0 0 12px; }
-.ghost.pericolo:hover { background: var(--accent); color: #fff; }
+
 
 /* Mosaico 2x2 di copertine, per le playlist con almeno quattro album. */
 .mosaico {
@@ -843,30 +845,7 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
   .menu { width: min(280px, calc(100vw - 24px)); }
 }
 
-/* ── copertina della playlist ── */
-.playlist-head { display: flex; gap: 24px; align-items: flex-start; }
-.playlist-testa-dati { flex: 1; min-width: 0; }
-.playlist-copertina { display: flex; flex-direction: column; gap: 10px; flex: none; }
-.playlist-copertina .cover-lg { border-radius: var(--radius); }
-.playlist-copertina-azioni { display: flex; gap: 8px; }
-/* La <label> fa da pulsante: un input file nudo non si può stilare. */
-.playlist-copertina-azioni label {
-  padding: 6px 12px;
-  border-radius: 7px;
-  background: var(--bg-hover);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.playlist-copertina-azioni label:hover { background: var(--line); }
-.playlist-errore { margin: 0; font-size: 12px; max-width: 210px; }
-
-@media (max-width: 700px), ((pointer: coarse) and (max-height: 520px)) {
-  .playlist-head { flex-direction: column; align-items: center; text-align: center; }
-  .playlist-copertina { align-items: center; }
-  .playlist-testa-dati { width: 100%; }
-  .playlist-head .albumhead-actions { justify-content: center; }
-}
+/* La testata della playlist usa .albumhead: stesso aspetto dell'album. */
 
 .menu-separatore { height: 1px; background: var(--line); margin: 4px 0; }
 .menu-voce:disabled { opacity: 0.35; cursor: default; }

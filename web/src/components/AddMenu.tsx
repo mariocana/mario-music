@@ -105,7 +105,10 @@ export function AddMenu({ tracks, voci = [], variant = 'icon', label = 'Aggiungi
     if (creata) await aggiungiA(creata.id, creata.name);
   }
 
-  if (tracks.length === 0) return null;
+  // Senza tracce il menù ha senso solo se chi lo usa gli dà delle voci sue:
+  // una playlist vuota deve comunque potersi rinominare o eliminare.
+  if (tracks.length === 0 && voci.length === 0) return null;
+  const conTracce = tracks.length > 0;
 
   return (
     <>
@@ -151,14 +154,16 @@ export function AddMenu({ tracks, voci = [], variant = 'icon', label = 'Aggiungi
                   <Icon name={v.icon} size={15} /> {v.label}
                 </button>
               ))}
-              {voci.length > 0 && <div className="menu-separatore" />}
+              {voci.length > 0 && conTracce && <div className="menu-separatore" />}
 
+              {conTracce && (
               <button
                 className="menu-voce"
                 onClick={() => { tracks.forEach((t) => player.playNext(t)); chiudi(); }}
               >
                 <Icon name="queueNext" size={15} /> Riproduci dopo
               </button>
+              )}
 
               {tracks.length === 1 && (
                 <>
@@ -173,6 +178,7 @@ export function AddMenu({ tracks, voci = [], variant = 'icon', label = 'Aggiungi
                 </>
               )}
 
+              {conTracce && (<>
               <div className="menu-titolo">Aggiungi a playlist</div>
 
               <div className="menu-lista">
@@ -207,6 +213,7 @@ export function AddMenu({ tracks, voci = [], variant = 'icon', label = 'Aggiungi
                   <Icon name="plus" size={15} /> Nuova playlist…
                 </button>
               )}
+              </>)}
             </>
           )}
         </div>

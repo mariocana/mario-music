@@ -1,5 +1,5 @@
 /** Le schermate: griglia album, dettaglio album, artisti, brani, ricerca. */
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { api, formatLength, formatTime, playlistCoverUrl } from './api.ts';
 import type { Album, PlaylistSummary } from './api.ts';
 import { useAsync } from './useAsync.ts';
@@ -328,124 +328,129 @@ export function PlaylistDetailView({ id }: { id: number }) {
   const { data, error, loading } = useAsync(() => api.playlist(id), [id, playlists.revision]);
   const [rinomina, setRinomina] = useState<string | null>(null);
   const [erroreCopertina, setErroreCopertina] = useState<string | null>(null);
+  // Un input file nudo non si può stilare né mettere in un menù: sta nascosto
+  // e la voce "Cambia immagine" lo apre per lui.
+  const fileRef = useRef<HTMLInputElement>(null);
 
   if (loading) return <Loading />;
   if (error) return <Failure message={error} />;
   if (!data) return null;
 
   const totale = data.tracks.reduce((somma, t) => somma + t.duration, 0);
+  const vuota = data.tracks.length === 0;
+
+  const casuale = () => {
+    if (!player.shuffle) player.toggleShuffle();
+    player.playQueue(data.tracks, Math.floor(Math.random() * data.tracks.length));
+  };
+
+  const elimina = async () => {
+    // Cancellare una playlist non si annulla: si chiede conferma.
+    if (!confirm(`Eliminare la playlist "${data.name}"? I brani restano in libreria.`)) return;
+    await playlists.remove(id);
+    navigate({ name: 'playlists' });
+  };
 
   return (
     <>
-      <header className="playlist-head">
-        <div className="playlist-copertina">
-          {data.coverKey ? (
-            <img className="cover cover-lg" src={playlistCoverUrl(id, data.coverKey)} alt="" />
-          ) : (
-            <div className="cover cover-lg cover-empty" aria-hidden>
-              <span>{data.name.slice(0, 1).toUpperCase()}</span>
-            </div>
-          )}
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          // Si azzera subito: senza, ricaricare lo stesso file non
+          // scatenerebbe un nuovo change.
+          e.target.value = '';
+          if (!file) return;
+          setErroreCopertina(null);
+          try {
+            await playlists.setCover(id, file);
+          } catch (err) {
+            setErroreCopertina(err instanceof Error ? err.message : 'Caricamento fallito');
+          }
+        }}
+      />
 
-          <div className="playlist-copertina-azioni">
-            {/* Un input file nudo non si può stilare: lo si nasconde e si
-                usa la sua <label> come pulsante. */}
-            <label className="ghost">
-              {data.coverKey ? 'Cambia immagine' : 'Scegli immagine'}
-              <input
-                type="file"
-                accept="image/*"
-                hidden
-                onChange={async (e) => {
-                  const file = e.target.files?.[0];
-                  // Si azzera subito: senza, ricaricare lo stesso file non
-                  // scatenerebbe un nuovo change.
-                  e.target.value = '';
-                  if (!file) return;
-                  setErroreCopertina(null);
-                  try {
-                    await playlists.setCover(id, file);
-                  } catch (err) {
-                    setErroreCopertina(err instanceof Error ? err.message : 'Caricamento fallito');
-                  }
-                }}
-              />
-            </label>
-            {data.coverKey && (
-              <button className="ghost" onClick={() => void playlists.clearCover(id)}>Rimuovi</button>
-            )}
-          </div>
-          {erroreCopertina && <p className="hint error playlist-errore">{erroreCopertina}</p>}
+      <header className="albumhead">
+        {/* Come nell'album: tutto ciò che non è "suona" sta nel ⋯ in alto a
+            destra. Rinomina, immagine ed elimina erano quattro pulsanti in
+            fila che a 393px uscivano dallo schermo. */}
+        <div className="albumhead-menu">
+          <AddMenu
+            tracks={data.tracks}
+            voci={[
+              { label: 'Rinomina', icon: 'more', onClick: () => setRinomina(data.name) },
+              { label: data.coverKey ? 'Cambia immagine' : 'Scegli immagine', icon: 'grid', onClick: () => fileRef.current?.click() },
+              ...(data.coverKey ? [{ label: 'Rimuovi immagine', icon: 'close' as const, onClick: () => void playlists.clearCover(id) }] : []),
+              { label: 'Elimina playlist', icon: 'trash', onClick: () => void elimina() },
+            ]}
+          />
         </div>
 
-        <div className="playlist-testa-dati">
-        {rinomina === null ? (
-          <h1>{data.name}</h1>
+        {data.coverKey ? (
+          <img className="cover cover-lg" src={playlistCoverUrl(id, data.coverKey)} alt="" />
         ) : (
-          <form
-            className="playlist-nuova"
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (rinomina.trim()) await playlists.rename(id, rinomina.trim());
-              setRinomina(null);
-            }}
-          >
-            <input autoFocus className="search" value={rinomina} onChange={(e) => setRinomina(e.target.value)} />
-            <button className="primary" type="submit">Salva</button>
-            <button className="ghost" type="button" onClick={() => setRinomina(null)}>Annulla</button>
-          </form>
+          <div className="cover cover-lg cover-empty" aria-hidden>
+            <span>{data.name.slice(0, 1).toUpperCase()}</span>
+          </div>
         )}
 
-        <p className="dim">
-          {data.tracks.length} {data.tracks.length === 1 ? 'brano' : 'brani'}
-          {data.tracks.length > 0 && ` · ${formatLength(totale)}`}
-        </p>
-
-        <div className="albumhead-actions">
-          <button
-            className="primary"
-            disabled={data.tracks.length === 0}
-            onClick={() => player.playQueue(data.tracks, 0)}
-          >▶ Riproduci</button>
-          <button
-            className="ghost"
-            disabled={data.tracks.length === 0}
-            onClick={() => {
-              if (!player.shuffle) player.toggleShuffle();
-              player.playQueue(data.tracks, Math.floor(Math.random() * data.tracks.length));
-            }}
-          >⤨ Casuale</button>
-          {rinomina === null && (
-            <button className="ghost" onClick={() => setRinomina(data.name)}>Rinomina</button>
+        <div className="albumhead-meta">
+          {rinomina === null ? (
+            <h1>{data.name}</h1>
+          ) : (
+            <form
+              className="playlist-nuova"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (rinomina.trim()) await playlists.rename(id, rinomina.trim());
+                setRinomina(null);
+              }}
+            >
+              <input autoFocus className="search" value={rinomina} onChange={(e) => setRinomina(e.target.value)} />
+              <button className="primary" type="submit">Salva</button>
+              <button className="ghost" type="button" onClick={() => setRinomina(null)}>Annulla</button>
+            </form>
           )}
-          <button
-            className="ghost pericolo"
-            onClick={async () => {
-              // Cancellare una playlist non si annulla: si chiede conferma.
-              if (!confirm(`Eliminare la playlist "${data.name}"? I brani restano in libreria.`)) return;
-              await playlists.remove(id);
-              navigate({ name: 'playlists' });
-            }}
-          >Elimina</button>
-        </div>
+          <p className="albumhead-sub">Playlist</p>
+          {erroreCopertina && <p className="hint error">{erroreCopertina}</p>}
+
+          <div className="albumhead-actions">
+            <button className="round" disabled={vuota} onClick={casuale}
+              title="Riproduzione casuale" aria-label="Riproduzione casuale"
+            ><Icon name="shuffle" size={20} /></button>
+            <button className="pill-play" disabled={vuota} onClick={() => player.playQueue(data.tracks, 0)}>
+              <Icon name="play" size={16} /> Riproduci
+            </button>
+            {vuota
+              ? <button className="round" disabled aria-label="Scarica"><Icon name="download" size={18} /></button>
+              : <DownloadButton tracks={data.tracks} compact />}
+          </div>
         </div>
       </header>
 
-      {data.tracks.length === 0 ? (
+      {vuota ? (
         <p className="hint">Playlist vuota. Aggiungi brani dal menù ⋯ di una traccia o di un album.</p>
       ) : (
-        <TrackList
-          tracks={data.tracks}
-          showAlbum
-          numbering="nessuno"
-          // Riordino e rimozione stanno nel menù ⋯ e non in riga: erano tre
-          // simboli in più su ogni traccia, oltre a download e menù.
-          menuItems={(_t, i) => [
-            { label: 'Sposta su', icon: 'up', disabled: i === 0, onClick: () => void playlists.move(id, i, i - 1) },
-            { label: 'Sposta giù', icon: 'down', disabled: i === data.tracks.length - 1, onClick: () => void playlists.move(id, i, i + 1) },
-            { label: 'Togli dalla playlist', icon: 'trash', onClick: () => void playlists.removeAt(id, i) },
-          ]}
-        />
+        <>
+          <TrackList
+            tracks={data.tracks}
+            showAlbum
+            numbering="nessuno"
+            // Riordino e rimozione stanno nel menù ⋯ e non in riga: erano tre
+            // simboli in più su ogni traccia, oltre a download e menù.
+            menuItems={(_t, i) => [
+              { label: 'Sposta su', icon: 'up', disabled: i === 0, onClick: () => void playlists.move(id, i, i - 1) },
+              { label: 'Sposta giù', icon: 'down', disabled: i === data.tracks.length - 1, onClick: () => void playlists.move(id, i, i + 1) },
+              { label: 'Togli dalla playlist', icon: 'trash', onClick: () => void playlists.removeAt(id, i) },
+            ]}
+          />
+          <p className="albumfoot dim">
+            {data.tracks.length} {data.tracks.length === 1 ? 'brano' : 'brani'} · {formatLength(totale)}
+          </p>
+        </>
       )}
     </>
   );
