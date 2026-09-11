@@ -215,6 +215,19 @@ aggiornare in sequenza colliderebbe a metà strada con una posizione ancora
 occupata. La chiave *non* è `(playlist, brano)` apposta — lo stesso brano può
 comparire due volte nella stessa playlist, ed è legittimo.
 
+## Navigazione e tasto Indietro
+
+Non c'è un router: la schermata corrente sta in `history.state` del browser,
+come `{ view, depth }`. Aprire qualcosa dal contenuto (una copertina, una
+riga, una voce del menù ⋯) fa `pushState` e scende di un livello; toccare una
+sezione nella barra fa `replaceState` a livello 0, come le schede di iOS.
+
+Il tasto Indietro in alto a sinistra compare solo a `depth > 0` e fa
+semplicemente `history.back()`. Usando la cronologia vera del browser vengono
+gratis tre cose: il gesto dal bordo sinistro di iOS, il pulsante Indietro di
+Android, e il ricaricamento della pagina che resta sulla stessa schermata —
+prima riportava sempre agli album.
+
 ## Cos'è "mobile"
 
 Uno schermo stretto (≤ 700px) **oppure** un touchscreen basso (≤ 520px di

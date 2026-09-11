@@ -20,7 +20,30 @@ import { useLibrary } from './library.tsx';
 import { Icon } from './components/Icon.tsx';
 
 export function App() {
-  const [view, setView] = useState<View>({ name: 'albums' });
+  /**
+   * La cronologia delle schermate è quella del browser, non uno stato nostro.
+   *
+   * Ogni voce di history porta { view, depth }. Così il tasto Indietro
+   * dell'app fa semplicemente history.back(), e in più funzionano gratis il
+   * gesto dal bordo sinistro di iOS, il pulsante Indietro di Android, e il
+   * ricaricamento della pagina — che prima ti riportava sempre agli album.
+   *
+   * `depth` dice quanto si è scesi: le sezioni della barra sono a 0 e non
+   * mostrano il tasto; album, artista e playlist aperti da lì sono a 1, 2…
+   */
+  const [stato, setStato] = useState<{ view: View; depth: number }>(() =>
+    history.state?.view ? history.state : { view: { name: 'albums' }, depth: 0 });
+  const view = stato.view;
+
+  useEffect(() => {
+    if (!history.state?.view) history.replaceState({ view: stato.view, depth: 0 }, '');
+    const onPop = (e: PopStateEvent) => { if (e.state?.view) setStato(e.state); };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const back = () => history.back();
   // Un solo stato per entrambi i formati: su desktop 'coda' e 'testo' sono
   // le due schede della colonna di destra, su mobile sono due facce della
   // schermata piena (dove esiste anche 'brano', che su desktop non serve).
@@ -45,7 +68,19 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [player]);
 
-  const nav = (next: View) => setView(next);
+  /** Dalla barra: cambia sezione senza scendere di livello, come le schede di iOS. */
+  const nav = (next: View) => {
+    const s = { view: next, depth: 0 };
+    history.replaceState(s, '');
+    setStato(s);
+  };
+
+  /** Dal contenuto (una copertina, una riga, una voce di menù): si scende di un livello. */
+  const navigate = (next: View) => {
+    const s = { view: next, depth: stato.depth + 1 };
+    history.pushState(s, '');
+    setStato(s);
+  };
 
   const item = (name: View['name'], label: string, target: View) => (
     <button
@@ -55,7 +90,7 @@ export function App() {
   );
 
   return (
-    <NavContext.Provider value={nav}>
+    <NavContext.Provider value={navigate}>
       <div className={`app${colonnaAperta ? ' with-queue' : ''}`}>
         {isMobile ? (
           <MobileTabBar view={view} onNav={nav} />
@@ -119,6 +154,11 @@ export function App() {
 
         <div className="main">
           <main className="content">
+          {stato.depth > 0 && (
+            <button className="back" onClick={back} aria-label="Indietro" title="Indietro">
+              <Icon name="back" size={20} />
+            </button>
+          )}
           {!downloads.online && (
             <p className="offline-banner" role="status">
               Sei offline: si vedono il catalogo salvato e i brani scaricati.
