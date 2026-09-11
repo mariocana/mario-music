@@ -215,6 +215,14 @@ aggiornare in sequenza colliderebbe a metà strada con una posizione ancora
 occupata. La chiave *non* è `(playlist, brano)` apposta — lo stesso brano può
 comparire due volte nella stessa playlist, ed è legittimo.
 
+## Barra in fondo, su telefono
+
+Una pillola con quattro schede — Album, Libreria, Playlist, Preferiti — e un
+cerchio a parte per la ricerca, sul modello di Apple Music. Le sezioni che non
+ci stanno (Artisti, Brani, Ascolti, Scaricati) sono dentro **Libreria**, che è
+una pagina-elenco. Otto etichette in fila entravano nei 393px per un pelo, a
+47px l'una: leggibili ma senza nessuna gerarchia.
+
 ## Testi
 
 Il pannello dei testi li cerca su [LRCLIB](https://lrclib.net) alla prima

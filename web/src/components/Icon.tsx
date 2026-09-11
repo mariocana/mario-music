@@ -16,7 +16,8 @@ export type IconName =
   | 'volume' | 'mute'
   | 'download' | 'check' | 'refresh' | 'spinner'
   | 'queue' | 'queueNext' | 'close' | 'up' | 'down' | 'lyrics'
-  | 'more' | 'plus' | 'playlist' | 'trash' | 'heart' | 'heartFilled' | 'chart';
+  | 'more' | 'plus' | 'playlist' | 'trash' | 'heart' | 'heartFilled' | 'chart'
+  | 'grid' | 'library' | 'search' | 'artist' | 'note' | 'downloadBox';
 
 /** Icone piene: sagome compatte, leggibili anche a 14px. */
 const FILLED: Partial<Record<IconName, React.ReactNode>> = {
@@ -106,6 +107,47 @@ const STROKED: Partial<Record<IconName, React.ReactNode>> = {
     </>
   ),
   up: <path d="m6 15 6-6 6 6" />,
+  grid: (
+    <>
+      <rect x="3.5" y="3.5" width="7" height="7" rx="1.8" />
+      <rect x="13.5" y="3.5" width="7" height="7" rx="1.8" />
+      <rect x="3.5" y="13.5" width="7" height="7" rx="1.8" />
+      <rect x="13.5" y="13.5" width="7" height="7" rx="1.8" />
+    </>
+  ),
+  library: (
+    <>
+      <rect x="3" y="5" width="18" height="15" rx="3" />
+      <path d="M13.5 15.5V9.5l4-1.2" />
+      <circle cx="11.5" cy="15.5" r="2" />
+    </>
+  ),
+  search: (
+    <>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m20 20-4.3-4.3" />
+    </>
+  ),
+  artist: (
+    <>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4.5 20a7.5 7.5 0 0 1 15 0" />
+    </>
+  ),
+  note: (
+    <>
+      <path d="M9.5 18V6l10-2.5V16" />
+      <circle cx="7" cy="18" r="2.5" />
+      <circle cx="17" cy="16" r="2.5" />
+    </>
+  ),
+  downloadBox: (
+    <>
+      <path d="M12 4v10" />
+      <path d="m8 10 4 4 4-4" />
+      <path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" />
+    </>
+  ),
   heart: <path d="M12 20s-7.5-4.7-7.5-9.6A4.4 4.4 0 0 1 12 7.6a4.4 4.4 0 0 1 7.5 2.8C19.5 15.3 12 20 12 20Z" />,
   chart: (
     <>

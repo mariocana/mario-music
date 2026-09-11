@@ -11,7 +11,9 @@ import { usePlayer } from './player.tsx';
 import {
   AlbumsView, AlbumDetailView, ArtistsView, ArtistDetailView, SongsView, SearchView,
   DownloadsView, PlaylistsView, PlaylistDetailView, FavoritesView, ListeningView,
+  LibraryHubView,
 } from './views.tsx';
+import { MobileTabBar } from './components/MobileTabBar.tsx';
 import { usePlaylists } from './playlists.tsx';
 import { useDownloads } from './downloads.tsx';
 import { useLibrary } from './library.tsx';
@@ -55,61 +57,65 @@ export function App() {
   return (
     <NavContext.Provider value={nav}>
       <div className={`app${colonnaAperta ? ' with-queue' : ''}`}>
-        <aside className="sidebar">
-          <div className="brand">mario<span>music</span></div>
+        {isMobile ? (
+          <MobileTabBar view={view} onNav={nav} />
+        ) : (
+          <aside className="sidebar">
+            <div className="brand">mario<span>music</span></div>
 
-          <nav>
-            {item('search', 'Cerca', { name: 'search' })}
-            <span className="navlabel">Libreria</span>
-            {item('albums', 'Album', { name: 'albums' })}
-            {item('artists', 'Artisti', { name: 'artists' })}
-            {item('songs', 'Brani', { name: 'songs' })}
-            {item('playlists', 'Playlist', { name: 'playlists' })}
-            {item('favorites', 'Preferiti', { name: 'favorites' })}
-            {item('listening', 'Ascolti', { name: 'listening' })}
-            {downloads.supported && (
-              <button
-                className={`navitem ${view.name === 'downloads' ? 'is-current' : ''}`}
-                onClick={() => nav({ name: 'downloads' })}
-              >
-                Scaricati
-                {downloads.items.size > 0 && <span className="badge">{downloads.items.size}</span>}
-              </button>
-            )}
-          </nav>
-
-          {playlists.items.length > 0 && (
-            <nav className="nav-playlists">
-              <span className="navlabel">Le tue playlist</span>
-              {playlists.items.map((p) => (
+            <nav>
+              {item('search', 'Cerca', { name: 'search' })}
+              <span className="navlabel">Libreria</span>
+              {item('albums', 'Album', { name: 'albums' })}
+              {item('artists', 'Artisti', { name: 'artists' })}
+              {item('songs', 'Brani', { name: 'songs' })}
+              {item('playlists', 'Playlist', { name: 'playlists' })}
+              {item('favorites', 'Preferiti', { name: 'favorites' })}
+              {item('listening', 'Ascolti', { name: 'listening' })}
+              {downloads.supported && (
                 <button
-                  key={p.id}
-                  className={`navitem ${view.name === 'playlist' && view.id === p.id ? 'is-current' : ''}`}
-                  onClick={() => nav({ name: 'playlist', id: p.id })}
-                  title={p.name}
-                >{p.name}</button>
-              ))}
+                  className={`navitem ${view.name === 'downloads' ? 'is-current' : ''}`}
+                  onClick={() => nav({ name: 'downloads' })}
+                >
+                  Scaricati
+                  {downloads.items.size > 0 && <span className="badge">{downloads.items.size}</span>}
+                </button>
+              )}
             </nav>
-          )}
 
-          <div className="sidebar-foot">
-            <button
-              className="refresh"
-              onClick={() => void library.refresh()}
-              disabled={library.scanning}
-              title="Rilegge i file e aggiorna il catalogo"
-            >
-              <Icon name={library.scanning ? 'spinner' : 'refresh'} size={14} />
-              {library.scanning ? 'Aggiorno…' : 'Aggiorna'}
-            </button>
-            {stats && (
-              <p className="sidebar-stats">
-                {stats.tracks} brani · {stats.albums} album · {stats.artists} artisti
-              </p>
+            {playlists.items.length > 0 && (
+              <nav className="nav-playlists">
+                <span className="navlabel">Le tue playlist</span>
+                {playlists.items.map((p) => (
+                  <button
+                    key={p.id}
+                    className={`navitem ${view.name === 'playlist' && view.id === p.id ? 'is-current' : ''}`}
+                    onClick={() => nav({ name: 'playlist', id: p.id })}
+                    title={p.name}
+                  >{p.name}</button>
+                ))}
+              </nav>
             )}
-            {library.error && <p className="sidebar-stats error">{library.error}</p>}
-          </div>
-        </aside>
+
+            <div className="sidebar-foot">
+              <button
+                className="refresh"
+                onClick={() => void library.refresh()}
+                disabled={library.scanning}
+                title="Rilegge i file e aggiorna il catalogo"
+              >
+                <Icon name={library.scanning ? 'spinner' : 'refresh'} size={14} />
+                {library.scanning ? 'Aggiorno…' : 'Aggiorna'}
+              </button>
+              {stats && (
+                <p className="sidebar-stats">
+                  {stats.tracks} brani · {stats.albums} album · {stats.artists} artisti
+                </p>
+              )}
+              {library.error && <p className="sidebar-stats error">{library.error}</p>}
+            </div>
+          </aside>
+        )}
 
         <div className="main">
           <main className="content">
@@ -125,6 +131,7 @@ export function App() {
           {view.name === 'songs' && <SongsView />}
           {view.name === 'search' && <SearchView />}
           {view.name === 'downloads' && <DownloadsView />}
+          {view.name === 'library' && <LibraryHubView />}
           {view.name === 'favorites' && <FavoritesView />}
           {view.name === 'listening' && <ListeningView />}
           {view.name === 'playlists' && <PlaylistsView />}

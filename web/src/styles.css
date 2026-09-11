@@ -414,31 +414,7 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
     grid-template-areas: 'main' 'player' 'sidebar';
   }
 
-  .sidebar {
-    flex-direction: row;
-    align-items: center;
-    gap: 0;
-    overflow: visible;
-    border-right: 0;
-    border-top: 1px solid var(--line);
-    /* env(): lascia spazio alla barra home dell'iPhone */
-    padding: 5px 6px calc(5px + env(safe-area-inset-bottom));
-  }
-  .brand, .sidebar-foot, .navlabel { display: none; }
-  .sidebar nav { display: flex; flex: 1; }
-  .navitem {
-    flex: 1;
-    /* 44px è il bersaglio minimo consigliato per il tocco: sotto, si sbaglia. */
-    min-height: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 4px 2px;
-    text-align: center;
-    font-size: 11px;
-    line-height: 1.3;
-  }
-  .badge { float: none; display: inline-block; margin-left: 4px; }
+  /* La barra laterale non viene montata: al suo posto c'è .tabbar. */
 
   /* Sotto i 16px iOS ingrandisce la pagina quando tocchi il campo. */
   .search { font-size: 16px; padding: 9px 12px; }
@@ -717,12 +693,7 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
  * query NON aumenta la specificità: da lassù avrebbe perso contro il
  * `display: flex` qui sopra per semplice ordine di sorgente.
  */
-@media (max-width: 700px) {
-  /* Selettore volutamente più specifico (0,2,0 contro 0,1,0): così vince
-     sempre sul `display: flex` qui sopra, senza dipendere dall'ordine in cui
-     le regole finiscono nel file dopo la compilazione. */
-  .sidebar .nav-playlists { display: none; }
-}
+
 
 .playlist-nuova { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
 .playlist-nuova .search { flex: 1; min-width: 180px; max-width: 340px; }
@@ -842,3 +813,88 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
 .menu-voce .is-preferito { color: var(--accent); }
 
 .sotto-titolo { margin: -8px 0 16px; }
+
+/* ══════════════ barra schede mobile: pillola + ricerca ══════════════ */
+.tabbar {
+  grid-area: sidebar;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  /* env(): lascia spazio alla barra home dell'iPhone */
+  padding: 8px 14px calc(10px + env(safe-area-inset-bottom));
+}
+
+.tabbar-pill,
+.tabbar-search {
+  background: rgb(38 38 44 / 0.92);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.45);
+  /* sfocatura del contenuto che ci passa sotto, dove supportata */
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.tabbar-pill {
+  flex: 1;
+  max-width: 320px;
+  display: flex;
+  padding: 5px;
+  border-radius: 999px;
+}
+
+.tabbar-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-height: 50px;
+  padding: 5px 4px;
+  border-radius: 999px;
+  color: var(--dim);
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1;
+}
+/* La scheda attiva: sfondo pieno e accento, come nel riferimento. */
+.tabbar-item.is-current {
+  background: rgb(255 255 255 / 0.12);
+  color: var(--accent);
+}
+
+.tabbar-search {
+  width: 56px;
+  height: 56px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--text);
+}
+.tabbar-search.is-current { color: var(--accent); }
+
+/* ── pagina Libreria (elenco delle sezioni) ── */
+.hub { list-style: none; margin: 0; padding: 0; }
+.hub-voce {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 13px 8px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+}
+.hub-voce:active { background: var(--bg-hover); }
+.hub-icona {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  background: var(--bg-hover);
+  color: var(--accent);
+}
+.hub-testo { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.hub-label { font-size: 16px; font-weight: 500; }
+.hub-testo .dim { font-size: 12px; }

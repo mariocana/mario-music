@@ -4,10 +4,12 @@ import { api, formatLength, formatTime, playlistCoverUrl } from './api.ts';
 import type { Album, PlaylistSummary } from './api.ts';
 import { useAsync } from './useAsync.ts';
 import { useNavigate } from './nav.tsx';
+import type { View } from './nav.tsx';
 import { useLibrary } from './library.tsx';
 import { usePlayer } from './player.tsx';
 import { Cover } from './components/Cover.tsx';
 import { Icon } from './components/Icon.tsx';
+import type { IconName } from './components/Icon.tsx';
 import { TrackList } from './components/TrackList.tsx';
 import { DownloadButton } from './components/DownloadButton.tsx';
 import { AddMenu } from './components/AddMenu.tsx';
@@ -535,6 +537,52 @@ export function ListeningView() {
             <TrackList tracks={data} showAlbum numbering="nessuno" />
           </>
         )}
+    </>
+  );
+}
+
+/* ─────────────────────────── libreria (mobile) ─────────────────────────── */
+
+/**
+ * La pagina "Libreria" del telefono: un elenco delle sezioni che non stanno
+ * nella barra in fondo. Su desktop non serve, la barra laterale le mostra
+ * tutte — ma è raggiungibile lo stesso, non fa danni.
+ */
+export function LibraryHubView() {
+  const navigate = useNavigate();
+  const downloads = useDownloads();
+  const voci: Array<{ label: string; icon: IconName; target: View; nota?: string }> = [
+    { label: 'Artisti', icon: 'artist', target: { name: 'artists' } },
+    { label: 'Brani', icon: 'note', target: { name: 'songs' } },
+    { label: 'Album', icon: 'grid', target: { name: 'albums' } },
+    { label: 'Playlist', icon: 'playlist', target: { name: 'playlists' } },
+    { label: 'Preferiti', icon: 'heart', target: { name: 'favorites' } },
+    { label: 'Ascolti', icon: 'chart', target: { name: 'listening' }, nota: 'di recente e più ascoltati' },
+  ];
+  if (downloads.supported) {
+    voci.push({
+      label: 'Scaricati', icon: 'downloadBox', target: { name: 'downloads' },
+      nota: downloads.items.size > 0 ? `${downloads.items.size} brani offline` : undefined,
+    });
+  }
+
+  return (
+    <>
+      <h1>Libreria</h1>
+      <ul className="hub">
+        {voci.map((v) => (
+          <li key={v.label}>
+            <button className="hub-voce" onClick={() => navigate(v.target)}>
+              <span className="hub-icona"><Icon name={v.icon} size={20} /></span>
+              <span className="hub-testo">
+                <span className="hub-label">{v.label}</span>
+                {v.nota && <span className="dim">{v.nota}</span>}
+              </span>
+              <Icon name="next" size={14} />
+            </button>
+          </li>
+        ))}
+      </ul>
     </>
   );
 }
