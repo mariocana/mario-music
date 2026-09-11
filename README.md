@@ -240,9 +240,13 @@ La condizione è scritta due volte, identica: nel CSS (aspetto) e in
 `useMediaQuery.ts` (cosa React monta). Se divergono, si monta la schermata
 piena del telefono sopra il layout a colonne.
 
-Installata sulla Home, l'app è bloccata in verticale (`orientation` nel
-manifest): il browser lo rispetta solo per le app installate, non nella scheda
-di Safari — per quella vale la regola qui sopra.
+**La rotazione non si può bloccare su iPhone.** Il manifest dichiara
+`"orientation": "portrait"`, che Android rispetta per le app installate; iOS lo
+ignora, e non supporta nemmeno `screen.orientation.lock()`. Non esiste un modo
+supportato per impedire a una web app di ruotare su iOS, installata o no. Il
+blocco lo può fare solo l'utente, dal Centro di Controllo. Quello che si può
+fare — ed è fatto — è che in orizzontale l'app resti mobile invece di passare
+al layout desktop.
 
 ## Barra in fondo, su telefono
 
