@@ -63,33 +63,45 @@ export function AlbumDetailView({ id }: { id: number }) {
   return (
     <>
       <header className="albumhead">
+        {/* Il menù ⋯ sta in alto a destra, come su Apple Music: playlist e
+            "riproduci dopo" non meritano un pulsante in fila con gli altri. */}
+        <div className="albumhead-menu"><AddMenu tracks={data.tracks} /></div>
+
         <Cover albumId={data.id} title={data.title} coverKey={data.coverKey} size="lg" />
+
         <div className="albumhead-meta">
-          <span className="eyebrow">{data.genre ?? 'Album'}</span>
           <h1>{data.title}</h1>
-          <button className="linkish" onClick={() => navigate({ name: 'artist', id: data.artistId })}>
+          <button className="albumhead-artist" onClick={() => navigate({ name: 'artist', id: data.artistId })}>
             {data.artist}
           </button>
-          <p className="dim">
-            {data.year ? `${data.year} · ` : ''}{data.tracks.length} brani · {formatLength(total)}
-          </p>
+          {(data.genre || data.year) && (
+            <p className="albumhead-sub">{[data.genre, data.year].filter(Boolean).join(' · ')}</p>
+          )}
+
+          {/* Tre comandi, sempre sulla stessa riga: casuale, Riproduci, scarica. */}
           <div className="albumhead-actions">
-            <button className="primary" onClick={() => player.playQueue(data.tracks, 0)}>
-              <Icon name="play" size={15} /> Riproduci
-            </button>
             <button
-              className="ghost"
+              className="round"
               onClick={() => {
                 if (!player.shuffle) player.toggleShuffle();
                 player.playQueue(data.tracks, Math.floor(Math.random() * data.tracks.length));
               }}
-            ><Icon name="shuffle" size={15} /> Casuale</button>
-            <DownloadButton tracks={data.tracks} label="Scarica" />
-            <AddMenu tracks={data.tracks} variant="button" label="Playlist" />
+              title="Riproduzione casuale" aria-label="Riproduzione casuale"
+            ><Icon name="shuffle" size={20} /></button>
+            <button className="pill-play" onClick={() => player.playQueue(data.tracks, 0)}>
+              <Icon name="play" size={16} /> Riproduci
+            </button>
+            <DownloadButton tracks={data.tracks} compact />
           </div>
         </div>
       </header>
+
       <TrackList tracks={data.tracks} />
+
+      {/* Come su Apple Music: il totale sta in fondo, dove serve dopo aver scorso. */}
+      <p className="albumfoot dim">
+        {data.tracks.length} {data.tracks.length === 1 ? 'brano' : 'brani'} · {formatLength(total)}
+      </p>
     </>
   );
 }

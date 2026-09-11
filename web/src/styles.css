@@ -144,13 +144,60 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
 .albumcard-sub { font-size: 12px; color: var(--dim); }
 
 /* ── testata album ── */
-.albumhead { display: flex; gap: 26px; margin-bottom: 26px; }
-.albumhead-meta { display: flex; flex-direction: column; gap: 6px; justify-content: flex-end; }
-.albumhead-meta h1 { margin: 0; }
+.albumhead { position: relative; display: flex; gap: 26px; margin-bottom: 26px; }
+.albumhead-meta { display: flex; flex-direction: column; gap: 4px; justify-content: flex-end; min-width: 0; }
+.albumhead-meta h1 { margin: 0; font-size: 24px; line-height: 1.2; }
 .eyebrow { font-size: 12px; color: var(--accent); text-transform: uppercase; letter-spacing: 0.06em; }
 .linkish { color: var(--accent); padding: 0; text-align: left; width: fit-content; }
 .linkish:hover { text-decoration: underline; }
-.albumhead-actions { display: flex; gap: 10px; margin-top: 10px; }
+
+/* Artista sotto il titolo, in chiaro e non in rosso: si capisce che è
+   toccabile perché sta dove Apple mette lo stesso collegamento. */
+.albumhead-artist { padding: 0; font-size: 18px; text-align: left; width: fit-content; color: var(--text); }
+.albumhead-artist:hover { color: var(--accent); }
+.albumhead-sub { margin: 0; font-size: 13px; font-weight: 600; color: var(--dim); }
+
+.albumhead-actions { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+
+/* Il ⋯ dell'album, in alto a destra. */
+.albumhead-menu { position: absolute; top: 0; right: 0; }
+.albumhead-menu .track-menu { opacity: 1; padding: 6px; }
+
+/* Casuale e scarica sono cerchi; Riproduci è la pillola larga in mezzo. */
+.round,
+.albumhead-actions .dl {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--bg-hover);
+  color: var(--text);
+  opacity: 1;
+}
+.round:hover, .albumhead-actions .dl:hover { background: var(--line); }
+.albumhead-actions .dl-done { color: var(--accent); }
+.albumhead-actions .dl-busy { cursor: default; }
+
+.pill-play {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 160px;
+  height: 48px;
+  padding: 0 28px;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 16px;
+  font-weight: 600;
+}
+.pill-play:hover { filter: brightness(0.9); }
+
+.albumfoot { margin: 14px 10px 0; font-size: 13px; }
 
 .primary, .ghost {
   display: inline-flex;
@@ -438,11 +485,22 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
   .grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px 12px; }
 
   /* Testata album: copertina sopra, dati sotto. */
-  .albumhead { flex-direction: column; gap: 14px; margin-bottom: 18px; }
-  .cover-lg { width: 100%; max-width: 240px; height: auto; aspect-ratio: 1; margin: 0 auto; }
+  .albumhead { flex-direction: column; gap: 18px; margin: 28px 0 22px; }
+  .cover-lg {
+    width: 100%;
+    max-width: 280px;
+    height: auto;
+    aspect-ratio: 1;
+    margin: 0 auto;
+    border-radius: 12px;
+    box-shadow: 0 16px 40px rgb(0 0 0 / 0.5);
+  }
   .albumhead-meta { align-items: center; text-align: center; }
   .albumhead-meta h1 { font-size: 22px; }
-  .albumhead-actions { flex-wrap: wrap; justify-content: center; }
+  .albumhead-artist { text-align: center; }
+  /* Riproduci si allarga fra i due cerchi, come nel riferimento. */
+  .albumhead-actions { width: 100%; max-width: 340px; justify-content: center; }
+  .pill-play { flex: 1; min-width: 0; }
 
   /* Il codec non serve su schermo stretto: via la colonna. */
   .track { grid-template-columns: 26px 1fr auto 20px 28px 44px 28px; gap: 6px; }

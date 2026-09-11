@@ -6,7 +6,12 @@ import { Icon } from './Icon.tsx';
  * Bottone a tre stati: da scaricare → in corso (con percentuale) → salvato.
  * Cliccato quando è già salvato, rimuove il download.
  */
-export function DownloadButton({ tracks, label }: { tracks: Track[]; label?: string }) {
+export function DownloadButton({ tracks, label, compact = false }: {
+  tracks: Track[];
+  label?: string;
+  /** solo icona, senza percentuali né conteggi: per i pulsanti tondi */
+  compact?: boolean;
+}) {
   const d = useDownloads();
   if (!d.supported || tracks.length === 0) return null;
 
@@ -21,7 +26,7 @@ export function DownloadButton({ tracks, label }: { tracks: Track[]; label?: str
     return (
       <button className="ghost dl dl-busy" disabled>
         <span className="dl-ring" style={{ '--pct': `${pct}%` } as React.CSSProperties} />
-        {label ? `Scarico… ${pct}%` : `${pct}%`}
+        {compact ? null : label ? `Scarico… ${pct}%` : `${pct}%`}
       </button>
     );
   }
@@ -42,6 +47,6 @@ export function DownloadButton({ tracks, label }: { tracks: Track[]; label?: str
       title={d.online ? 'Scarica per ascoltare offline' : 'Serve la rete per scaricare'}
       disabled={!d.online}
       onClick={() => void d.download(tracks)}
-    ><Icon name="download" size={15} />{label ? ` ${label}` : ''}{done.length > 0 ? ` (${done.length}/${tracks.length})` : ''}</button>
+    ><Icon name="download" size={15} />{label ? ` ${label}` : ''}{!compact && done.length > 0 ? ` (${done.length}/${tracks.length})` : ''}</button>
   );
 }
