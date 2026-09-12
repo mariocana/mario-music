@@ -14,6 +14,8 @@
  */
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { open as openFile } from 'node:fs/promises';
+import type { DatabaseSync } from 'node:sqlite';
 import { existsSync, readdirSync } from 'node:fs';
 import { readdir as readDir, unlink } from 'node:fs/promises';
 import { mkdir, readdir, stat } from 'node:fs/promises';
@@ -25,6 +27,33 @@ import { rebuildSearchIndex } from './search.ts';
 const run = promisify(execFile);
 
 const LIBRARY = path.resolve('media/library');
+
+/**
+ * Impronta del contenuto di un file: dimensione + primi e ultimi 512 KB.
+ *
+ * Serve a riconoscere un file SPOSTATO: il percorso cambia, l'impronta no.
+ * Non si legge tutto il file (6,9 GB di libreria sarebbero minuti), ma
+ * nemmeno solo l'inizio: negli MP3 l'inizio è spesso la copertina incorporata,
+ * identica per tutte le tracce di un album. La coda invece è audio, e cambia.
+ */
+export async function fingerprintFile(file: string, size: number): Promise<string> {
+  const PEZZO = 512 * 1024;
+  const hash = createHash('sha1').update(String(size));
+  const fh = await openFile(file, 'r');
+  try {
+    const testa = Buffer.alloc(Math.min(PEZZO, size));
+    await fh.read(testa, 0, testa.length, 0);
+    hash.update(testa);
+    if (size > PEZZO) {
+      const coda = Buffer.alloc(Math.min(PEZZO, size - PEZZO));
+      await fh.read(coda, 0, coda.length, size - coda.length);
+      hash.update(coda);
+    }
+  } finally {
+    await fh.close();
+  }
+  return hash.digest('hex');
+}
 const COVERS = path.join(DATA_DIR, 'covers');
 
 const AUDIO_MIME: Record<string, string> = {
@@ -112,8 +141,9 @@ export function fromPath(
   file: string,
   /** dice se una cartella contiene altre cartelle: serve a capire cos'è */
   haSottocartelle: (dir: string) => boolean,
+  libraryDir: string = LIBRARY,
 ): { album: string; artist?: string; disc?: number } {
-  const relative = path.relative(LIBRARY, path.dirname(file));
+  const relative = path.relative(libraryDir, path.dirname(file));
   const parts = relative === '' || relative === '.' ? [] : relative.split(path.sep);
 
   let disc: number | undefined;
@@ -138,7 +168,7 @@ export function fromPath(
     // Tranne quando abbiamo appena scartato una cartella di disco: allora
     // le sottocartelle sono i CD, e questa è un album per definizione.
     // Senza questa eccezione un cofanetto diventerebbe un artista.
-    const dir = path.join(LIBRARY, ...parts);
+    const dir = path.join(libraryDir, ...parts);
     if (disc === undefined && haSottocartelle(dir)) {
       return { album: 'Singoli', artist: parts[0], disc };
     }
@@ -169,13 +199,9 @@ function coverKeyFor(artist: string, album: string): string {
   return createHash('sha1').update(`${artist}\u0000${album}`).digest('hex').slice(0, 16);
 }
 
-function coverFileFor(artist: string, album: string): string {
-  return path.join(COVERS, `${coverKeyFor(artist, album)}.jpg`);
-}
-
 /** Estrae la copertina incorporata nel file; se non c'è, cerca cover.* accanto. */
 async function extractCover(file: string, dest: string): Promise<string | null> {
-  await mkdir(COVERS, { recursive: true });
+  await mkdir(path.dirname(dest), { recursive: true });
 
   try {
     await run('ffmpeg', [
@@ -210,7 +236,15 @@ export type ScanResult = {
   skipped: number;
   /** file saltati perché illeggibili o spariti durante lo scan */
   failed: number;
+  /** file ritrovati altrove grazie all'impronta: stessa traccia, percorso nuovo */
+  moved: number;
   removed: number;
+  /**
+   * Cancellazioni NON eseguite perché sarebbero state troppe in un colpo solo
+   * (disco esterno non montato, cartella rinominata a metà copia…). Zero in
+   * condizioni normali.
+   */
+  refused: number;
   total: number;
   /** millisecondi impiegati: utile per capire se lo scan periodico pesa */
   ms: number;
@@ -234,30 +268,56 @@ export class LibraryMissingError extends Error {
  * `onFile` riceve una riga di resoconto per ogni file toccato: la CLI la
  * stampa, il server la ignora.
  */
-export async function scanLibrary(onFile?: (line: string) => void): Promise<ScanResult> {
-  if (!existsSync(LIBRARY)) throw new LibraryMissingError(LIBRARY);
+export type ScanOptions = {
+  onFile?: (line: string) => void;
+  /** radice della libreria; i test ne usano una temporanea */
+  libraryDir?: string;
+  /** database già aperto; i test ne usano uno in memoria */
+  db?: DatabaseSync;
+  /**
+   * Dove stanno le copertine estratte. Va passata nei test: a fine scan i
+   * file orfani vengono cancellati, e un test sulla cartella vera svuoterebbe
+   * le copertine della libreria.
+   */
+  coversDir?: string;
+  /**
+   * Quota massima di tracce che uno scan può cancellare in un colpo solo,
+   * fra 0 e 1. Oltre, si rifiuta: quasi certamente non è la libreria a
+   * essere cambiata, ma il disco a non essere montato.
+   */
+  maxRemovalRatio?: number;
+};
+
+export async function scanLibrary(opts: ScanOptions = {}): Promise<ScanResult> {
+  const { onFile, libraryDir = LIBRARY, coversDir = COVERS, maxRemovalRatio = 0.5 } = opts;
+  if (!existsSync(libraryDir)) throw new LibraryMissingError(libraryDir);
 
   const startedAt = Date.now();
-  const db = openDb();
+  const db = opts.db ?? openDb();
+  const chiudiDb = !opts.db;
 
   const findArtist = db.prepare('SELECT id FROM artists WHERE name = ?');
   const insArtist = db.prepare('INSERT INTO artists (name) VALUES (?)');
   const findAlbum = db.prepare('SELECT id, cover_path FROM albums WHERE artist_id = ? AND title = ?');
   const insAlbum = db.prepare('INSERT INTO albums (artist_id, title, year, genre) VALUES (?, ?, ?, ?)');
   const setCover = db.prepare('UPDATE albums SET cover_path = ?, cover_key = ? WHERE id = ?');
-  const findTrack = db.prepare('SELECT id, size, mtime FROM tracks WHERE path = ?');
+  const findTrack = db.prepare('SELECT id, size, mtime, fingerprint FROM tracks WHERE path = ?');
+  const setFingerprint = db.prepare('UPDATE tracks SET fingerprint = ? WHERE id = ?');
+  // Stessa impronta, percorso diverso: candidato a "spostato".
+  const findByFingerprint = db.prepare('SELECT id, path FROM tracks WHERE fingerprint = ? AND path != ?');
+  const movePath = db.prepare('UPDATE tracks SET path = ? WHERE id = ?');
   const upsertTrack = db.prepare(`
     INSERT INTO tracks (album_id, artist_id, title, track_no, disc_no, duration,
                         path, size, mtime, codec, mime, bitrate, sample_rate, channels,
-                        embedded_lyrics)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        embedded_lyrics, fingerprint)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(path) DO UPDATE SET
       album_id = excluded.album_id, artist_id = excluded.artist_id,
       title = excluded.title, track_no = excluded.track_no, disc_no = excluded.disc_no,
       duration = excluded.duration, size = excluded.size, mtime = excluded.mtime,
       codec = excluded.codec, mime = excluded.mime, bitrate = excluded.bitrate,
       sample_rate = excluded.sample_rate, channels = excluded.channels,
-      embedded_lyrics = excluded.embedded_lyrics
+      embedded_lyrics = excluded.embedded_lyrics, fingerprint = excluded.fingerprint
   `);
 
   function artistId(name: string): number {
@@ -290,9 +350,9 @@ export async function scanLibrary(onFile?: (line: string) => void): Promise<Scan
   };
 
   const seen = new Set<string>();
-  let added = 0, updated = 0, skipped = 0, failed = 0;
+  let added = 0, updated = 0, skipped = 0, failed = 0, moved = 0;
 
-  for await (const file of walk(LIBRARY)) {
+  for await (const file of walk(libraryDir)) {
     seen.add(file);
 
     let st;
@@ -308,10 +368,32 @@ export async function scanLibrary(onFile?: (line: string) => void): Promise<Scan
     }
     const mtime = Math.floor(st.mtimeMs);
 
-    const existing = findTrack.get(file) as { id: number; size: number; mtime: number } | undefined;
+    const existing = findTrack.get(file) as
+      { id: number; size: number; mtime: number; fingerprint: string | null } | undefined;
     if (existing && existing.size === st.size && existing.mtime === mtime) {
+      // Righe di prima che esistesse l'impronta: si calcola una volta sola,
+      // altrimenti al primo spostamento non ci sarebbe niente da confrontare.
+      if (!existing.fingerprint) {
+        try { setFingerprint.run(await fingerprintFile(file, st.size), existing.id); } catch { /* si riprova al prossimo giro */ }
+      }
       skipped++;
       continue;
+    }
+
+    // Percorso nuovo: prima di creare una traccia, si controlla se è un file
+    // già noto che ha solo cambiato posto. Se sì si sposta la riga esistente,
+    // così tiene id, playlist, preferiti e ascolti.
+    let impronta: string | null = null;
+    let spostato = false;
+    if (!existing) {
+      try {
+        impronta = await fingerprintFile(file, st.size);
+        const gemello = findByFingerprint.get(impronta, file) as { id: number; path: string } | undefined;
+        if (gemello && !existsSync(gemello.path)) {
+          movePath.run(file, gemello.id);
+          spostato = true;
+        }
+      } catch { /* impronta non calcolabile: si procede come file nuovo */ }
     }
 
     let info: Probe;
@@ -330,7 +412,7 @@ export async function scanLibrary(onFile?: (line: string) => void): Promise<Scan
     const audio = info.streams?.find((s) => s.codec_type === 'audio');
 
     // I tag vincono; il percorso è solo il ripiego per i file senza metadati.
-    const fromFolder = fromPath(file, haSottocartelle);
+    const fromFolder = fromPath(file, haSottocartelle, libraryDir);
 
     const artistName = tag(tags, 'album_artist', 'albumartist', 'artist')
       ?? fromFolder.artist ?? 'Artista sconosciuto';
@@ -365,17 +447,31 @@ export async function scanLibrary(onFile?: (line: string) => void): Promise<Scan
         const testo = chiave ? tags![chiave] : undefined;
         return testo?.trim() || null;
       })(),
+      impronta ?? existing?.fingerprint ?? null,
     );
 
-    if (existing) updated++; else added++;
-    onFile?.(`  ${existing ? '↻' : '+'} ${artistName} — ${albumTitle} — ${title}`);
+    if (spostato) moved++; else if (existing) updated++; else added++;
+    onFile?.(`  ${spostato ? '→' : existing ? '↻' : '+'} ${artistName} — ${albumTitle} — ${title}`);
   }
 
   // Pulizia: via le tracce i cui file sono spariti, poi album e artisti rimasti vuoti.
   const all = db.prepare('SELECT id, path FROM tracks').all() as Array<{ id: number; path: string }>;
   const gone = all.filter((t) => !seen.has(t.path));
-  const del = db.prepare('DELETE FROM tracks WHERE id = ?');
-  for (const t of gone) del.run(t.id);
+
+  // Freno: se sparirebbe più della quota consentita, non è la libreria a
+  // essere cambiata — è il disco a non essere montato, o la cartella a essere
+  // a metà di una copia. Cancellare qui porterebbe via a cascata playlist,
+  // preferiti e ascolti, che non tornano rimontando il disco.
+  let refused = 0;
+  const troppe = all.length >= 10 && gone.length / all.length > maxRemovalRatio;
+  if (troppe) {
+    refused = gone.length;
+    onFile?.(`  ⚠ ${gone.length} tracce su ${all.length} risultano sparite: cancellazione RIFIUTATA. ` +
+      'Se è voluto, rilancia con SCAN_MAX_REMOVAL=1');
+  } else {
+    const del = db.prepare('DELETE FROM tracks WHERE id = ?');
+    for (const t of gone) del.run(t.id);
+  }
   db.exec('DELETE FROM albums  WHERE id NOT IN (SELECT DISTINCT album_id  FROM tracks)');
   db.exec('DELETE FROM artists WHERE id NOT IN (SELECT DISTINCT artist_id FROM tracks)');
 
@@ -397,7 +493,7 @@ export async function scanLibrary(onFile?: (line: string) => void): Promise<Scan
   for (const album of albumsToCover) {
     if (!album.sample) continue;
     const key = coverKeyFor(album.artist, album.title);
-    const dest = path.join(COVERS, `${key}.jpg`);
+    const dest = path.join(coversDir, `${key}.jpg`);
     wanted.add(`${key}.jpg`);
 
     // Si rifà se manca il file, se la riga punta ancora al vecchio schema di
@@ -410,8 +506,8 @@ export async function scanLibrary(onFile?: (line: string) => void): Promise<Scan
 
   // Via i file di copertina che non appartengono più a nessun album.
   try {
-    for (const name of await readDir(COVERS)) {
-      if (!wanted.has(name)) await unlink(path.join(COVERS, name));
+    for (const name of await readDir(coversDir)) {
+      if (!wanted.has(name)) await unlink(path.join(coversDir, name));
     }
   } catch { /* la cartella può non esistere ancora */ }
 
@@ -421,7 +517,13 @@ export async function scanLibrary(onFile?: (line: string) => void): Promise<Scan
   rebuildSearchIndex(db);
 
   const total = (db.prepare('SELECT COUNT(*) AS n FROM tracks').get() as { n: number }).n;
-  db.close();
+  if (chiudiDb) db.close();
 
-  return { added, updated, skipped, failed, removed: gone.length, total, ms: Date.now() - startedAt };
+  return {
+    added, updated, skipped, failed, moved,
+    removed: troppe ? 0 : gone.length,
+    refused,
+    total,
+    ms: Date.now() - startedAt,
+  };
 }

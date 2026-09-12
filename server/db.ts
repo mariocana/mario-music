@@ -40,6 +40,10 @@ CREATE TABLE IF NOT EXISTS tracks (
   duration    REAL NOT NULL,
   -- percorso assoluto sul disco: è la chiave naturale di un file
   path        TEXT NOT NULL UNIQUE,
+  -- impronta del contenuto (dimensione + inizio + fine del file): sopravvive
+  -- allo spostamento, così un file spostato resta la stessa traccia e non
+  -- perde playlist, preferiti e ascolti
+  fingerprint TEXT,
   size        INTEGER NOT NULL,
   mtime       INTEGER NOT NULL,
   codec       TEXT,
@@ -113,13 +117,17 @@ CREATE VIRTUAL TABLE IF NOT EXISTS tracks_fts USING fts5(
 );
 
 CREATE INDEX IF NOT EXISTS idx_tracks_album  ON tracks(album_id, disc_no, track_no);
+-- L'indice su fingerprint NON sta qui: su un database creato prima della
+-- colonna fallirebbe, perché lo schema gira prima delle migrazioni. È creato
+-- in openDb() dopo l'ALTER TABLE.
 CREATE INDEX IF NOT EXISTS idx_tracks_artist ON tracks(artist_id);
 CREATE INDEX IF NOT EXISTS idx_albums_artist ON albums(artist_id);
 `;
 
-export function openDb(): DatabaseSync {
-  mkdirSync(DATA_DIR, { recursive: true });
-  const db = new DatabaseSync(DB_PATH);
+/** Apre il database; un percorso diverso (o ':memory:') serve ai test. */
+export function openDb(dbPath: string = DB_PATH): DatabaseSync {
+  if (dbPath !== ':memory:') mkdirSync(path.dirname(dbPath), { recursive: true });
+  const db = new DatabaseSync(dbPath);
 
   // WAL: letture e scritture non si bloccano a vicenda. Ci serve perché lo
   // scanner può girare mentre il server sta servendo richieste.
@@ -130,6 +138,8 @@ export function openDb(): DatabaseSync {
   // Migrazione per i database creati prima che cover_key esistesse.
   try { db.exec('ALTER TABLE albums ADD COLUMN cover_key TEXT'); } catch { /* già presente */ }
   try { db.exec('ALTER TABLE tracks ADD COLUMN embedded_lyrics TEXT'); } catch { /* già presente */ }
+  try { db.exec('ALTER TABLE tracks ADD COLUMN fingerprint TEXT'); } catch { /* già presente */ }
+  db.exec('CREATE INDEX IF NOT EXISTS idx_tracks_fingerprint ON tracks(fingerprint)');
   try { db.exec('ALTER TABLE playlists ADD COLUMN cover_path TEXT'); } catch { /* già presente */ }
   try { db.exec('ALTER TABLE playlists ADD COLUMN cover_key TEXT'); } catch { /* già presente */ }
 

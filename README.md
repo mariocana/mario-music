@@ -48,6 +48,22 @@ Poi `npm run scan`. È idempotente: confronta dimensione e data di modifica e
 rilegge solo i file cambiati. Le tracce i cui file sono spariti vengono tolte
 dal database.
 
+**Spostare o rinominare i file è sicuro.** Ogni traccia ha un'impronta del
+contenuto (dimensione + primi e ultimi 512 KB): un file spostato viene
+riconosciuto come la stessa traccia, tiene il suo id, e con lui playlist,
+preferiti, ascolti e download sul telefono. Prima l'identità era il percorso,
+e uno spostamento era una cancellazione più un file nuovo — con tutto ciò che
+c'era attaccato perso in silenzio. Non si legge l'intero file: l'inizio da solo
+non basterebbe, perché negli MP3 è spesso la copertina incorporata, identica
+per tutto l'album; la coda invece è audio, e cambia.
+
+**Lo scan si rifiuta di cancellare troppo in un colpo solo.** Se sparisce più
+della metà delle tracce, non è la libreria a essere cambiata: è il disco
+esterno a non essere montato, o una cartella a metà copia. Cancellare porterebbe
+via a cascata playlist, preferiti e ascolti, che non tornano rimontando il
+disco. Lo scan avvisa e non tocca nulla; se la rimozione è voluta,
+`SCAN_MAX_REMOVAL=1 npm run scan` la esegue.
+
 Non è però necessario lanciarlo a mano: **il server ripassa la libreria da solo
 ogni 5 minuti**, e il pulsante ⟳ Aggiorna nella barra laterale lo forza subito.
 Cambia l'intervallo con `SCAN_INTERVAL_MIN=15 npm start`, oppure disattivalo con

@@ -191,11 +191,16 @@ async function runScan(reason: string) {
   if (scanning) return null;
   scanning = true;
   try {
-    const result = await scanLibrary();
-    const changed = result.added + result.updated + result.removed;
+    const result = await scanLibrary({
+      maxRemovalRatio: process.env.SCAN_MAX_REMOVAL ? Number(process.env.SCAN_MAX_REMOVAL) : undefined,
+    });
+    if (result.refused > 0) {
+      console.warn(`scan (${reason}): RIFIUTATE ${result.refused} cancellazioni — la libreria è raggiungibile?`);
+    }
+    const changed = result.added + result.updated + result.removed + result.moved;
     if (changed > 0) {
       console.log(
-        `scan (${reason}): +${result.added} ↻${result.updated} -${result.removed}` +
+        `scan (${reason}): +${result.added} ↻${result.updated} →${result.moved} -${result.removed}` +
         ` → ${result.total} tracce in ${(result.ms / 1000).toFixed(1)}s`,
       );
     }

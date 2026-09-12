@@ -18,7 +18,7 @@ import { api } from './api.ts';
 
 export type ScanResult = {
   added: number; updated: number; skipped: number;
-  failed: number; removed: number; total: number; ms: number;
+  failed: number; moved: number; removed: number; refused: number; total: number; ms: number;
 };
 
 type LibraryApi = {

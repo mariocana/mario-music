@@ -7,10 +7,17 @@
 import { scanLibrary, LibraryMissingError } from '../server/scanner.ts';
 
 try {
-  const r = await scanLibrary((line) => process.stdout.write(`${line}\n`));
+  const r = await scanLibrary({
+    onFile: (line) => process.stdout.write(`${line}\n`),
+    // SCAN_MAX_REMOVAL=1 disattiva il freno: serve quando la cancellazione
+    // massiccia è davvero voluta (hai tolto mezza libreria di proposito).
+    maxRemovalRatio: process.env.SCAN_MAX_REMOVAL ? Number(process.env.SCAN_MAX_REMOVAL) : undefined,
+  });
   console.log(
     `\nAggiunte ${r.added}, aggiornate ${r.updated}, invariate ${r.skipped}, rimosse ${r.removed}` +
+    (r.moved ? `, spostate ${r.moved}` : '') +
     (r.failed ? `, saltate ${r.failed}` : '') + '.' +
+    (r.refused ? `\n⚠ ${r.refused} cancellazioni rifiutate: troppe in un colpo solo.` : '') +
     `\nIn libreria: ${r.total} tracce. (${(r.ms / 1000).toFixed(1)}s)`,
   );
 } catch (err) {
