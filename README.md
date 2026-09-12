@@ -148,8 +148,19 @@ lo si affetta con `blob.slice()` e si riscrivono `Content-Range` e
 filo. `npm test` verifica che le due implementazioni si comportino allo stesso
 modo, byte per byte.
 
-### Due trappole già disinnescate
+### Tre trappole già disinnescate
 
+- **L'audio non deve passare dal service worker se non serve.** La prima
+  versione inoltrava alla rete anche i brani non scaricati, dall'interno del
+  worker (`respondWith(fetch(request))`). Sembrava innocuo, ma quella `fetch`
+  passa dalla cache HTTP del browser, che per le richieste Range può tenere
+  la copia parziale di un ascolto interrotto: il player riceveva un file che
+  finiva a metà e lo prendeva per la fine del brano — sempre allo stesso
+  secondo, ascolto dopo ascolto. Ora la pagina chiede i brani scaricati con
+  `?offline`, il worker interviene solo su quelli, e per tutti gli altri non
+  chiama `respondWith`: l'audio lo carica il browser da solo, con la sua
+  gestione nativa di Range e cache, pensata apposta per i media. Il server
+  ignora la query, quindi senza worker `?offline` funziona lo stesso.
 - **`sw.js` non va mai messo in cache HTTP a lungo.** Un service worker con
   `max-age` lungo non si aggiorna più, e non si torna indietro senza svuotare
   la cache a mano. Il server lo serve con `no-cache`.

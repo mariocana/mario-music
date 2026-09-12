@@ -119,6 +119,14 @@ export const playlistCoverUrl = (playlistId: number, coverKey: string) =>
   `/api/playlists/${playlistId}/cover?v=${coverKey}`;
 export const streamUrl = (trackId: number) => `/api/tracks/${trackId}/stream`;
 
+/**
+ * Lo stesso brano, ma chiesto alla copia scaricata. Il service worker
+ * interviene SOLO su questo URL; senza `?offline` l'audio non lo attraversa
+ * nemmeno, e il browser lo carica da solo come farebbe con qualunque <audio>.
+ * Al server la query non interessa: se il worker non c'è, risponde lui.
+ */
+export const offlineUrl = (trackId: number) => `${streamUrl(trackId)}?offline`;
+
 /** 214 → "3:34" ; 5400 → "1:30:00" */
 export function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return '--:--';

@@ -125,7 +125,7 @@ test('sw: brano scaricato, senza Range → 200 con tutto il file', async () => {
   const sw = loadServiceWorker();
   await seedTrack(sw, 1, 1000);
 
-  const res = await sw.request('http://localhost/api/tracks/1/stream');
+  const res = await sw.request('http://localhost/api/tracks/1/stream?offline');
   assert.equal(res!.status, 200);
   assert.equal(res!.headers.get('Accept-Ranges'), 'bytes');
   assert.equal((await res!.arrayBuffer()).byteLength, 1000);
@@ -135,7 +135,7 @@ test('sw: brano scaricato, con Range → 206 con la fetta giusta', async () => {
   const sw = loadServiceWorker();
   const bytes = await seedTrack(sw, 1, 1000);
 
-  const res = await sw.request('http://localhost/api/tracks/1/stream', { Range: 'bytes=100-199' });
+  const res = await sw.request('http://localhost/api/tracks/1/stream?offline', { Range: 'bytes=100-199' });
   assert.equal(res!.status, 206, 'senza 206 Safari smette di far funzionare il seek');
   assert.equal(res!.headers.get('Content-Range'), 'bytes 100-199/1000');
   assert.equal(res!.headers.get('Content-Length'), '100');
@@ -149,7 +149,7 @@ test('sw: Range aperto a destra → fino alla fine del file', async () => {
   const sw = loadServiceWorker();
   await seedTrack(sw, 1, 1000);
 
-  const res = await sw.request('http://localhost/api/tracks/1/stream', { Range: 'bytes=900-' });
+  const res = await sw.request('http://localhost/api/tracks/1/stream?offline', { Range: 'bytes=900-' });
   assert.equal(res!.status, 206);
   assert.equal(res!.headers.get('Content-Range'), 'bytes 900-999/1000');
 });
@@ -158,14 +158,24 @@ test('sw: Range fuori dal file → 416, come il server', async () => {
   const sw = loadServiceWorker();
   await seedTrack(sw, 1, 1000);
 
-  const res = await sw.request('http://localhost/api/tracks/1/stream', { Range: 'bytes=9999-' });
+  const res = await sw.request('http://localhost/api/tracks/1/stream?offline', { Range: 'bytes=9999-' });
   assert.equal(res!.status, 416);
   assert.equal(res!.headers.get('Content-Range'), 'bytes */1000');
 });
 
-test('sw: brano non scaricato → si passa la mano alla rete', async () => {
+test('sw: brano normale → il worker non interviene, lo carica il browser', async () => {
   const sw = loadServiceWorker();
-  const res = await sw.request('http://localhost/api/tracks/42/stream');
+  await seedTrack(sw, 1, 1000);
+  // Anche se scaricato: senza ?offline il worker non deve chiamare
+  // respondWith. L'audio che passa dal worker finisce nella cache HTTP a
+  // pezzi e si interrompe a metà brano (visto dal vivo, vedi sw.js).
+  const res = await sw.request('http://localhost/api/tracks/1/stream', { Range: 'bytes=0-' });
+  assert.equal(res, null);
+});
+
+test('sw: ?offline ma copia sparita dalla cache → si passa la mano alla rete', async () => {
+  const sw = loadServiceWorker();
+  const res = await sw.request('http://localhost/api/tracks/42/stream?offline');
   assert.equal(res!.status, 200);
   assert.equal(await res!.text(), 'dalla rete');
 });

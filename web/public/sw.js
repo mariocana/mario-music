@@ -12,6 +12,18 @@
  * un 206 e senza quello il seek smette di funzionare.
  * Quindi qui sotto ricostruiamo il 206 a mano, affettando il blob in cache.
  * È la stessa logica di server/stream.ts, questa volta lato client.
+ *
+ * L'ALTRO PUNTO DIFFICILE — l'audio non deve passare di qui se non serve.
+ * Un brano non scaricato una volta veniva inoltrato alla rete dal worker
+ * stesso (respondWith(fetch(request))). Sembra innocuo, ma quella fetch
+ * passa dalla cache HTTP del browser, che per le richieste Range può avere
+ * una copia parziale di un ascolto interrotto: il player riceveva un file
+ * che finiva a metà e lo prendeva per la fine del brano, oppure vedeva la
+ * connessione morire se il browser spegneva il worker a trasferimento in
+ * corso. Perciò il worker interviene solo sull'URL con `?offline` (vedi
+ * offlineUrl in api.ts), che la pagina usa per i brani scaricati; per tutti
+ * gli altri non chiama respondWith, e il browser carica l'audio da solo,
+ * con la sua gestione nativa di Range e cache, pensata apposta per i media.
  */
 
 const VERSION = 'v3';
@@ -100,18 +112,15 @@ function parseRange(header, size) {
 
 /**
  * Serve un brano scaricato, rispettando l'header Range della richiesta.
- * Se il brano non è stato scaricato si passa la mano alla rete.
+ * Se la copia in cache non c'è più (la pagina credeva di averla, il browser
+ * l'ha buttata) si passa la mano alla rete: il server ignora `?offline`.
  */
 async function serveTrack(request) {
   const cache = await caches.open(MEDIA);
-  // Si cerca per URL: l'header Range non deve influenzare la ricerca in cache,
-  // altrimenti ogni fetta cercherebbe una voce diversa.
+  // Si cerca per percorso, senza query né header Range: la chiave in cache
+  // è quella scritta dal download, e ogni fetta deve trovare la stessa voce.
   const cached = await cache.match(new URL(request.url).pathname);
-  if (!cached) {
-    // Non scaricato: se c'è rete si va al server, altrimenti fallisce e il
-    // player mostra il suo errore.
-    return fetch(request);
-  }
+  if (!cached) return fetch(request);
 
   // blob() è pigro: non carica i 40 MB in memoria, e slice() nemmeno.
   const blob = await cached.blob();
@@ -186,9 +195,10 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
-  // I brani: cache-only con Range ricostruito (vedi sopra).
+  // I brani: solo quelli scaricati (URL con ?offline), con Range ricostruito.
+  // Gli altri NON si toccano — niente respondWith — e li carica il browser.
   if (/^\/api\/tracks\/\d+\/stream$/.test(url.pathname)) {
-    event.respondWith(serveTrack(request));
+    if (url.searchParams.has('offline')) event.respondWith(serveTrack(request));
     return;
   }
 
