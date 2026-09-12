@@ -382,4 +382,7 @@ curl -s -D - -o /dev/null -H "Range: bytes=0-99" localhost:4000/api/tracks/1/str
 - [x] **7. Transcodifica** — AAC 256 kbps per risparmiare dati e per i formati che il browser non legge
 - [x] **8. Preferiti e ascolti** — cuore sui brani, conteggio delle riproduzioni
 - [ ] **9. Utenti** — login, libreria per utente, streaming autenticato
-      (prerequisito se il server esce di casa)
+      (prerequisito se il server esce di casa; oggi lo usa una persona sola, quindi rimandato)
+- [ ] **10. Karaoke** — testo a tutto schermo, riga corrente grande e centrata,
+      colorata in proporzione alla sua durata (LRCLIB dà i tempi per riga, non
+      per parola). Voce abbassata (ffmpeg o Demucs) solo se poi manca davvero.

@@ -151,6 +151,25 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     void send(`/api/tracks/${prossimo.id}/prepare`, 'POST').catch(() => undefined);
   };
 
+  /**
+   * play() è asincrono e può essere rifiutato. Tre casi, da distinguere:
+   *   AbortError      → l'utente ha premuto pausa o cambiato brano mentre il
+   *                     file stava ancora caricando (con la transcodifica può
+   *                     volerci qualche secondo). Non è un errore: silenzio.
+   *   NotAllowedError → il browser vuole un gesto dell'utente prima di suonare.
+   *   tutto il resto  → il file non si carica: si mostra il motivo vero.
+   */
+  const avvia = useCallback((audio: HTMLAudioElement) => (
+    audio.play().catch((err: DOMException) => {
+      if (err.name === 'AbortError') return;
+      if (err.name === 'NotAllowedError') {
+        patch({ isPlaying: false, error: 'Il browser ha bloccato la riproduzione automatica: premi play.' });
+      } else {
+        patch({ isPlaying: false, error: `Riproduzione fallita: ${err.message}` });
+      }
+    })
+  ), [patch]);
+
   /** Carica una traccia nell'elemento audio e prova a farla partire. */
   const load = useCallback((queue: Track[], index: number, autoplay: boolean) => {
     const audio = audioRef.current;
@@ -163,18 +182,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     seekInSospeso.current = null;
     patch({ queue, index, current: track, currentTime: 0, duration: track.duration, buffered: 0, error: null, isLoading: true });
 
-    if (autoplay) {
-      // play() è asincrono e può essere rifiutato: i browser bloccano
-      // l'audio finché l'utente non ha interagito con la pagina.
-      audio.play().catch((err: DOMException) => {
-        if (err.name === 'NotAllowedError') {
-          patch({ isPlaying: false, error: 'Il browser ha bloccato la riproduzione automatica: premi play.' });
-        } else {
-          patch({ isPlaying: false, error: `Riproduzione fallita: ${err.message}` });
-        }
-      });
-    }
-  }, [patch]);
+    if (autoplay) void avvia(audio);
+  }, [patch, avvia]);
 
   const playQueue = useCallback((tracks: Track[], startIndex = 0) => {
     if (tracks.length === 0) return;
@@ -394,7 +403,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     toggle: () => {
       const audio = audioRef.current;
       if (!audio || !stateRef.current.current) return;
-      if (audio.paused) void audio.play().catch(() => patch({ error: 'Riproduzione bloccata dal browser.' }));
+      if (audio.paused) void avvia(audio);
       else audio.pause();
     },
     playAt: (index) => {
