@@ -18,8 +18,9 @@ import {
 } from 'react';
 import type { ReactNode } from 'react';
 import type { Track } from './api.ts';
-import { streamUrl, offlineUrl, coverUrl, send } from './api.ts';
+import { coverUrl, send } from './api.ts';
 import { useDownloads } from './downloads.tsx';
+import { urlBrano, qualitaCorrente } from './sorgente.ts';
 import { sogliaAscolto } from './soglia.ts';
 
 export type RepeatMode = 'off' | 'all' | 'one';
@@ -127,13 +128,28 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   const patch = useCallback((p: Partial<PlayerState>) => setState((s) => ({ ...s, ...p })), []);
 
-  // I brani scaricati si chiedono con un URL diverso (vedi offlineUrl). Un
-  // ref, non una dipendenza: un download in più non deve far ricostruire
-  // load() e con lui tutti i listener dell'audio.
+  // L'URL di un brano dipende da tre cose (vedi sorgente.ts): se è scaricato,
+  // se il browser ne legge il formato, se l'utente vuole risparmiare dati.
+  // I download stanno in un ref, non in una dipendenza: un download in più
+  // non deve far ricostruire load() e con lui tutti i listener dell'audio.
   const downloads = useDownloads();
   const scaricatiRef = useRef(downloads.items);
   scaricatiRef.current = downloads.items;
-  const srcDi = (id: number) => (scaricatiRef.current.has(id) ? offlineUrl(id) : streamUrl(id));
+  const srcDi = (track: Track) => urlBrano(track.id, track.codec, {
+    scaricato: scaricatiRef.current.has(track.id),
+    qualita: qualitaCorrente(),
+    canPlay: (mime) => audioRef.current?.canPlayType(mime) ?? 'maybe',
+  });
+
+  /**
+   * Il brano dopo, se andrà convertito, lo si fa preparare adesso: quando
+   * toccherà a lui il file sarà già pronto e partirà senza attesa.
+   */
+  const prepara = (queue: Track[], index: number) => {
+    const prossimo = queue[index + 1] ?? (stateRef.current.repeat === 'all' ? queue[0] : undefined);
+    if (!prossimo || !srcDi(prossimo).includes('format=aac')) return;
+    void send(`/api/tracks/${prossimo.id}/prepare`, 'POST').catch(() => undefined);
+  };
 
   /** Carica una traccia nell'elemento audio e prova a farla partire. */
   const load = useCallback((queue: Track[], index: number, autoplay: boolean) => {
@@ -141,7 +157,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const track = queue[index];
     if (!audio || !track) return;
 
-    audio.src = srcDi(track.id);
+    audio.src = srcDi(track);
+    prepara(queue, index);
     contatoRef.current = null;
     seekInSospeso.current = null;
     patch({ queue, index, current: track, currentTime: 0, duration: track.duration, buffered: 0, error: null, isLoading: true });
@@ -243,9 +260,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     if (!track?.id) return;
 
     // Non si passa da load(): quello azzera la posizione e prova a suonare.
-    // (I download qui non sono ancora noti: si usa l'URL normale, che con
-    // rete funziona sempre.)
-    audio.src = streamUrl(track.id);
+    // (I download qui non sono ancora noti: con rete l'URL normale funziona
+    // sempre.)
+    audio.src = srcDi(track);
     seekInSospeso.current = Math.max(0, Number(salvato.time) || 0);
     // L'ascolto era già stato conteggiato prima di chiudere: non si riconta.
     contatoRef.current = track.id;

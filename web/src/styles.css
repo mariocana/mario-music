@@ -973,3 +973,9 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
 @media (max-width: 700px), ((pointer: coarse) and (max-height: 520px)) {
   .back { width: 44px; height: 44px; margin: 0 0 6px -2px; }
 }
+
+/* Qualità audio (pagina Scaricati): due bottoni, uno acceso. */
+.qualita { margin: 0 0 28px; }
+.qualita h2 { font-size: 17px; margin: 0 0 4px; }
+.qualita .albumhead-actions { margin-top: 8px; }
+.qualita .dim { margin-top: 10px; max-width: 560px; }

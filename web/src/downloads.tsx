@@ -16,6 +16,7 @@ import {
 import type { ReactNode } from 'react';
 import type { Track } from './api.ts';
 import { streamUrl } from './api.ts';
+import { urlBrano, qualitaCorrente } from './sorgente.ts';
 
 const MEDIA_CACHE = 'media'; // deve combaciare con la costante in sw.js
 
@@ -121,7 +122,15 @@ export function DownloadsProvider({ children }: { children: ReactNode }) {
 
       setProgress((p) => new Map(p).set(track.id, 0));
       try {
-        const response = await fetch(streamUrl(track.id));
+        // Lo stesso URL che userebbe il player: con "risparmio dati" si
+        // scarica l'AAC, un terzo dello spazio. In cache però la chiave resta
+        // streamUrl, così player e service worker lo ritrovano.
+        const sorgente = urlBrano(track.id, track.codec, {
+          scaricato: false,
+          qualita: qualitaCorrente(),
+          canPlay: (mime) => document.createElement('audio').canPlayType(mime),
+        });
+        const response = await fetch(sorgente);
         if (!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
 
         const total = Number(response.headers.get('Content-Length') ?? track.size);

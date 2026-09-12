@@ -16,6 +16,7 @@ import { AddMenu } from './components/AddMenu.tsx';
 import { usePlaylists } from './playlists.tsx';
 import { useListening } from './listening.tsx';
 import { formatBytes, useDownloads } from './downloads.tsx';
+import { useQualita } from './useQualita.ts';
 
 function Loading() { return <p className="hint">Carico…</p>; }
 function Failure({ message }: { message: string }) { return <p className="hint error">Errore: {message}</p>; }
@@ -214,6 +215,8 @@ export function DownloadsView() {
     <>
       <h1>Scaricati</h1>
 
+      <QualitaAudio />
+
       {items.length === 0 ? (
         <p className="hint">
           Nessun brano scaricato. Usa il pulsante di download su un album o su un singolo brano:
@@ -236,6 +239,33 @@ export function DownloadsView() {
         </>
       )}
     </>
+  );
+}
+
+/**
+ * Originale o AAC 256 kbps. Vale per lo streaming e per i download: un FLAC
+ * in "risparmio dati" viaggia e occupa un terzo. MP3 e AAC restano com'erano
+ * in entrambi i casi (ricomprimerli farebbe solo perdere qualità).
+ */
+function QualitaAudio() {
+  const [qualita, imposta] = useQualita();
+  return (
+    <section className="qualita">
+      <h2>Qualità audio</h2>
+      <div className="albumhead-actions">
+        <button className={qualita === 'originale' ? 'primary' : 'ghost'} onClick={() => imposta('originale')}>
+          Originale
+        </button>
+        <button className={qualita === 'risparmio' ? 'primary' : 'ghost'} onClick={() => imposta('risparmio')}>
+          Risparmio dati
+        </button>
+      </div>
+      <p className="dim">
+        {qualita === 'originale'
+          ? 'I file come sono in libreria: FLAC lossless dove c\'è, fino a ~900 kbps.'
+          : 'FLAC e formati esotici convertiti in AAC 256 kbps: un terzo dei dati e dello spazio, differenza quasi inudibile. MP3 e AAC restano originali.'}
+      </p>
+    </section>
   );
 }
 

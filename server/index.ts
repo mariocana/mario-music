@@ -7,6 +7,8 @@
  * Due famiglie di endpoint:
  *   /api/...            JSON, il catalogo (album, artisti, brani, ricerca)
  *   /api/tracks/:id/stream   byte, il file audio servito a fette (vedi stream.ts)
+ *                            con ?format=aac la versione convertita (vedi transcode.ts)
+ *   POST /api/tracks/:id/prepare  converte in anticipo, per il brano successivo
  */
 import { createServer } from 'node:http';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -15,6 +17,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { openDb } from './db.ts';
 import { sendFile } from './stream.ts';
+import { transcodedFile, giaPronto, vaTranscodificato, TRANSCODE_MIME } from './transcode.ts';
 import { scanLibrary, LibraryMissingError } from './scanner.ts';
 import { getLyrics } from './lyrics.ts';
 import { searchTracks, rebuildSearchIndex, indexIsStale } from './search.ts';
@@ -95,7 +98,7 @@ const q = {
     JOIN artists ar ON ar.id = t.artist_id
     ORDER BY ar.name COLLATE NOCASE, al.year, t.disc_no, t.track_no
   `),
-  trackFile: db.prepare('SELECT path, mime, title FROM tracks WHERE id = ?'),
+  trackFile: db.prepare('SELECT path, mime, title, codec, size, fingerprint FROM tracks WHERE id = ?'),
   coverFile: db.prepare('SELECT cover_path AS coverPath FROM albums WHERE id = ?'),
   stats: db.prepare(`
     SELECT (SELECT COUNT(*) FROM artists) AS artists,
@@ -402,20 +405,59 @@ get(/^\/api\/tracks\/(\d+)\/lyrics$/, async (_req, res, [id]) => {
   json(res, 200, result);
 });
 
+type TrackFile = { path: string; mime: string; title: string; codec: string | null; size: number; fingerprint: string | null };
+
 // Lo streaming vero e proprio.
-get(/^\/api\/tracks\/(\d+)\/stream$/, async (req, res, [id]) => {
-  const row = q.trackFile.get(Number(id)) as { path: string; mime: string; title: string } | undefined;
+get(/^\/api\/tracks\/(\d+)\/stream$/, async (req, res, [id], url) => {
+  const row = q.trackFile.get(Number(id)) as TrackFile | undefined;
   if (!row) return json(res, 404, { error: 'Traccia non trovata' });
+
+  let file = row.path;
+  let contentType = row.mime;
   try {
-    const stats = await stat(row.path);
-    sendFile(req, res, row.path, stats, {
-      contentType: row.mime,
-      cacheControl: 'private, max-age=86400',
-    });
+    await stat(row.path);
   } catch {
     // La riga esiste nel DB ma il file è sparito: serve un nuovo scan.
-    json(res, 410, { error: 'File non più presente sul disco. Rilancia: npm run scan' });
+    return json(res, 410, { error: 'File non più presente sul disco. Rilancia: npm run scan' });
   }
+
+  // ?format=aac: la versione convertita, se ha senso convertire. Un MP3 resta
+  // MP3 anche se il client chiede AAC (vedi vaTranscodificato).
+  if (url.searchParams.get('format') === 'aac' && vaTranscodificato(row.codec)) {
+    const t0 = Date.now();
+    const pronto = await giaPronto(row);
+    try {
+      file = await transcodedFile(row);
+      contentType = TRANSCODE_MIME;
+    } catch (err) {
+      console.error(`transcodifica fallita: ${row.title}`, err);
+      return json(res, 500, { error: 'Conversione fallita: ffmpeg è installato?' });
+    }
+    if (!pronto) console.log(`transcodifica: ${row.title} in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+  }
+
+  const stats = await stat(file);
+  sendFile(req, res, file, stats, {
+    contentType,
+    cacheControl: 'private, max-age=86400',
+  });
+});
+
+// Il player la chiama per il brano successivo appena parte quello corrente:
+// quando toccherà a lui, il file convertito c'è già. Risponde subito e
+// converte in sottofondo; { pronto: true } se non c'era niente da fare.
+post(/^\/api\/tracks\/(\d+)\/prepare$/, async (_req, res, [id]) => {
+  const row = q.trackFile.get(Number(id)) as TrackFile | undefined;
+  if (!row) return json(res, 404, { error: 'Traccia non trovata' });
+  if (!vaTranscodificato(row.codec)) return json(res, 200, { pronto: true });
+  const pronto = await giaPronto(row);
+  if (!pronto) {
+    const t0 = Date.now();
+    transcodedFile(row)
+      .then(() => console.log(`transcodifica (in anticipo): ${row.title} in ${((Date.now() - t0) / 1000).toFixed(1)}s`))
+      .catch((err) => console.error(`transcodifica fallita: ${row.title}`, err));
+  }
+  json(res, 200, { pronto });
 });
 
 /* ───────────────────────────── il server ───────────────────────────── */

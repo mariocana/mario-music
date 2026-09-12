@@ -86,6 +86,8 @@ server/lyrics.ts  testi da LRCLIB, con ripiego sui tag del file
 server/playlists.ts creazione e ordinamento delle playlist
 server/db.ts      schema: artists → albums → tracks
 server/stream.ts  invio dei file con HTTP Range (il cuore dello streaming)
+server/transcode.ts conversione in AAC con ffmpeg, cache per impronta
+web/src/sorgente.ts quale URL chiedere: scaricato, originale o convertito
 server/index.ts   server node:http nudo: API JSON + streaming
 web/public/sw.js    service worker: cache dell'app e dei brani scaricati
 web/src/player.tsx  stato di riproduzione: un solo <audio> per tutta l'app
@@ -175,6 +177,50 @@ Lo spazio lo concede il browser e può revocarlo se il disco si riempie:
 schermata "Scaricati" mostra se la richiesta è stata accolta). I download sono
 legati a quel browser su quel dispositivo: non è una libreria sincronizzata, e
 non c'è nessun DRM.
+
+## Qualità audio e transcodifica
+
+Nella pagina "Scaricati" si sceglie tra **Originale** e **Risparmio dati**.
+Con la seconda, FLAC e formati esotici arrivano convertiti in AAC 256 kbps:
+un FLAC viaggia a ~900 kbps, l'AAC a 256 suona quasi uguale e pesa un terzo.
+Sul telefono fuori casa è la differenza tra ascoltare e aspettare. La scelta
+vale anche per i download: un album FLAC scaricato in risparmio dati occupa un
+terzo. MP3 e AAC restano originali in ogni caso: ricomprimere un file già
+compresso fa solo perdere qualità.
+
+La conversione serve anche a chi non sceglie niente. Chrome non legge ALAC,
+Safari non legge Ogg, WMA e APE non li legge nessuno: il client lo chiede al
+browser (`audio.canPlayType`) e, se la risposta è no, chiede l'AAC da solo.
+È il browser a sapere cosa legge, non il server.
+
+### Un file, non un flusso
+
+ffmpeg potrebbe scrivere direttamente nella risposta HTTP e la musica
+partirebbe un attimo prima. Ma la lunghezza in byte si conosce solo alla
+fine: niente `Content-Length`, niente Range, niente seek. Qui invece ffmpeg
+scrive un file in `data/transcoded/`, e quello viene servito da `stream.ts`
+come qualunque altro: fette, ETag, cache del browser. Costa qualche secondo
+la prima volta (un brano di 4 minuti si converte in ~4 s, uno di 6 in ~8),
+poi è istantaneo.
+
+Per non farli sentire, il player chiede in anticipo il brano successivo
+(`POST /api/tracks/:id/prepare`) appena parte quello corrente: quando tocca a
+lui, il file c'è già. È lo stesso trucco dei servizi veri, che precaricano
+sempre "quello dopo".
+
+### Dettagli che contano
+
+- **La cache è per impronta**, non per id o percorso: `<impronta>.m4a`. Un
+  file spostato o rinominato non si riconverte; uno cambiato sì. La cartella
+  si può cancellare quando si vuole: si ricostruisce da sola.
+  `TRANSCODE_DIR=/altrove npm start` la mette altrove.
+- **Scrittura provvisoria + rename.** ffmpeg scrive su `.tmp`, e solo alla
+  fine il file prende il nome vero. Un `rename` è atomico: un `.m4a` o è
+  completo o non esiste, e un server spento a metà conversione non lascia
+  un file mozzo da servire come buono.
+- **Due richieste, una conversione.** Se il player e il precaricamento
+  chiedono lo stesso brano insieme, la seconda aspetta la prima invece di
+  lanciare un altro ffmpeg. Al massimo due conversioni in parallelo.
 
 ## Preferiti e ascolti
 
@@ -333,7 +379,7 @@ curl -s -D - -o /dev/null -H "Range: bytes=0-99" localhost:4000/api/tracks/1/str
 - [x] **4. Coda visibile** — pannello "in riproduzione", riordino, "riproduci dopo"
 - [x] **5. Playlist** — creazione, riordino, rimozione, copertina personalizzata
 - [x] **6. Ricerca** — indice full-text SQLite FTS5 al posto di `LIKE`
-- [ ] **7. Transcodifica** — FLAC e formati esotici convertiti al volo per i browser che non li leggono
+- [x] **7. Transcodifica** — AAC 256 kbps per risparmiare dati e per i formati che il browser non legge
 - [x] **8. Preferiti e ascolti** — cuore sui brani, conteggio delle riproduzioni
 - [ ] **9. Utenti** — login, libreria per utente, streaming autenticato
       (prerequisito se il server esce di casa)
