@@ -13,6 +13,8 @@
     "build": "vite build",
     "seed": "tsx scripts/seed.ts",
     "scan": "tsx scripts/scan.ts",
+    "backup": "tsx scripts/backup.ts",
+    "restore": "tsx scripts/restore.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --test test/*.test.ts"
   },

@@ -86,6 +86,8 @@ server/lyrics.ts  testi da LRCLIB, con ripiego sui tag del file
 server/playlists.ts creazione e ordinamento delle playlist
 server/artists.ts pagina artista: top brani, discografia, copertina
 server/home.ts    "Per te": recenti, novità, riscopri, mai ascoltati
+server/backup.ts  copia di sicurezza e ripristino dei dati personali
+scripts/backup.ts il comando `npm run backup`; scripts/restore.ts il ritorno
 server/db.ts      schema: artists → albums → tracks
 server/stream.ts  invio dei file con HTTP Range (il cuore dello streaming)
 server/transcode.ts conversione in AAC con ffmpeg, cache per impronta
@@ -223,6 +225,74 @@ sempre "quello dopo".
 - **Due richieste, una conversione.** Se il player e il precaricamento
   chiedono lo stesso brano insieme, la seconda aspetta la prima invece di
   lanciare un altro ffmpeg. Al massimo due conversioni in parallelo.
+
+## Backup
+
+```bash
+npm run backup                    # a mano, quando vuoi
+npm run restore <cartella>        # rimette playlist, preferiti e ascolti
+```
+
+Il server ne fa uno da solo **ogni 24 ore** (`BACKUP_INTERVAL_H=0` lo
+disattiva), tenendo gli ultimi 7 (`BACKUP_KEEP`). Non aspetta l'intervallo
+guardando il proprio orologio interno: confronta la data dell'ultimo backup
+con l'ora attuale. Un server che viene riavviato ogni mattina, con un timer
+che riparte da zero ogni volta, non farebbe mai un backup.
+
+### Cosa si salva, e perché non tutto
+
+La regola è una: **si salva ciò che non si può ricostruire.**
+
+| | nel backup | perché |
+|---|---|---|
+| `library.db` | sì | contiene tutto |
+| `playlist-covers/` | sì | le hai caricate tu |
+| `covers/` | no | si riestraggono dai file audio |
+| `transcoded/` | no | si riconverte |
+| `media/library/` | **no** | sono i tuoi 6 GB: vanno salvati a parte |
+
+Il database si copia con `VACUUM INTO`, non con `cp`. In modalità WAL le
+ultime scritture stanno ancora nel file `-wal`: copiare `library.db` mentre
+il server gira darebbe una copia monca, e senza dirlo. `VACUUM INTO` scrive
+una copia coerente e compatta a server acceso.
+
+### Due formati, non uno
+
+Accanto al `.db` ci sono tre JSON leggibili: playlist, preferiti, ascolti.
+Servono al caso peggiore — database illeggibile, o libreria ricostruita da
+zero dove gli id sono tutti diversi. Per questo **i brani non sono indicati
+per id** ma per impronta del contenuto e percorso relativo: due riferimenti
+che sopravvivono a una ricostruzione, mentre l'id no.
+
+È la stessa impronta che riconosce gli spostamenti durante lo scan, e
+`npm run restore` la usa allo stesso modo: ritrova i brani anche se nel
+frattempo li hai rinominati o spostati di cartella.
+
+### Un backup non verificato non è un backup
+
+Appena scritta, la copia viene riaperta: `PRAGMA integrity_check` e conteggio
+delle tracce confrontato con l'originale. Se non torna, il comando fallisce
+invece di annunciare un successo.
+
+E il ripristino è stato provato davvero, non solo pensato: c'è un test che
+fa il backup, butta il database, ricostruisce la libreria con id e percorsi
+diversi e verifica che playlist (ordine compreso), preferiti e ascolti
+tornino al loro posto. Rieseguirlo due volte non duplica niente; una playlist
+con un nome già in uso viene affiancata con "(ripristinata)" invece di
+sovrascrivere quella su cui stavi lavorando.
+
+### L'avvertenza che conta
+
+Il backup predefinito finisce in `data/backups`, cioè **sullo stesso disco**
+dell'originale: protegge da un errore tuo, non da un disco rotto. Per quello
+serve un'altra destinazione:
+
+```bash
+BACKUP_DIR=/percorso/su/un/altro/disco npm run backup
+```
+
+Va bene un disco esterno, un NAS, o una cartella sincronizzata su un servizio
+cloud. Lo stesso vale per il server: `BACKUP_DIR=... npm start`.
 
 ## "Per te", la schermata iniziale
 
@@ -450,6 +520,7 @@ curl -s -D - -o /dev/null -H "Range: bytes=0-99" localhost:4000/api/tracks/1/str
       (prerequisito se il server esce di casa; oggi lo usa una persona sola, quindi rimandato)
 - [x] **10. Pagina artista e "Per te"** — top brani per ascolti, discografia,
       home con ripresa, recenti, novità, riscopri e mai ascoltati
-- [ ] **11. Karaoke** — testo a tutto schermo, riga corrente grande e centrata,
+- [x] **11. Backup** — copia automatica giornaliera, verificata, con ripristino provato
+- [ ] **12. Karaoke** — testo a tutto schermo, riga corrente grande e centrata,
       colorata in proporzione alla sua durata (LRCLIB dà i tempi per riga, non
       per parola). Voce abbassata (ffmpeg o Demucs) solo se poi manca davvero.

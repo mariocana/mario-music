@@ -23,6 +23,7 @@ import { getLyrics } from './lyrics.ts';
 import { searchTracks, rebuildSearchIndex, indexIsStale } from './search.ts';
 import { albumsOfArtist, topTracksOfArtist, tracksOfArtist, coverOfArtist } from './artists.ts';
 import { homePayload } from './home.ts';
+import { creaBackup, ultimoBackup, BACKUP_DIR } from './backup.ts';
 import {
   COLONNE_TRACCIA, setFavorite, listFavorites, recordPlay, recentlyPlayed, mostPlayed,
 } from './listening.ts';
@@ -34,6 +35,8 @@ import {
 const PORT = Number(process.env.PORT ?? 4000);
 // Ogni quanti minuti ripassare la libreria. 0 disattiva il ripasso automatico.
 const SCAN_EVERY_MIN = Number(process.env.SCAN_INTERVAL_MIN ?? 5);
+// Ogni quante ore salvare playlist, preferiti e ascolti. 0 disattiva.
+const BACKUP_EVERY_H = Number(process.env.BACKUP_INTERVAL_H ?? 24);
 const db = openDb();
 
 /* ────────────────────────────── query SQL ────────────────────────────── */
@@ -556,5 +559,25 @@ server.listen(PORT, () => {
     const timer = setInterval(() => void runScan('automatico'), SCAN_EVERY_MIN * 60_000);
     // unref: il timer non deve tenere in vita il processo se il server chiude.
     timer.unref();
+  }
+
+  if (BACKUP_EVERY_H > 0) {
+    console.log(`Backup automatico ogni ${BACKUP_EVERY_H} ore in ${BACKUP_DIR}`);
+    // Si controlla l'orologio, non si aspetta l'intervallo: un server riavviato
+    // ogni mattina non farebbe mai un backup se il timer ripartisse da zero
+    // ogni volta. Il primo controllo è dopo un minuto, per non rallentare
+    // l'avvio e non trovarsi a copiare un database appena aperto.
+    const forse = () => {
+      const ultimo = ultimoBackup();
+      if (ultimo !== null && Date.now() - ultimo < BACKUP_EVERY_H * 3_600_000) return;
+      try {
+        const r = creaBackup();
+        console.log(`Backup: ${r.playlist} playlist, ${r.preferiti} preferiti, ${r.ascolti} ascolti → ${r.dir}`);
+      } catch (err) {
+        console.error('Backup automatico fallito:', err instanceof Error ? err.message : err);
+      }
+    };
+    setTimeout(forse, 60_000).unref();
+    setInterval(forse, 3_600_000).unref();  // poi si ricontrolla ogni ora
   }
 });
