@@ -1,6 +1,6 @@
 /** Le schermate: griglia album, dettaglio album, artisti, brani, ricerca. */
 import { useRef, useState } from 'react';
-import { api, formatLength, formatTime, playlistCoverUrl } from './api.ts';
+import { api, coverUrl, formatLength, formatTime, playlistCoverUrl } from './api.ts';
 import type { Album, PlaylistSummary } from './api.ts';
 import { useAsync } from './useAsync.ts';
 import { useNavigate } from './nav.tsx';
@@ -21,13 +21,15 @@ import { useQualita } from './useQualita.ts';
 function Loading() { return <p className="hint">Carico…</p>; }
 function Failure({ message }: { message: string }) { return <p className="hint error">Errore: {message}</p>; }
 
-function AlbumCard({ album }: { album: Album }) {
+/** `mostraArtista` si spegne nella pagina di un artista: lì è già detto. */
+function AlbumCard({ album, mostraArtista = true }: { album: Album; mostraArtista?: boolean }) {
   const navigate = useNavigate();
+  const sotto = [mostraArtista ? album.artist : null, album.year].filter(Boolean).join(' · ');
   return (
     <button className="albumcard" onClick={() => navigate({ name: 'album', id: album.id })}>
       <Cover albumId={album.id} title={album.title} coverKey={album.coverKey} />
       <span className="albumcard-title">{album.title}</span>
-      <span className="albumcard-sub">{album.artist}{album.year ? ` · ${album.year}` : ''}</span>
+      <span className="albumcard-sub">{sotto}</span>
     </button>
   );
 }
@@ -131,19 +133,94 @@ export function ArtistsView() {
   );
 }
 
+/**
+ * La pagina di un artista, sul modello di Apple Music: una testata grande,
+ * un tasto che fa partire tutto in ordine casuale, i brani più ascoltati e
+ * poi la discografia.
+ *
+ * "Top brani" sono i TUOI più ascoltati: senza altri utenti non esiste una
+ * classifica globale, e i conteggi della tabella `plays` sono l'unico dato
+ * onesto che abbiamo. Per questo la sezione compare solo quando c'è almeno
+ * un ascolto: cinque brani a caso non sono una classifica.
+ */
 export function ArtistDetailView({ id }: { id: number }) {
   const { revision } = useLibrary();
   const { data, error, loading } = useAsync(() => api.artist(id), [id, revision]);
+  const player = usePlayer();
+  const [inCorso, setInCorso] = useState(false);
+
   if (loading) return <Loading />;
   if (error) return <Failure message={error} />;
   if (!data) return null;
 
+  // Un album con una traccia sola è un singolo: mescolarlo alla discografia
+  // vera la seppellirebbe (in questa libreria i singoli sono i tre quarti).
+  const album = data.albums.filter((a) => a.trackCount > 1);
+  const singoli = data.albums.filter((a) => a.trackCount <= 1);
+  const brani = data.albums.reduce((n, a) => n + a.trackCount, 0);
+
+  /** I brani arrivano solo adesso: la pagina non ne ha bisogno per esistere. */
+  const avvia = async (casuale: boolean) => {
+    setInCorso(true);
+    try {
+      const tracks = await api.artistTracks(id);
+      if (tracks.length === 0) return;
+      if (casuale !== player.shuffle) player.toggleShuffle();
+      player.playQueue(tracks, casuale ? Math.floor(Math.random() * tracks.length) : 0);
+    } finally {
+      setInCorso(false);
+    }
+  };
+
   return (
     <>
-      <h1>{data.name}</h1>
-      <div className="grid">
-        {data.albums.map((album) => <AlbumCard key={album.id} album={album} />)}
-      </div>
+      <header className="artisthead">
+        {/* Non abbiamo foto degli artisti: la copertina del loro album più
+            ascoltato, sfocata e allargata, fa da sfondo. */}
+        {data.cover && (
+          <div
+            className="artisthead-sfondo"
+            style={{ backgroundImage: `url(${coverUrl(data.cover.albumId, data.cover.coverKey)})` }}
+            aria-hidden
+          />
+        )}
+        <div className="artisthead-corpo">
+          <h1>{data.name}</h1>
+          <p className="artisthead-sub">
+            {data.albums.length} {data.albums.length === 1 ? 'album' : 'album'} · {brani} brani
+          </p>
+          <button
+            className="artisthead-play"
+            onClick={() => void avvia(true)}
+            disabled={inCorso || brani === 0}
+            title="Riproduci tutto in ordine casuale"
+            aria-label="Riproduci tutto in ordine casuale"
+          >
+            <Icon name="play" size={28} />
+          </button>
+        </div>
+      </header>
+
+      {data.topTracks.length > 0 && (
+        <section className="artist-sezione">
+          <h2>Top brani</h2>
+          <TrackList tracks={data.topTracks} showAlbum showArtist={false} numbering="nessuno" />
+        </section>
+      )}
+
+      {album.length > 0 && (
+        <section className="artist-sezione">
+          <h2>Album</h2>
+          <div className="grid">{album.map((a) => <AlbumCard key={a.id} album={a} mostraArtista={false} />)}</div>
+        </section>
+      )}
+
+      {singoli.length > 0 && (
+        <section className="artist-sezione">
+          <h2>Singoli</h2>
+          <div className="grid">{singoli.map((a) => <AlbumCard key={a.id} album={a} mostraArtista={false} />)}</div>
+        </section>
+      )}
     </>
   );
 }

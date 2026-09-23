@@ -14,6 +14,12 @@ type Props = {
   /** mostra artista e album: utile in "Brani", inutile dentro un album */
   showAlbum?: boolean;
   /**
+   * L'artista si può togliere tenendo l'album: nella pagina di un artista
+   * ripeterne il nome su ogni riga è rumore, l'album invece serve.
+   * Per impostazione predefinita segue showAlbum.
+   */
+  showArtist?: boolean;
+  /**
    * Azioni proprie del contesto, aggiunte in cima al menù ⋯ di ogni riga.
    * Nelle playlist ci finiscono riordino e rimozione: in riga sarebbero tre
    * simboli in più su ogni traccia.
@@ -28,7 +34,7 @@ type Props = {
   numbering?: 'album' | 'nessuno';
 };
 
-export function TrackList({ tracks, showAlbum = false, menuItems, numbering = 'album' }: Props) {
+export function TrackList({ tracks, showAlbum = false, showArtist = showAlbum, menuItems, numbering = 'album' }: Props) {
   const player = usePlayer();
   const isMobile = useIsMobile();
   const ascolti = useListening();
@@ -36,9 +42,10 @@ export function TrackList({ tracks, showAlbum = false, menuItems, numbering = 'a
 
   /** Colonne separate per artista e album solo dove c'è spazio. */
   const colonneSeparate = showAlbum && !isMobile;
+  const senzaArtista = colonneSeparate && !showArtist;
 
   return (
-    <ol className={`tracklist${conCopertina ? ' con-copertina' : ''}${colonneSeparate ? ' con-colonne' : ''}`}>
+    <ol className={`tracklist${conCopertina ? ' con-copertina' : ''}${colonneSeparate ? ' con-colonne' : ''}${senzaArtista ? ' senza-artista' : ''}`}>
       {tracks.map((track, i) => {
         const active = player.current?.id === track.id;
         const suona = active && player.isPlaying;
@@ -88,11 +95,11 @@ export function TrackList({ tracks, showAlbum = false, menuItems, numbering = 'a
             <div className="track-main">
               <span className="track-title">{track.title}</span>
               {showAlbum && !colonneSeparate && (
-                <span className="track-sub">{track.artist} — {track.album}</span>
+                <span className="track-sub">{showArtist ? `${track.artist} — ${track.album}` : track.album}</span>
               )}
             </div>
 
-            {colonneSeparate && <span className="track-artista">{track.artist}</span>}
+            {colonneSeparate && showArtist && <span className="track-artista">{track.artist}</span>}
             {colonneSeparate && <span className="track-album">{track.album}</span>}
             {!conCopertina && <span className="track-format">{track.codec?.toUpperCase()}</span>}
 

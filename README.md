@@ -84,6 +84,7 @@ scripts/scan.ts   il comando `npm run scan`, un guscio sopra lo scanner
 server/scanner.ts ffprobe → tag e durata → SQLite; estrae le copertine
 server/lyrics.ts  testi da LRCLIB, con ripiego sui tag del file
 server/playlists.ts creazione e ordinamento delle playlist
+server/artists.ts pagina artista: top brani, discografia, copertina
 server/db.ts      schema: artists → albums → tracks
 server/stream.ts  invio dei file con HTTP Range (il cuore dello streaming)
 server/transcode.ts conversione in AAC con ffmpeg, cache per impronta
@@ -221,6 +222,31 @@ sempre "quello dopo".
 - **Due richieste, una conversione.** Se il player e il precaricamento
   chiedono lo stesso brano insieme, la seconda aspetta la prima invece di
   lanciare un altro ffmpeg. Al massimo due conversioni in parallelo.
+
+## La pagina di un artista
+
+Sul modello di Apple Music: testata grande, un tasto che fa partire tutto in
+ordine casuale, i brani più ascoltati e poi la discografia, divisa tra album e
+singoli (un album con una traccia sola è un singolo — in questa libreria sono
+i tre quarti, mescolarli alla discografia vera la seppellirebbe).
+
+**"Top brani" sono i tuoi.** Senza altri utenti non esiste una classifica
+globale: l'unico dato vero è la tabella `plays`. Per questo la sezione compare
+solo se l'artista ha almeno un ascolto — riempirla con cinque brani qualunque
+significherebbe spacciare un ordine arbitrario per una classifica, e sarebbe
+una bugia che l'interfaccia racconta da sola. Artista mai suonato: niente
+sezione, si va dritti agli album.
+
+**La testata.** Non abbiamo foto degli artisti e non le scarichiamo da
+nessuna parte: fa da ritratto la copertina del loro album più ascoltato,
+ingrandita e sfocata. La sfocatura non è un vezzo — una copertina di 600 px
+allargata a tutta pagina si vedrebbe sgranata, e lo sfocato nasconde proprio
+quello.
+
+**Due chiamate, non una.** `/api/artists/:id` porta cinque brani e la
+discografia, quanto basta a disegnare la pagina. I brani per il tasto
+Riproduci arrivano da `/api/artists/:id/tracks`, e solo quando lo si preme:
+spedirne settanta per mostrarne cinque sarebbe sprecato.
 
 ## Preferiti e ascolti
 

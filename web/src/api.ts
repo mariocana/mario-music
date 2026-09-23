@@ -36,7 +36,15 @@ export type Track = {
 
 export type AlbumDetail = Omit<Album, 'trackCount' | 'duration'> & { tracks: Track[] };
 export type Artist = { id: number; name: string; albumCount: number; trackCount: number };
-export type ArtistDetail = { id: number; name: string; albums: Album[] };
+export type ArtistDetail = {
+  id: number;
+  name: string;
+  albums: Album[];
+  /** i più ascoltati, al massimo cinque; vuoto se l'artista non è mai partito */
+  topTracks: Track[];
+  /** l'album che fa da immagine alla testata: non abbiamo foto degli artisti */
+  cover: { albumId: number; coverKey: string } | null;
+};
 export type PlaylistSummary = {
   id: number;
   name: string;
@@ -76,6 +84,8 @@ export const api = {
   album: (id: number) => get<AlbumDetail>(`/api/albums/${id}`),
   artists: () => get<Artist[]>('/api/artists'),
   artist: (id: number) => get<ArtistDetail>(`/api/artists/${id}`),
+  /** a parte: serve solo al tasto Riproduci/Casuale, non a disegnare la pagina */
+  artistTracks: (id: number) => get<Track[]>(`/api/artists/${id}/tracks`),
   tracks: () => get<Track[]>('/api/tracks'),
   search: (q: string) => get<Track[]>(`/api/search?q=${encodeURIComponent(q)}`),
   lyrics: (trackId: number) => get<Lyrics>(`/api/tracks/${trackId}/lyrics`),

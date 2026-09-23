@@ -259,6 +259,10 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
 .tracklist.con-copertina.con-colonne .track {
   grid-template-columns: 44px minmax(0, 2fr) minmax(0, 1.2fr) minmax(0, 1.2fr) 22px 30px 52px 30px;
 }
+/* Senza la colonna artista (pagina dell'artista) le colonne sono una in meno. */
+.tracklist.con-copertina.con-colonne.senza-artista .track {
+  grid-template-columns: 44px minmax(0, 2fr) minmax(0, 1.4fr) 22px 30px 52px 30px;
+}
 
 .track-art {
   position: relative;
@@ -488,6 +492,12 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
   .content h1 { font-size: 21px; margin-bottom: 14px; }
 
   .grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 16px 12px; }
+
+  /* Testata artista: meno alta, e i margini seguono il padding del telefono. */
+  .artisthead { margin: -14px -14px 6px; min-height: 230px; }
+  .artisthead-corpo { padding: 0 14px 18px; }
+  .content .artisthead-corpo h1 { font-size: 30px; }
+  .artist-sezione h2 { font-size: 18px; }
 
   /* Testata album: copertina sopra, dati sotto. */
   .albumhead { flex-direction: column; gap: 18px; margin: 28px 0 22px; }
@@ -979,3 +989,70 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
 .qualita h2 { font-size: 17px; margin: 0 0 4px; }
 .qualita .albumhead-actions { margin-top: 8px; }
 .qualita .dim { margin-top: 10px; max-width: 560px; }
+
+/* ── testata artista ──
+   A tutta larghezza, quindi i margini negativi annullano il padding di
+   .content: su Apple Music l'immagine tocca i bordi, ed è metà dell'effetto. */
+.artisthead {
+  position: relative;
+  margin: -20px -32px 10px;
+  min-height: 300px;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+/* La copertina ingrandita e sfocata. La sfocatura non è un vezzo: allargare
+   un'immagine di 600px a tutta pagina la mostrerebbe sgranata, e lo sfocato
+   nasconde proprio quello. La sfumatura in basso fonde l'immagine con la
+   pagina, così il nome resta leggibile su qualunque copertina. */
+.artisthead-sfondo {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  filter: blur(26px) saturate(1.25);
+  transform: scale(1.2);
+  opacity: 0.75;
+}
+.artisthead::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.55) 55%, var(--bg) 100%);
+}
+
+.artisthead-corpo {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  padding: 0 32px 22px;
+  text-align: center;
+}
+.content .artisthead-corpo h1 {
+  margin: 0;
+  font-size: 38px;
+  letter-spacing: -0.03em;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.6);
+}
+.artisthead-sub { margin: 4px 0 16px; font-size: 13px; color: var(--text); opacity: 0.75; }
+
+/* Il cerchio bianco di Apple: un solo comando, grande, al centro. */
+.artisthead-play {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  padding: 0 0 0 3px; /* il triangolo del play è otticamente spostato a sinistra */
+  margin-inline: auto;   /* è un grid container: text-align del padre non lo centra */
+  border-radius: 50%;
+  background: #fff;
+  color: #000;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
+  transition: transform 0.15s ease;
+}
+.artisthead-play:hover { transform: scale(1.06); background: #fff; }
+.artisthead-play:disabled { opacity: 0.5; transform: none; }
+
+.artist-sezione { margin-bottom: 32px; }
+.artist-sezione h2 { font-size: 20px; letter-spacing: -0.02em; margin: 0 0 12px; }

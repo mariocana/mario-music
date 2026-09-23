@@ -21,6 +21,7 @@ import { transcodedFile, giaPronto, vaTranscodificato, TRANSCODE_MIME } from './
 import { scanLibrary, LibraryMissingError } from './scanner.ts';
 import { getLyrics } from './lyrics.ts';
 import { searchTracks, rebuildSearchIndex, indexIsStale } from './search.ts';
+import { albumsOfArtist, topTracksOfArtist, tracksOfArtist, coverOfArtist } from './artists.ts';
 import {
   COLONNE_TRACCIA, setFavorite, listFavorites, recordPlay, recentlyPlayed, mostPlayed,
 } from './listening.ts';
@@ -57,20 +58,6 @@ const q = {
            al.cover_path IS NOT NULL AS hasCover
     FROM albums al JOIN artists ar ON ar.id = al.artist_id
     WHERE al.id = ?
-  `),
-  albumsOfArtist: db.prepare(`
-    SELECT al.id, al.title, al.year, al.genre,
-           ar.id AS artistId, ar.name AS artist,
-           COUNT(t.id) AS trackCount,
-           ROUND(SUM(t.duration)) AS duration,
-           al.cover_key AS coverKey,
-           al.cover_path IS NOT NULL AS hasCover
-    FROM albums al
-    JOIN artists ar ON ar.id = al.artist_id
-    LEFT JOIN tracks t ON t.album_id = al.id
-    WHERE al.artist_id = ?
-    GROUP BY al.id
-    ORDER BY al.year DESC, al.title COLLATE NOCASE
   `),
   artists: db.prepare(`
     SELECT ar.id, ar.name,
@@ -237,8 +224,16 @@ get(/^\/api\/artists\/(\d+)$/, (_req, res, [id]) => {
   if (!artist) return json(res, 404, { error: 'Artista non trovato' });
   json(res, 200, {
     ...artist,
-    albums: (q.albumsOfArtist.all(Number(id)) as Array<{ hasCover: number }>).map(withBool),
+    albums: (albumsOfArtist(db, Number(id)) as Array<{ hasCover: number }>).map(withBool),
+    topTracks: topTracksOfArtist(db, Number(id)),
+    cover: coverOfArtist(db, Number(id)),
   });
+});
+
+/** Tutti i brani dell'artista: chiamata a parte, la usa solo Riproduci. */
+get(/^\/api\/artists\/(\d+)\/tracks$/, (_req, res, [id]) => {
+  if (!q.artist.get(Number(id))) return json(res, 404, { error: 'Artista non trovato' });
+  json(res, 200, tracksOfArtist(db, Number(id)));
 });
 
 get(/^\/api\/tracks$/, (_req, res) => json(res, 200, q.allTracks.all()));
