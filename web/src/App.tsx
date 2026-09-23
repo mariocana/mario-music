@@ -9,7 +9,7 @@ import { NowPlaying } from './components/NowPlaying.tsx';
 import { useIsMobile } from './useMediaQuery.ts';
 import { usePlayer } from './player.tsx';
 import {
-  AlbumsView, AlbumDetailView, ArtistsView, ArtistDetailView, SongsView, SearchView,
+  HomeView, AlbumsView, AlbumDetailView, ArtistsView, ArtistDetailView, SongsView, SearchView,
   DownloadsView, PlaylistsView, PlaylistDetailView, FavoritesView, ListeningView,
   LibraryHubView,
 } from './views.tsx';
@@ -32,7 +32,7 @@ export function App() {
    * mostrano il tasto; album, artista e playlist aperti da lì sono a 1, 2…
    */
   const [stato, setStato] = useState<{ view: View; depth: number }>(() =>
-    history.state?.view ? history.state : { view: { name: 'albums' }, depth: 0 });
+    history.state?.view ? history.state : { view: { name: 'home' }, depth: 0 });
   const view = stato.view;
 
   useEffect(() => {
@@ -99,6 +99,7 @@ export function App() {
             <div className="brand">mario<span>music</span></div>
 
             <nav>
+              {item('home', 'Per te', { name: 'home' })}
               {item('search', 'Cerca', { name: 'search' })}
               <span className="navlabel">Libreria</span>
               {item('albums', 'Album', { name: 'albums' })}
@@ -164,6 +165,7 @@ export function App() {
               Sei offline: si vedono il catalogo salvato e i brani scaricati.
             </p>
           )}
+          {view.name === 'home' && <HomeView />}
           {view.name === 'albums' && <AlbumsView />}
           {view.name === 'album' && <AlbumDetailView id={view.id} />}
           {view.name === 'artists' && <ArtistsView />}

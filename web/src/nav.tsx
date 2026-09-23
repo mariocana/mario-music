@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react';
 
 export type View =
+  | { name: 'home' }
   | { name: 'albums' }
   | { name: 'album'; id: number }
   | { name: 'artists' }

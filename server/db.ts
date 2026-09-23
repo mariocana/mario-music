@@ -46,6 +46,11 @@ CREATE TABLE IF NOT EXISTS tracks (
   fingerprint TEXT,
   size        INTEGER NOT NULL,
   mtime       INTEGER NOT NULL,
+  -- quando la traccia è entrata IN LIBRERIA, che non è la data del file:
+  -- un album del 1973 copiato ieri è una novità per te, e mtime direbbe 1973
+  -- (o la data della copia, a seconda di come è stato copiato). Senza questa
+  -- colonna "Aggiunti di recente" non è calcolabile.
+  added_at    INTEGER,
   codec       TEXT,
   mime        TEXT NOT NULL,
   bitrate     INTEGER,
@@ -121,6 +126,7 @@ CREATE INDEX IF NOT EXISTS idx_tracks_album  ON tracks(album_id, disc_no, track_
 -- colonna fallirebbe, perché lo schema gira prima delle migrazioni. È creato
 -- in openDb() dopo l'ALTER TABLE.
 CREATE INDEX IF NOT EXISTS idx_tracks_artist ON tracks(artist_id);
+-- Anche questo dopo la migrazione, per lo stesso motivo del fingerprint.
 CREATE INDEX IF NOT EXISTS idx_albums_artist ON albums(artist_id);
 `;
 
@@ -139,7 +145,15 @@ export function openDb(dbPath: string = DB_PATH): DatabaseSync {
   try { db.exec('ALTER TABLE albums ADD COLUMN cover_key TEXT'); } catch { /* già presente */ }
   try { db.exec('ALTER TABLE tracks ADD COLUMN embedded_lyrics TEXT'); } catch { /* già presente */ }
   try { db.exec('ALTER TABLE tracks ADD COLUMN fingerprint TEXT'); } catch { /* già presente */ }
+  try {
+    db.exec('ALTER TABLE tracks ADD COLUMN added_at INTEGER');
+    // Il passato non si può ricostruire: per le tracce già in libreria si usa
+    // la data del file, che è la miglior approssimazione disponibile. Da qui
+    // in avanti il dato è quello vero.
+    db.exec('UPDATE tracks SET added_at = mtime WHERE added_at IS NULL');
+  } catch { /* già presente */ }
   db.exec('CREATE INDEX IF NOT EXISTS idx_tracks_fingerprint ON tracks(fingerprint)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_tracks_added ON tracks(added_at)');
   try { db.exec('ALTER TABLE playlists ADD COLUMN cover_path TEXT'); } catch { /* già presente */ }
   try { db.exec('ALTER TABLE playlists ADD COLUMN cover_key TEXT'); } catch { /* già presente */ }
 

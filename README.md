@@ -85,6 +85,7 @@ server/scanner.ts ffprobe → tag e durata → SQLite; estrae le copertine
 server/lyrics.ts  testi da LRCLIB, con ripiego sui tag del file
 server/playlists.ts creazione e ordinamento delle playlist
 server/artists.ts pagina artista: top brani, discografia, copertina
+server/home.ts    "Per te": recenti, novità, riscopri, mai ascoltati
 server/db.ts      schema: artists → albums → tracks
 server/stream.ts  invio dei file con HTTP Range (il cuore dello streaming)
 server/transcode.ts conversione in AAC con ffmpeg, cache per impronta
@@ -222,6 +223,44 @@ sempre "quello dopo".
 - **Due richieste, una conversione.** Se il player e il precaricamento
   chiedono lo stesso brano insieme, la seconda aspetta la prima invece di
   lanciare un altro ffmpeg. Al massimo due conversioni in parallelo.
+
+## "Per te", la schermata iniziale
+
+Nessun consiglio intelligente, nessun modello: quattro domande a cui il
+database sa già rispondere, messe in fila.
+
+| scaffale | la domanda |
+|---|---|
+| Riprendi ad ascoltare | l'ultimo brano che è partito (riparte dal suo album, non da solo) |
+| Ascoltati di recente | cosa avevo per le mani ieri |
+| Aggiunti di recente | cosa è entrato in libreria ultimamente |
+| I tuoi brani del mese | i più suonati delle ultime quattro settimane |
+| Riscopri | ascoltato parecchio, poi più niente da due mesi |
+| Mai ascoltati | in libreria e mai aperto |
+
+Ogni sezione vuota sparisce. "Riscopri" chiede **due** condizioni insieme —
+fermo da mesi *e* almeno tre ascolti — perché "fermo da mesi" da solo
+pescherebbe quello che hai messo su una volta e abbandonato: non è una
+riscoperta, è un errore. Su una libreria giovane resta vuota (gli ascolti
+sono tutti di ieri) e al suo posto lavora "Mai ascoltati", che invece ha
+sempre qualcosa da dire.
+
+### Il database non sapeva quando una traccia era entrata
+
+"Aggiunti di recente" ha richiesto una colonna nuova, `tracks.added_at`.
+La data del file non basta: un album del 1973 copiato ieri è una novità per
+te, e `mtime` direbbe 1973. Le tracce già in libreria sono state riempite con
+`mtime` — il passato non si ricostruisce, e quella è la miglior
+approssimazione disponibile; da lì in avanti il dato è vero. `added_at` non
+compare nella parte `DO UPDATE` dell'upsert: un riscan aggiorna i metadati
+ma non ringiovanisce la libreria.
+
+### Una sottoquery invece di un JOIN
+
+Contare le tracce di un album con `JOIN plays` e `COUNT(t.id)` conta le righe
+del prodotto tracce × ascolti: un album di 10 brani ascoltato 30 volte
+risulterebbe di 300 tracce. Le sottoquery contano quello che devono contare,
+e c'è un test che veglia proprio su questo.
 
 ## La pagina di un artista
 
@@ -409,6 +448,8 @@ curl -s -D - -o /dev/null -H "Range: bytes=0-99" localhost:4000/api/tracks/1/str
 - [x] **8. Preferiti e ascolti** — cuore sui brani, conteggio delle riproduzioni
 - [ ] **9. Utenti** — login, libreria per utente, streaming autenticato
       (prerequisito se il server esce di casa; oggi lo usa una persona sola, quindi rimandato)
-- [ ] **10. Karaoke** — testo a tutto schermo, riga corrente grande e centrata,
+- [x] **10. Pagina artista e "Per te"** — top brani per ascolti, discografia,
+      home con ripresa, recenti, novità, riscopri e mai ascoltati
+- [ ] **11. Karaoke** — testo a tutto schermo, riga corrente grande e centrata,
       colorata in proporzione alla sua durata (LRCLIB dà i tempi per riga, non
       per parola). Voce abbassata (ffmpeg o Demucs) solo se poi manca davvero.

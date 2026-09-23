@@ -1,7 +1,7 @@
 /** Le schermate: griglia album, dettaglio album, artisti, brani, ricerca. */
 import { useRef, useState } from 'react';
 import { api, coverUrl, formatLength, formatTime, playlistCoverUrl } from './api.ts';
-import type { Album, PlaylistSummary } from './api.ts';
+import type { Album, PlaylistSummary, Track } from './api.ts';
 import { useAsync } from './useAsync.ts';
 import { useNavigate } from './nav.tsx';
 import type { View } from './nav.tsx';
@@ -31,6 +31,109 @@ function AlbumCard({ album, mostraArtista = true }: { album: Album; mostraArtist
       <span className="albumcard-title">{album.title}</span>
       <span className="albumcard-sub">{sotto}</span>
     </button>
+  );
+}
+
+/* ─────────────────────────── per te ─────────────────────────── */
+
+/**
+ * Una fila che scorre di lato, come gli scaffali di Apple Music. Su desktop
+ * si trascina con la barra, sul telefono col dito: in verticale ogni sezione
+ * mangerebbe uno schermo intero e la home diventerebbe un elenco infinito.
+ */
+function Scaffale({ titolo, album, nota }: { titolo: string; album: Album[]; nota?: string }) {
+  if (album.length === 0) return null;
+  return (
+    <section className="scaffale">
+      <h2>{titolo}</h2>
+      {nota && <p className="scaffale-nota dim">{nota}</p>}
+      <div className="scaffale-fila">
+        {album.map((a) => <AlbumCard key={a.id} album={a} />)}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * "Per te" — la schermata che si apre per prima.
+ *
+ * Nessun consiglio intelligente: quattro domande a cui il database sa già
+ * rispondere (cosa ascoltavo, cosa è entrato, cosa ho dimenticato, cosa non
+ * ho mai aperto). Sono gli stessi ascolti che alimentano i "Top brani" di un
+ * artista — la tabella `plays` è l'unico dato personale che abbiamo, e questa
+ * pagina è il posto dove rende di più.
+ */
+export function HomeView() {
+  const { revision } = useLibrary();
+  const ascolti = useListening();
+  const player = usePlayer();
+  const navigate = useNavigate();
+  // La revisione degli ascolti fa ricaricare quando un brano finisce: così
+  // "Ascoltati di recente" è davvero recente senza ricaricare la pagina.
+  const { data, error, loading } = useAsync(() => api.home(), [revision, ascolti.revision]);
+
+  if (loading) return <Loading />;
+  if (error) return <Failure message={error} />;
+  if (!data) return null;
+
+  const riprendi = async (track: Track) => {
+    const album = await api.album(track.albumId).catch(() => null);
+    const tracce = album?.tracks ?? [track];
+    const i = Math.max(0, tracce.findIndex((t) => t.id === track.id));
+    player.playQueue(tracce, i);
+  };
+
+  const vuota = !data.ripresa && data.recenti.length === 0 && data.aggiunti.length === 0 && data.mai.length === 0;
+  if (vuota) {
+    return (
+      <>
+        <h1>Per te</h1>
+        <p className="hint">
+          Libreria vuota. Metti la musica in <code>media/library</code> e lancia <code>npm run scan</code>.
+        </p>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <h1>Per te</h1>
+
+      {data.ripresa && (
+        <section className="riprendi">
+          <h2>Riprendi ad ascoltare</h2>
+          {/* Si riparte dall'album, non dal brano solo: far finire la musica
+              dopo tre minuti non è "riprendere ad ascoltare". */}
+          <button className="riprendi-card" onClick={() => void riprendi(data.ripresa!)}>
+            <Cover albumId={data.ripresa.albumId} title={data.ripresa.album} coverKey={data.ripresa.coverKey} size="md" />
+            <span className="riprendi-testo">
+              <span className="riprendi-titolo">{data.ripresa.title}</span>
+              <span className="dim">{data.ripresa.artist} — {data.ripresa.album}</span>
+            </span>
+            <span className="riprendi-play"><Icon name="play" size={18} /></span>
+          </button>
+        </section>
+      )}
+
+      <Scaffale titolo="Ascoltati di recente" album={data.recenti} />
+      <Scaffale titolo="Aggiunti di recente" album={data.aggiunti} />
+
+      {data.top.length > 0 && (
+        <section className="artist-sezione">
+          <h2>I tuoi brani del mese</h2>
+          <TrackList tracks={data.top} showAlbum numbering="nessuno" />
+        </section>
+      )}
+
+      <Scaffale titolo="Riscopri" album={data.riscopri} nota="Li ascoltavi parecchio, poi più niente da mesi." />
+      <Scaffale titolo="Mai ascoltati" album={data.mai} nota="Sono in libreria e non li hai ancora aperti." />
+
+      <p className="hint">
+        <button className="linkish" onClick={() => navigate({ name: 'listening' })}>
+          Tutti gli ascolti →
+        </button>
+      </p>
+    </>
   );
 }
 

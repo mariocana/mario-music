@@ -18,7 +18,7 @@ export type IconName =
   | 'queue' | 'queueNext' | 'close' | 'up' | 'down' | 'lyrics'
   | 'more' | 'plus' | 'playlist' | 'trash' | 'heart' | 'heartFilled' | 'chart'
   | 'grid' | 'library' | 'search' | 'artist' | 'note' | 'downloadBox' | 'back'
-  | 'edit' | 'image';
+  | 'edit' | 'image' | 'sparkle';
 
 /** Icone piene: sagome compatte, leggibili anche a 14px. */
 const FILLED: Partial<Record<IconName, React.ReactNode>> = {
@@ -120,6 +120,15 @@ const STROKED: Partial<Record<IconName, React.ReactNode>> = {
       <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
       <circle cx="9" cy="10" r="1.6" />
       <path d="m20.5 16-5-5-8 8" />
+    </>
+  ),
+  /* "Per te": la stella a quattro punte usata un po' ovunque per i
+     suggerimenti, disegnata con due curve invece che con un poligono, così
+     le punte restano affilate anche a 22px. */
+  sparkle: (
+    <>
+      <path d="M12 3.2c.6 3.9 1.9 5.2 5.8 5.8-3.9.6-5.2 1.9-5.8 5.8-.6-3.9-1.9-5.2-5.8-5.8 3.9-.6 5.2-1.9 5.8-5.8Z" />
+      <path d="M17.6 15c.3 2 1 2.7 3 3-2 .3-2.7 1-3 3-.3-2-1-2.7-3-3 2-.3 2.7-1 3-3Z" />
     </>
   ),
   grid: (

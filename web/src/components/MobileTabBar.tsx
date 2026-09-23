@@ -19,10 +19,13 @@ type Scheda = {
 };
 
 const SCHEDE: Scheda[] = [
-  { label: 'Album', icon: 'grid', target: { name: 'albums' }, attivaPer: ['albums', 'album'] },
+  // "Album" non ha più una scheda sua: sta dentro Libreria, insieme ad
+  // Artisti e Brani. Al suo posto c'è "Per te", che è la prima cosa che si
+  // vuole vedere aprendo l'app — come "Ascolta ora" su Apple Music.
+  { label: 'Per te', icon: 'sparkle', target: { name: 'home' }, attivaPer: ['home'] },
   {
     label: 'Libreria', icon: 'library', target: { name: 'library' },
-    attivaPer: ['library', 'artists', 'artist', 'songs', 'listening', 'downloads'],
+    attivaPer: ['library', 'albums', 'album', 'artists', 'artist', 'songs', 'listening', 'downloads'],
   },
   { label: 'Playlist', icon: 'playlist', target: { name: 'playlists' }, attivaPer: ['playlists', 'playlist'] },
   { label: 'Preferiti', icon: 'heart', target: { name: 'favorites' }, attivaPer: ['favorites'] },

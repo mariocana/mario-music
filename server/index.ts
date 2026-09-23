@@ -22,6 +22,7 @@ import { scanLibrary, LibraryMissingError } from './scanner.ts';
 import { getLyrics } from './lyrics.ts';
 import { searchTracks, rebuildSearchIndex, indexIsStale } from './search.ts';
 import { albumsOfArtist, topTracksOfArtist, tracksOfArtist, coverOfArtist } from './artists.ts';
+import { homePayload } from './home.ts';
 import {
   COLONNE_TRACCIA, setFavorite, listFavorites, recordPlay, recentlyPlayed, mostPlayed,
 } from './listening.ts';
@@ -215,6 +216,23 @@ get(/^\/api\/albums\/(\d+)$/, (_req, res, [id]) => {
   const album = q.album.get(Number(id)) as { hasCover: number } | undefined;
   if (!album) return json(res, 404, { error: 'Album non trovato' });
   json(res, 200, { ...withBool(album), tracks: q.tracksOfAlbum.all(Number(id)) });
+});
+
+/**
+ * "Per te": quattro sezioni in una sola chiamata. Separate sarebbero quattro
+ * richieste per disegnare una schermata, e la prima cosa che si vede all'
+ * apertura è proprio questa.
+ */
+get(/^\/api\/home$/, (_req, res) => {
+  const dati = homePayload(db) as Record<string, unknown>;
+  const album = (k: string) => (dati[k] as Array<{ hasCover: number }>).map(withBool);
+  json(res, 200, {
+    ...dati,
+    recenti: album('recenti'),
+    aggiunti: album('aggiunti'),
+    riscopri: album('riscopri'),
+    mai: album('mai'),
+  });
 });
 
 get(/^\/api\/artists$/, (_req, res) => json(res, 200, q.artists.all()));

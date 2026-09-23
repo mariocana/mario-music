@@ -1056,3 +1056,70 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
 
 .artist-sezione { margin-bottom: 32px; }
 .artist-sezione h2 { font-size: 20px; letter-spacing: -0.02em; margin: 0 0 12px; }
+
+/* ── Per te ── */
+
+/* Il riquadro "Riprendi": una riga sola, larga, che riparte dall'ultimo brano. */
+.riprendi { margin-bottom: 30px; }
+.riprendi h2, .scaffale h2 { font-size: 20px; letter-spacing: -0.02em; margin: 0 0 12px; }
+.riprendi-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  max-width: 520px;
+  padding: 12px 18px 12px 12px;
+  border-radius: 14px;
+  background: var(--bg-hover);
+  text-align: left;
+}
+.riprendi-card:hover { background: var(--line); }
+.riprendi-card .cover { width: 64px; height: 64px; flex: none; }
+.riprendi-testo { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.riprendi-titolo { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.riprendi-testo .dim { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.riprendi-play {
+  flex: none;
+  width: 38px; height: 38px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  padding-left: 3px;
+}
+
+/* Gli scaffali che scorrono di lato. `scroll-snap` fa fermare la fila su una
+   copertina intera invece che a metà, come sulle app native. */
+.scaffale { margin-bottom: 30px; }
+.scaffale-nota { margin: -6px 0 12px; font-size: 13px; }
+.scaffale-fila {
+  display: flex;
+  gap: 18px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  padding-bottom: 6px;
+  /* La fila esce dai margini della pagina e ci rientra: così l'ultima
+     copertina non sembra tagliata a filo del bordo. */
+  margin-inline: -32px;
+  padding-inline: 32px;
+  /* Senza questo lo snap considera il bordo della fila, non il bordo del
+     contenuto: la prima copertina restava tagliata a metà dal margine. */
+  scroll-padding-inline: 32px;
+  scrollbar-width: thin;
+}
+.scaffale-fila .albumcard { width: 160px; flex: none; scroll-snap-align: start; }
+
+/* Per te sul telefono. Sta in fondo, non nel blocco @media di metà file:
+   le regole base di questa sezione sono state scritte DOPO quel blocco, e
+   a parità di specificità vince l'ultima. */
+@media (max-width: 700px), ((pointer: coarse) and (max-height: 520px)) {
+  .scaffale-fila {
+    margin-inline: -14px;
+    padding-inline: 14px;
+    scroll-padding-inline: 14px;
+    gap: 12px;
+  }
+  .scaffale-fila .albumcard { width: 140px; }
+  .riprendi h2, .scaffale h2 { font-size: 18px; }
+  .riprendi-card { padding: 10px 14px 10px 10px; gap: 12px; }
+}

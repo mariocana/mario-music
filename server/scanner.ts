@@ -309,8 +309,8 @@ export async function scanLibrary(opts: ScanOptions = {}): Promise<ScanResult> {
   const upsertTrack = db.prepare(`
     INSERT INTO tracks (album_id, artist_id, title, track_no, disc_no, duration,
                         path, size, mtime, codec, mime, bitrate, sample_rate, channels,
-                        embedded_lyrics, fingerprint)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        embedded_lyrics, fingerprint, added_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch() * 1000)
     ON CONFLICT(path) DO UPDATE SET
       album_id = excluded.album_id, artist_id = excluded.artist_id,
       title = excluded.title, track_no = excluded.track_no, disc_no = excluded.disc_no,

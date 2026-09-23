@@ -70,6 +70,17 @@ export type Lyrics = {
   plain: string | null;
 };
 
+/** "Per te": ogni sezione può essere vuota, e allora non si disegna. */
+export type Home = {
+  /** l'ultimo brano ascoltato, per il riquadro "Riprendi" */
+  ripresa: Track | null;
+  recenti: Album[];
+  aggiunti: Album[];
+  riscopri: Album[];
+  mai: Album[];
+  top: Track[];
+};
+
 export type Stats = { artists: number; albums: number; tracks: number; duration: number };
 
 async function get<T>(path: string): Promise<T> {
@@ -80,6 +91,7 @@ async function get<T>(path: string): Promise<T> {
 
 export const api = {
   stats: () => get<Stats>('/api/stats'),
+  home: () => get<Home>('/api/home'),
   albums: () => get<Album[]>('/api/albums'),
   album: (id: number) => get<AlbumDetail>(`/api/albums/${id}`),
   artists: () => get<Artist[]>('/api/artists'),
