@@ -24,6 +24,7 @@ import { searchTracks, rebuildSearchIndex, indexIsStale } from './search.ts';
 import { albumsOfArtist, topTracksOfArtist, tracksOfArtist, coverOfArtist } from './artists.ts';
 import { homePayload } from './home.ts';
 import { creaBackup, ultimoBackup, BACKUP_DIR } from './backup.ts';
+import { riepilogo } from './stats.ts';
 import {
   COLONNE_TRACCIA, setFavorite, listFavorites, recordPlay, recentlyPlayed, mostPlayed,
 } from './listening.ts';
@@ -226,6 +227,16 @@ get(/^\/api\/albums\/(\d+)$/, (_req, res, [id]) => {
  * richieste per disegnare una schermata, e la prima cosa che si vede all'
  * apertura è proprio questa.
  */
+/**
+ * Il riepilogo degli ascolti. ?days=30 limita il periodo; senza, è "sempre".
+ * Sta accanto a /api/stats, che invece conta la libreria: uno dice quanto
+ * possiedi, l'altro quanto hai ascoltato.
+ */
+get(/^\/api\/replay$/, (_req, res, _params, url) => {
+  const giorni = Number(url.searchParams.get('days'));
+  json(res, 200, riepilogo(db, Number.isFinite(giorni) && giorni > 0 ? giorni : null));
+});
+
 get(/^\/api\/home$/, (_req, res) => {
   const dati = homePayload(db) as Record<string, unknown>;
   const album = (k: string) => (dati[k] as Array<{ hasCover: number }>).map(withBool);

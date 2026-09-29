@@ -70,6 +70,19 @@ export type Lyrics = {
   plain: string | null;
 };
 
+/** Il riepilogo degli ascolti: tutto ricavato dalla tabella `plays`. */
+export type Replay = {
+  giorni: number | null;
+  totali: { ascolti: number; minuti: number; brani: number; artisti: number; album: number };
+  artisti: Array<{ id: number; nome: string; ascolti: number; minuti: number }>;
+  album: Array<{ id: number; titolo: string; artista: string; coverKey: string | null; ascolti: number; minuti: number }>;
+  brani: Array<{ id: number; titolo: string; artista: string; album: string; albumId: number; coverKey: string | null; ascolti: number }>;
+  mesi: Array<{ mese: string; ascolti: number; minuti: number }>;
+  ore: Array<{ ora: number; ascolti: number }>;
+  record: { data: string; ascolti: number } | null;
+  inizio: number | null;
+};
+
 /** "Per te": ogni sezione può essere vuota, e allora non si disegna. */
 export type Home = {
   /** l'ultimo brano ascoltato, per il riquadro "Riprendi" */
@@ -92,6 +105,7 @@ async function get<T>(path: string): Promise<T> {
 export const api = {
   stats: () => get<Stats>('/api/stats'),
   home: () => get<Home>('/api/home'),
+  replay: (giorni?: number | null) => get<Replay>(`/api/replay${giorni ? `?days=${giorni}` : ''}`),
   albums: () => get<Album[]>('/api/albums'),
   album: (id: number) => get<AlbumDetail>(`/api/albums/${id}`),
   artists: () => get<Artist[]>('/api/artists'),

@@ -1123,3 +1123,86 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
   .riprendi h2, .scaffale h2 { font-size: 18px; }
   .riprendi-card { padding: 10px 14px 10px 10px; gap: 12px; }
 }
+
+/* ── riepilogo degli ascolti ── */
+
+/* I numeri grandi in cima: si adattano da soli, da quattro in fila su
+   desktop a due su telefono, senza una media query. */
+.tessere {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.tessera {
+  display: grid;
+  gap: 2px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: var(--bg-hover);
+}
+.tessera-n { font-size: 26px; font-weight: 650; letter-spacing: -0.02em; }
+.tessera .dim { font-size: 13px; }
+.riepilogo-nota { margin: 0 0 26px; font-size: 13px; }
+
+/* La classifica: stesse righe di artisti e ricerca, più il numero di posto. */
+.classifica { list-style: none; margin: 0; padding: 0; }
+.classifica-n {
+  flex: none;
+  width: 22px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.classifica .cover { width: 40px; height: 40px; border-radius: 6px; flex: none; }
+.classifica .row-testo { display: grid; gap: 1px; margin-right: auto; min-width: 0; }
+.classifica .row-testo .row-title { margin-right: 0; }
+.classifica .row-testo .dim { font-size: 12px; }
+.classifica .dim { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Il grafico a barre: `div` e percentuali, niente librerie. */
+.barre {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 150px;
+  padding: 4px 0;
+}
+.barra { flex: 1; display: flex; flex-direction: column; height: 100%; min-width: 0; }
+/* L'asta occupa tutto e tiene il riempimento in basso: così le barre
+   crescono verso l'alto invece di pendere dal soffitto. */
+.barra-asta { flex: 1; display: flex; align-items: flex-end; }
+.barra-piena {
+  width: 100%;
+  border-radius: 4px 4px 2px 2px;
+  background: var(--accent);
+  opacity: 0.85;
+  transition: height 0.2s ease;
+}
+.barra:hover .barra-piena { opacity: 1; }
+.barra-sotto {
+  height: 16px;
+  font-size: 11px;
+  color: var(--dim);
+  text-align: center;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+@media (max-width: 700px), ((pointer: coarse) and (max-height: 520px)) {
+  /* Nella classifica degli artisti il nome prende tutta la riga e i numeri
+     vanno sotto: in orizzontale un nome lungo si spezzerebbe in due. */
+  .classifica:not(.con-copertina) .row { flex-wrap: wrap; gap: 2px 10px; }
+  .classifica:not(.con-copertina) .row .dim { flex: 1 0 100%; padding-left: 36px; font-size: 12px; }
+  /* Un titolo lunghissimo si ferma a due righe invece di spingere fuori
+     schermo il numero di riproduzioni. */
+  .classifica .row-title {
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+  .tessera { padding: 14px; }
+  .tessera-n { font-size: 22px; }
+  .barre { height: 120px; }
+}

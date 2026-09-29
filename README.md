@@ -87,6 +87,7 @@ server/playlists.ts creazione e ordinamento delle playlist
 server/artists.ts pagina artista: top brani, discografia, copertina
 server/home.ts    "Per te": recenti, novità, riscopri, mai ascoltati
 server/backup.ts  copia di sicurezza e ripristino dei dati personali
+server/stats.ts   il riepilogo degli ascolti (Ascolti → Riepilogo)
 scripts/backup.ts il comando `npm run backup`; scripts/restore.ts il ritorno
 server/db.ts      schema: artists → albums → tracks
 server/stream.ts  invio dei file con HTTP Range (il cuore dello streaming)
@@ -225,6 +226,35 @@ sempre "quello dopo".
 - **Due richieste, una conversione.** Se il player e il precaricamento
   chiedono lo stesso brano insieme, la seconda aspetta la prima invece di
   lanciare un altro ffmpeg. Al massimo due conversioni in parallelo.
+
+## Riepilogo degli ascolti
+
+In **Ascolti → Riepilogo**, sul modello di Apple Music Replay: minuti
+ascoltati, riproduzioni, brani e artisti diversi, le tue classifiche, un
+grafico mese per mese e uno delle ore della giornata. Il periodo si sceglie
+in cima: sempre, ultimo anno, ultimo mese, ultima settimana.
+
+Esce tutto da una tabella sola, `plays`: una riga per ascolto, con l'istante
+in cui è avvenuto. Sembra poco e basta per tutto il resto.
+
+**I minuti sono una stima, e lo diciamo.** Non misuriamo il tempo davvero
+trascorso: sommiamo la durata dei brani ascoltati, quindi chi salta un pezzo
+a tre quarti lo conta intero. Resta onesta perché un ascolto viene registrato
+solo dopo metà brano (o quattro minuti): l'errore massimo è mezza canzone,
+non un album sfiorato.
+
+**`localtime` in ogni raggruppamento per data.** Senza, "a che ora ascolti"
+sarebbe in UTC: le due di notte italiane finirebbero a mezzanotte e le ore
+piccole sembrerebbero serate.
+
+**Le 24 ore ci sono sempre tutte**, anche quelle a zero. Un grafico che salta
+le ore vuote racconta una giornata che non esiste — e c'è un test che lo
+impedisce.
+
+Il grafico a barre è fatto di `div` con un'altezza in percentuale: niente
+librerie, niente SVG. Ogni barra porta il suo valore nel `title` e l'intero
+grafico un `aria-label` con tutti i numeri, così resta leggibile anche per
+chi non lo vede.
 
 ## Backup
 
@@ -521,6 +551,7 @@ curl -s -D - -o /dev/null -H "Range: bytes=0-99" localhost:4000/api/tracks/1/str
 - [x] **10. Pagina artista e "Per te"** — top brani per ascolti, discografia,
       home con ripresa, recenti, novità, riscopri e mai ascoltati
 - [x] **11. Backup** — copia automatica giornaliera, verificata, con ripristino provato
-- [ ] **12. Karaoke** — testo a tutto schermo, riga corrente grande e centrata,
+- [x] **12. Riepilogo ascolti** — minuti, classifiche, mese per mese, ore della giornata
+- [ ] **13. Karaoke** — testo a tutto schermo, riga corrente grande e centrata,
       colorata in proporzione alla sua durata (LRCLIB dà i tempi per riga, non
       per parola). Voce abbassata (ffmpeg o Demucs) solo se poi manca davvero.

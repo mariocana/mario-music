@@ -712,13 +712,218 @@ export function FavoritesView() {
   );
 }
 
+/* ─────────────────────── riepilogo degli ascolti ─────────────────────── */
+
+/** 784 → "13 h 4 min" ; 45 → "45 min" */
+function oreMinuti(minuti: number): string {
+  const h = Math.floor(minuti / 60);
+  const m = Math.round(minuti % 60);
+  return h ? `${h} h${m ? ` ${m} min` : ''}` : `${m} min`;
+}
+
+/** "2026-09" → "settembre" ; usato sotto le barre del grafico. */
+function nomeMese(mese: string): string {
+  const [anno, m] = mese.split('-');
+  const d = new Date(Number(anno), Number(m) - 1, 1);
+  return d.toLocaleDateString('it-IT', { month: 'short' });
+}
+
+/**
+ * Un grafico a barre fatto di `div`: nessuna libreria, nessun SVG. L'altezza
+ * è una percentuale del valore massimo, e ogni barra porta il suo numero
+ * nel title e in aria-label — così il grafico resta leggibile anche per chi
+ * non lo vede.
+ */
+function Barre({ dati, etichetta }: {
+  dati: Array<{ chiave: string; valore: number; sotto: string }>;
+  etichetta: (d: { chiave: string; valore: number }) => string;
+}) {
+  const max = Math.max(...dati.map((d) => d.valore), 1);
+  return (
+    <div className="barre" role="img" aria-label={dati.map((d) => etichetta(d)).join(', ')}>
+      {dati.map((d) => (
+        <div className="barra" key={d.chiave} title={etichetta(d)}>
+          <div className="barra-asta">
+            {/* minHeight: una barra da 1 ascolto deve vedersi, non sparire. */}
+            <div className="barra-piena" style={{ height: d.valore ? `max(3px, ${(d.valore / max) * 100}%)` : 0 } as React.CSSProperties} />
+          </div>
+          <span className="barra-sotto">{d.sotto}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const PERIODI = [
+  [null, 'Sempre'],
+  [365, 'Ultimo anno'],
+  [30, 'Ultimo mese'],
+  [7, 'Ultima settimana'],
+] as const;
+
+/**
+ * Il riepilogo, sul modello di Apple Music Replay. Tutto esce dalla tabella
+ * `plays`: un ascolto, un istante. I minuti sono la somma delle durate dei
+ * brani ascoltati — una stima per eccesso, ma un ascolto si registra solo
+ * dopo metà brano, quindi l'errore è piccolo e dichiarato.
+ */
+function RiepilogoAscolti() {
+  const [giorni, setGiorni] = useState<number | null>(null);
+  const player = usePlayer();
+  const navigate = useNavigate();
+  const { data, error, loading } = useAsync(() => api.replay(giorni), [giorni]);
+
+  return (
+    <>
+      <div className="queue-tabs sotto-titolo">
+        {PERIODI.map(([g, testo]) => (
+          <button
+            key={testo}
+            className={`queue-tab ${giorni === g ? 'is-attiva' : ''}`}
+            onClick={() => setGiorni(g)}
+          >{testo}</button>
+        ))}
+      </div>
+
+      {loading ? <Loading />
+        : error ? <Failure message={error} />
+        : !data || data.totali.ascolti === 0 ? (
+          <p className="hint">
+            Ancora nessun ascolto in questo periodo. Un brano viene contato quando lo ascolti
+            almeno a metà: saltare tra le tracce non conta.
+          </p>
+        ) : (
+          <>
+            <div className="tessere">
+              <div className="tessera">
+                <span className="tessera-n">{oreMinuti(data.totali.minuti)}</span>
+                <span className="dim">ascoltati</span>
+              </div>
+              <div className="tessera">
+                <span className="tessera-n">{data.totali.ascolti}</span>
+                <span className="dim">riproduzioni</span>
+              </div>
+              <div className="tessera">
+                <span className="tessera-n">{data.totali.brani}</span>
+                <span className="dim">brani diversi</span>
+              </div>
+              <div className="tessera">
+                <span className="tessera-n">{data.totali.artisti}</span>
+                <span className="dim">artisti</span>
+              </div>
+            </div>
+
+            {data.record && (
+              <p className="dim riepilogo-nota">
+                Giornata record: <strong>{new Date(`${data.record.data}T12:00`).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' })}</strong>
+                {' '}con {data.record.ascolti} riproduzioni.
+                {data.inizio && giorni === null && ` Conto gli ascolti dal ${new Date(data.inizio).toLocaleDateString('it-IT')}.`}
+              </p>
+            )}
+
+            <section className="artist-sezione">
+              <h2>I tuoi artisti</h2>
+              <ol className="classifica">
+                {data.artisti.map((a, i) => (
+                  <li key={a.id}>
+                    <button className="row" onClick={() => navigate({ name: 'artist', id: a.id })}>
+                      <span className="classifica-n">{i + 1}</span>
+                      <span className="row-title">{a.nome}</span>
+                      <span className="dim">{a.ascolti} riproduzioni · {oreMinuti(a.minuti)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </section>
+
+            <section className="artist-sezione">
+              <h2>I tuoi album</h2>
+              <ol className="classifica con-copertina">
+                {data.album.map((a, i) => (
+                  <li key={a.id}>
+                    <button className="row" onClick={() => navigate({ name: 'album', id: a.id })}>
+                      <span className="classifica-n">{i + 1}</span>
+                      <Cover albumId={a.id} title={a.titolo} coverKey={a.coverKey} size="sm" />
+                      <span className="row-testo">
+                        <span className="row-title">{a.titolo}</span>
+                        <span className="dim">{a.artista}</span>
+                      </span>
+                      <span className="dim">{a.ascolti} riproduzioni</span>
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </section>
+
+            <section className="artist-sezione">
+              <h2>I tuoi brani</h2>
+              <ol className="classifica con-copertina">
+                {data.brani.map((b, i) => (
+                  <li key={b.id}>
+                    <button className="row" onClick={() => void riproduciBrano(b.id, b.albumId, player)}>
+                      <span className="classifica-n">{i + 1}</span>
+                      <Cover albumId={b.albumId} title={b.album} coverKey={b.coverKey} size="sm" />
+                      <span className="row-testo">
+                        <span className="row-title">{b.titolo}</span>
+                        <span className="dim">{b.artista}</span>
+                      </span>
+                      <span className="dim">{b.ascolti} riproduzioni</span>
+                    </button>
+                  </li>
+                ))}
+              </ol>
+            </section>
+
+            {data.mesi.length > 1 && (
+              <section className="artist-sezione">
+                <h2>Mese per mese</h2>
+                <Barre
+                  dati={data.mesi.map((m) => ({ chiave: m.mese, valore: m.ascolti, sotto: nomeMese(m.mese) }))}
+                  etichetta={(d) => `${nomeMese(d.chiave)}: ${d.valore} riproduzioni`}
+                />
+              </section>
+            )}
+
+            <section className="artist-sezione">
+              <h2>A che ora ascolti</h2>
+              <Barre
+                dati={data.ore.map((o) => ({
+                  chiave: String(o.ora),
+                  valore: o.ascolti,
+                  // Una etichetta ogni sei ore: ventiquattro numeri in fila
+                  // sul telefono diventano una riga illeggibile.
+                  sotto: o.ora % 6 === 0 ? `${o.ora}` : '',
+                }))}
+                etichetta={(d) => `${d.chiave}:00 — ${d.valore} riproduzioni`}
+              />
+            </section>
+          </>
+        )}
+    </>
+  );
+}
+
+/**
+ * Fa partire un brano dal suo album, come la card "Riprendi" della home:
+ * si carica solo quell'album, non l'intera libreria per trovarne uno.
+ */
+async function riproduciBrano(trackId: number, albumId: number, player: ReturnType<typeof usePlayer>) {
+  const album = await api.album(albumId).catch(() => null);
+  if (!album) return;
+  const i = Math.max(0, album.tracks.findIndex((t) => t.id === trackId));
+  player.playQueue(album.tracks, i);
+}
+
 export function ListeningView() {
-  const [scheda, setScheda] = useState<'recenti' | 'top'>('recenti');
+  const [scheda, setScheda] = useState<'recenti' | 'top' | 'riepilogo'>('recenti');
   const [periodo, setPeriodo] = useState<number | undefined>(undefined);
   const player = usePlayer();
 
+  // Il riepilogo si carica i dati suoi: qui non si chiede niente al server.
   const { data, error, loading } = useAsync(
-    () => (scheda === 'recenti' ? api.recent() : api.top(periodo)),
+    () => (scheda === 'riepilogo' ? Promise.resolve([] as Track[])
+      : scheda === 'recenti' ? api.recent()
+      : api.top(periodo)),
     [scheda, periodo],
   );
 
@@ -735,7 +940,13 @@ export function ListeningView() {
           className={`queue-tab ${scheda === 'top' ? 'is-attiva' : ''}`}
           onClick={() => setScheda('top')}
         >Più ascoltati</button>
+        <button
+          className={`queue-tab ${scheda === 'riepilogo' ? 'is-attiva' : ''}`}
+          onClick={() => setScheda('riepilogo')}
+        >Riepilogo</button>
       </div>
+
+      {scheda === 'riepilogo' && <RiepilogoAscolti />}
 
       {scheda === 'top' && (
         <div className="queue-tabs sotto-titolo">
@@ -749,22 +960,24 @@ export function ListeningView() {
         </div>
       )}
 
-      {loading ? <Loading />
-        : error ? <Failure message={error} />
-        : !data?.length ? (
-          <p className="hint">
-            {scheda === 'recenti'
-              ? 'Ancora nessun ascolto. Un brano conta quando ne hai sentito metà, o quattro minuti.'
-              : 'Nessun ascolto in questo periodo.'}
-          </p>
-        ) : (
-          <>
-            <div className="albumhead-actions">
-              <button className="primary" onClick={() => player.playQueue(data, 0)}>▶ Riproduci</button>
-            </div>
-            <TrackList tracks={data} showAlbum numbering="nessuno" />
-          </>
-        )}
+      {scheda !== 'riepilogo' && (
+        loading ? <Loading />
+          : error ? <Failure message={error} />
+          : !data?.length ? (
+            <p className="hint">
+              {scheda === 'recenti'
+                ? 'Ancora nessun ascolto. Un brano conta quando ne hai sentito metà, o quattro minuti.'
+                : 'Nessun ascolto in questo periodo.'}
+            </p>
+          ) : (
+            <>
+              <div className="albumhead-actions">
+                <button className="primary" onClick={() => player.playQueue(data, 0)}>▶ Riproduci</button>
+              </div>
+              <TrackList tracks={data} showAlbum numbering="nessuno" />
+            </>
+          )
+      )}
     </>
   );
 }
