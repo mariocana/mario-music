@@ -168,14 +168,27 @@ export function AddMenu({ tracks, voci = [], playlistTarget = true, singleTrack 
               ))}
               {voci.length > 0 && conTracce && <div className="menu-separatore" />}
 
-              {conTracce && (
+              {/* Le due mosse sulla coda, una sotto l'altra: "dopo questo"
+                  e "quando hai finito". Si passa l'intera lista in un colpo
+                  solo — un album inserito brano per brano si rovescia. */}
+              {conTracce && (<>
               <button
                 className="menu-voce"
-                onClick={() => { tracks.forEach((t) => player.playNext(t)); chiudi(); }}
+                onClick={() => { player.playNext(tracks); chiudi(); }}
               >
                 <Icon name="queueNext" size={15} /> Riproduci dopo
               </button>
-              )}
+              <button
+                className="menu-voce"
+                onClick={() => {
+                  player.addToQueue(tracks);
+                  setEsito(tracks.length === 1 ? 'Aggiunto alla coda' : `Aggiunti ${tracks.length} alla coda`);
+                  setTimeout(() => { setEsito(null); chiudi(); }, 900);
+                }}
+              >
+                <Icon name="queueEnd" size={15} /> Aggiungi alla coda
+              </button>
+              </>)}
 
               {singleTrack && tracks.length === 1 && (
                 <>

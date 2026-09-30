@@ -21,6 +21,7 @@ import type { Track } from './api.ts';
 import { coverUrl, send } from './api.ts';
 import { useDownloads } from './downloads.tsx';
 import { urlBrano, qualitaCorrente } from './sorgente.ts';
+import { accoda, inserisciDopo } from './coda.ts';
 import { sogliaAscolto } from './soglia.ts';
 
 export type RepeatMode = 'off' | 'all' | 'one';
@@ -46,10 +47,10 @@ type PlayerApi = PlayerState & {
   playQueue: (tracks: Track[], startIndex?: number) => void;
   /** salta a una posizione della coda */
   playAt: (index: number) => void;
-  /** infila un brano subito dopo quello in ascolto */
-  playNext: (track: Track) => void;
+  /** infila un brano, o un album intero, subito dopo quello in ascolto */
+  playNext: (tracks: Track | Track[]) => void;
   /** aggiunge in fondo alla coda */
-  addToQueue: (track: Track) => void;
+  addToQueue: (tracks: Track | Track[]) => void;
   removeAt: (index: number) => void;
   move: (from: number, to: number) => void;
   toggle: () => void;
@@ -410,30 +411,35 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       const s = stateRef.current;
       if (index >= 0 && index < s.queue.length) load(s.queue, index, true);
     },
-    playNext: (track) => {
+    // Le due operazioni sulla coda stanno in coda.ts, come funzioni pure:
+    // là si possono provare con dei test, qui dentro no. Entrambe accettano
+    // un brano o un blocco — un album va inserito in un colpo solo, altrimenti
+    // l'ordine si rovescia (vedi il commento in coda.ts).
+    playNext: (tracks) => {
+      const blocco = Array.isArray(tracks) ? tracks : [tracks];
       setState((s) => {
+        if (blocco.length === 0) return s;
+        // Coda vuota: non c'è un "dopo", si comincia da qui.
         if (s.index < 0) {
-          queueMicrotask(() => load([track], 0, true));
+          queueMicrotask(() => load(blocco, 0, true));
           return s;
         }
-        // Se è già in coda più avanti lo si sposta, invece di duplicarlo.
-        const without = s.queue.filter((t, i) => !(t.id === track.id && i !== s.index));
-        const at = without.findIndex((t, i) => t.id === s.queue[s.index].id && i >= 0);
-        const q = [...without];
-        q.splice(at + 1, 0, track);
-        sourceRef.current = q;
-        return { ...s, queue: q, index: at };
+        const nuova = inserisciDopo({ queue: s.queue, index: s.index }, blocco);
+        sourceRef.current = nuova.queue;
+        return { ...s, queue: nuova.queue, index: nuova.index };
       });
     },
-    addToQueue: (track) => {
+    addToQueue: (tracks) => {
+      const blocco = Array.isArray(tracks) ? tracks : [tracks];
       setState((s) => {
+        if (blocco.length === 0) return s;
         if (s.index < 0) {
-          queueMicrotask(() => load([track], 0, true));
+          queueMicrotask(() => load(blocco, 0, true));
           return s;
         }
-        const q = [...s.queue, track];
-        sourceRef.current = q;
-        return { ...s, queue: q };
+        const nuova = accoda({ queue: s.queue, index: s.index }, blocco);
+        sourceRef.current = nuova.queue;
+        return { ...s, queue: nuova.queue };
       });
     },
     removeAt: (index) => {

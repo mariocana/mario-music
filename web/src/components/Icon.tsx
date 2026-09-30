@@ -15,7 +15,7 @@ export type IconName =
   | 'shuffle' | 'repeat' | 'repeatOne'
   | 'volume' | 'mute'
   | 'download' | 'check' | 'refresh' | 'spinner'
-  | 'queue' | 'queueNext' | 'close' | 'up' | 'down' | 'lyrics'
+  | 'queue' | 'queueNext' | 'queueEnd' | 'close' | 'up' | 'down' | 'lyrics'
   | 'more' | 'plus' | 'playlist' | 'trash' | 'heart' | 'heartFilled' | 'chart'
   | 'grid' | 'library' | 'search' | 'artist' | 'note' | 'downloadBox' | 'back'
   | 'edit' | 'image' | 'sparkle';
@@ -99,6 +99,17 @@ const STROKED: Partial<Record<IconName, React.ReactNode>> = {
       <path d="M4 17h7" />
       <path d="M17.5 14v7" />
       <path d="M14 17.5h7" />
+    </>
+  ),
+  /* Stessa lista di queueNext, ma la freccia punta in giù: là si infila
+     subito dopo, qui si scende fino in fondo alla coda. */
+  queueEnd: (
+    <>
+      <path d="M4 7h12" />
+      <path d="M4 12h12" />
+      <path d="M4 17h7" />
+      <path d="M17.5 13.5v7.5" />
+      <path d="m14.5 18 3 3 3-3" />
     </>
   ),
   close: (

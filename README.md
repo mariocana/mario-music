@@ -88,6 +88,7 @@ server/artists.ts pagina artista: top brani, discografia, copertina
 server/home.ts    "Per te": recenti, novità, riscopri, mai ascoltati
 server/backup.ts  copia di sicurezza e ripristino dei dati personali
 server/stats.ts   il riepilogo degli ascolti (Ascolti → Riepilogo)
+web/src/coda.ts   "riproduci dopo" e "aggiungi alla coda", come funzioni pure
 scripts/backup.ts il comando `npm run backup`; scripts/restore.ts il ritorno
 server/db.ts      schema: artists → albums → tracks
 server/stream.ts  invio dei file con HTTP Range (il cuore dello streaming)
@@ -386,6 +387,28 @@ quello.
 discografia, quanto basta a disegnare la pagina. I brani per il tasto
 Riproduci arrivano da `/api/artists/:id/tracks`, e solo quando lo si preme:
 spedirne settanta per mostrarne cinque sarebbe sprecato.
+
+## La coda
+
+Nel menù ⋯ di ogni brano, album e playlist ci sono due voci:
+
+- **Riproduci dopo** — subito dopo quello in ascolto. Se il brano era già in
+  coda più avanti si sposta, non si duplica.
+- **Aggiungi alla coda** — in fondo, quando è finito tutto il resto. Qui il
+  doppione è ammesso: un album messo in coda due volte lo si vuole sentire
+  due volte.
+
+### Un blocco alla volta, non un brano alla volta
+
+Le due operazioni prendono una **lista**, non un brano. Chiamare "riproduci
+dopo" una volta per ogni traccia di un album le infila tutte subito dopo
+quella in ascolto, una davanti all'altra: l'ultima inserita finisce per
+prima, e l'album parte dalla fine. Era esattamente quello che succedeva
+prima, e non si vedeva finché non si guardava la coda.
+
+La logica sta in `web/src/coda.ts` come funzioni pure, fuori da `player.tsx`:
+lì si può provare con dei test — un `.tsx` da Node non si importa — e i test
+dicono nero su bianco che l'ordine si mantiene.
 
 ## Preferiti e ascolti
 
