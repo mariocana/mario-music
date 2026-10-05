@@ -9,7 +9,12 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 
-export const DATA_DIR = path.resolve('data');
+/**
+ * Dove stanno database, copertine e backup. Si sposta con DATA_DIR: in un
+ * container è un volume montato, non una cartella dentro al progetto —
+ * altrimenti ricreare l'immagine cancellerebbe playlist e ascolti.
+ */
+export const DATA_DIR = path.resolve(process.env.DATA_DIR ?? 'data');
 export const DB_PATH = path.join(DATA_DIR, 'library.db');
 
 const SCHEMA = `

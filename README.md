@@ -7,6 +7,54 @@ file, catalogo, HTTP Range, buffering, coda di riproduzione.
 Non usa marchi, loghi o contenuti Apple: è un'app originale ispirata a quel
 modello di prodotto.
 
+## Su un server (Docker)
+
+Per quando la libreria lascia il Mac: un mini PC, un NAS, qualunque cosa
+faccia girare Linux.
+
+```bash
+git clone <questo repo> && cd mario-music
+# nel docker-compose.yml, punta il primo volume alla tua musica
+docker compose up -d --build
+docker compose exec mario-music node scripts/scan.ts   # la prima indicizzazione
+```
+
+Poi `http://<server>:4000`. Lo scan successivo lo fa il server da solo ogni
+cinque minuti.
+
+**Due volumi, e fanno due lavori diversi.** `/music` è la tua musica, montata
+**in sola lettura**: il server non deve poter scrivere sui tuoi file, nemmeno
+per sbaglio, nemmeno con un bug — lo scanner legge e basta. `/data` è
+database, copertine, conversioni e backup: è l'unica roba non ricostruibile,
+ed è fuori dall'immagine apposta, così ricostruire il container non tocca
+playlist e ascolti.
+
+**L'immagine non ha un `node_modules`.** Il server usa `node:http` e
+`node:sqlite`, che stanno dentro Node, e Node 25 esegue i `.ts` togliendo i
+tipi al volo: React e Vite servono solo a compilare l'interfaccia, in un primo
+stadio che poi viene buttato. Nell'immagine finale restano i sorgenti del
+server, la cartella `dist/` e ffmpeg — che invece serve davvero, per leggere i
+tag, estrarre le copertine e convertire in AAC.
+
+**Non gira da root** e si controlla da solo: l'`HEALTHCHECK` interroga
+`/api/stats`, perché un processo vivo che non risponde più è comunque un
+servizio rotto.
+
+### Se il server è x86 e tu sei su Mac
+
+Il modo semplice è costruire sul server stesso (`docker compose up -d --build`
+da lì). Se invece vuoi costruire qui e spedire l'immagine:
+
+```bash
+docker buildx build --platform linux/amd64 -t mario-music .
+```
+
+### I percorsi si spostano
+
+Fuori da Docker valgono le stesse variabili: `MUSIC_DIR` dice dove sta la
+musica, `DATA_DIR` dove vanno i dati. Sul Mac, senza impostarle, restano
+`media/library` e `data/` dentro al progetto.
+
 ## Avvio rapido
 
 ```bash
@@ -575,6 +623,7 @@ curl -s -D - -o /dev/null -H "Range: bytes=0-99" localhost:4000/api/tracks/1/str
       home con ripresa, recenti, novità, riscopri e mai ascoltati
 - [x] **11. Backup** — copia automatica giornaliera, verificata, con ripristino provato
 - [x] **12. Riepilogo ascolti** — minuti, classifiche, mese per mese, ore della giornata
-- [ ] **13. Karaoke** — testo a tutto schermo, riga corrente grande e centrata,
+- [x] **13. Docker** — immagine senza dipendenze, musica in sola lettura, percorsi montabili
+- [ ] **14. Karaoke** — testo a tutto schermo, riga corrente grande e centrata,
       colorata in proporzione alla sua durata (LRCLIB dà i tempi per riga, non
       per parola). Voce abbassata (ffmpeg o Demucs) solo se poi manca davvero.

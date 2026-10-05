@@ -13,6 +13,19 @@ import { riepilogo } from '../server/stats.ts';
 
 const GIORNO = 24 * 60 * 60 * 1000;
 
+/**
+ * Una data nel formato di SQLite, ma in ora LOCALE.
+ * `toISOString()` qui non va: dà l'ora di Greenwich, e il riepilogo
+ * raggruppa in ora locale — di proposito, vedi stats.ts. Tra mezzanotte e
+ * le due, in Italia, le due date sono diverse e il test falliva senza che
+ * ci fosse niente di rotto. Lo stesso tranello che il codice evita, io
+ * l'avevo rimesso nel test.
+ */
+function dataLocale(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 /** Due artisti, due album, tre brani da 3 minuti l'uno. */
 function libreria() {
   const db = openDb(':memory:');
@@ -90,7 +103,7 @@ test('la giornata record è quella con più ascolti', () => {
   assert.equal(r.record?.ascolti, 3);
   const atteso = new Date();
   atteso.setDate(atteso.getDate() - 2);
-  assert.equal(r.record?.data, atteso.toISOString().slice(0, 10));
+  assert.equal(r.record?.data, dataLocale(atteso));
 });
 
 test('senza ascolti non si inventa niente', () => {

@@ -26,7 +26,14 @@ import { rebuildSearchIndex } from './search.ts';
 
 const run = promisify(execFile);
 
-const LIBRARY = path.resolve('media/library');
+/**
+ * La cartella della musica. MUSIC_DIR la sposta: sul Mac è dentro al
+ * progetto, su un server è il disco esterno, in un container è un volume.
+ * La esportiamo perché anche il backup deve sapere qual è la radice, per
+ * scrivere percorsi relativi invece che assoluti.
+ */
+export const LIBRARY_DIR = path.resolve(process.env.MUSIC_DIR ?? 'media/library');
+const LIBRARY = LIBRARY_DIR;
 
 /**
  * Impronta del contenuto di un file: dimensione + primi e ultimi 512 KB.

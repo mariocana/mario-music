@@ -13,7 +13,7 @@ import { promisify } from 'node:util';
 
 const run = promisify(execFile);
 
-const LIBRARY = path.resolve('media/library');
+const LIBRARY = path.resolve(process.env.MUSIC_DIR ?? 'media/library');
 const TMP = path.resolve('media/.seed-tmp');
 
 type Track = { title: string; note: string; seconds: number };

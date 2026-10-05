@@ -25,8 +25,15 @@ import { spawn } from 'node:child_process';
 import { mkdir, rename, stat, unlink } from 'node:fs/promises';
 import path from 'node:path';
 import { fingerprintFile } from './scanner.ts';
+import { DATA_DIR } from './db.ts';
 
-export const TRANSCODE_DIR = process.env.TRANSCODE_DIR ?? path.resolve('data/transcoded');
+/**
+ * Sotto DATA_DIR, non accanto al codice: prima era `data/transcoded` calcolato
+ * dalla cartella di lavoro, e sul Mac combaciava per caso. In un container,
+ * dove i dati stanno in un volume e la cartella del codice è di sola lettura,
+ * la conversione falliva con "permission denied" alla prima richiesta.
+ */
+export const TRANSCODE_DIR = process.env.TRANSCODE_DIR ?? path.join(DATA_DIR, 'transcoded');
 export const TRANSCODE_MIME = 'audio/mp4';
 const BITRATE = '256k';
 

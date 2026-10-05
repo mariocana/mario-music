@@ -1,0 +1,30 @@
+# Avvio su un server: docker compose up -d
+#
+# I due percorsi da cambiare sono qui sotto, nei volumi: dove tieni la musica
+# e dove vuoi i dati. Tutto il resto funziona così com'è.
+
+services:
+  mario-music:
+    build: .
+    image: mario-music
+    container_name: mario-music
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    volumes:
+      # La musica, in sola lettura. Il server non deve poter scrivere sui tuoi
+      # file: nemmeno per sbaglio, nemmeno con un bug. Lo scanner legge e basta.
+      - ./media/library:/music:ro
+      # Database, copertine, file convertiti e backup. Questo deve persistere:
+      # è l'unica roba non ricostruibile.
+      - ./data:/data
+    environment:
+      # Ogni quanti minuti ripassare la libreria (0 = mai).
+      SCAN_INTERVAL_MIN: 5
+      # Ogni quante ore il backup automatico (0 = mai).
+      BACKUP_INTERVAL_H: 24
+      # Dove finiscono i backup. Dentro /data stanno sullo stesso disco dei
+      # dati: per proteggerti da un disco rotto, monta qui un'altra
+      # destinazione (un NAS, un disco esterno) e punta BACKUP_DIR lì.
+      BACKUP_DIR: /data/backups
+      TZ: Europe/Rome

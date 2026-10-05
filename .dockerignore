@@ -1,0 +1,11 @@
+# Fuori dall'immagine tutto ciò che è pesante o inutile al container.
+# Senza questo file, `docker build` manderebbe al demone anche i 6 GB di
+# musica e i node_modules: la costruzione diventa lentissima per niente.
+node_modules
+dist
+media
+data
+.git
+.DS_Store
+*.log
+test

@@ -25,6 +25,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { DATA_DIR, DB_PATH, openDb } from './db.ts';
+import { LIBRARY_DIR } from './scanner.ts';
 
 export const BACKUP_DIR = process.env.BACKUP_DIR ?? path.join(DATA_DIR, 'backups');
 /** Quanti backup tenere: i più vecchi si cancellano da soli. */
@@ -60,8 +61,7 @@ function etichetta(d: Date): string {
 
 /** Il percorso di un brano relativo alla libreria: più corto e più portatile. */
 function relativo(file: string): string {
-  const radice = path.resolve('media/library');
-  return file.startsWith(radice) ? path.relative(radice, file) : file;
+  return file.startsWith(LIBRARY_DIR) ? path.relative(LIBRARY_DIR, file) : file;
 }
 
 function pesoCartella(dir: string): number {
