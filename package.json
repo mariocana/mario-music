@@ -13,6 +13,7 @@
     "build": "vite build",
     "seed": "node scripts/seed.ts",
     "scan": "node scripts/scan.ts",
+    "loudness": "node scripts/loudness.ts",
     "backup": "node scripts/backup.ts",
     "restore": "node scripts/restore.ts",
     "typecheck": "tsc --noEmit",

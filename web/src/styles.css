@@ -1206,3 +1206,7 @@ code { background: var(--bg-hover); padding: 1px 5px; border-radius: 4px; }
   .tessera-n { font-size: 22px; }
   .barre { height: 120px; }
 }
+
+/* I due comandi dentro "Riproduzione" (volume uniforme, dissolvenza). */
+.qualita h3 { font-size: 14px; margin: 22px 0 0; font-weight: 600; }
+.qualita h3:first-of-type { margin-top: 16px; }

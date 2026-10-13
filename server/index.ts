@@ -25,6 +25,7 @@ import { albumsOfArtist, topTracksOfArtist, tracksOfArtist, coverOfArtist } from
 import { homePayload } from './home.ts';
 import { creaBackup, ultimoBackup, BACKUP_DIR } from './backup.ts';
 import { riepilogo } from './stats.ts';
+import { analizzaMancanti, daMisurare } from './loudness.ts';
 import {
   COLONNE_TRACCIA, setFavorite, listFavorites, recordPlay, recentlyPlayed, mostPlayed,
 } from './listening.ts';
@@ -571,6 +572,31 @@ server.listen(PORT, () => {
     // unref: il timer non deve tenere in vita il processo se il server chiude.
     timer.unref();
   }
+
+  /*
+   * Le misure di volume si completano da sole, un lotto alla volta.
+   *
+   * Non durante lo scan: quello gira ogni cinque minuti e deve restare
+   * veloce. Qui invece si lavora piano, venticinque brani per volta ogni due
+   * minuti, finché la libreria non è tutta misurata — poi il controllo costa
+   * una query e basta. Un disco importato stasera è livellato domattina, e
+   * nel frattempo suona come ha sempre suonato.
+   */
+  const mancanti = daMisurare(db);
+  if (mancanti > 0) console.log(`Volume da misurare per ${mancanti} brani: ci penso in sottofondo`);
+  const misuraLotto = async () => {
+    if (daMisurare(db) === 0) return;
+    try {
+      const r = await analizzaMancanti(db, { limite: 25, parallele: 2 });
+      if (r.misurati || r.falliti) {
+        console.log(`Volume misurato per ${r.misurati + r.falliti} brani (${r.restanti} da fare)`);
+      }
+    } catch (err) {
+      console.error('Misura del volume fallita:', err instanceof Error ? err.message : err);
+    }
+  };
+  setTimeout(() => void misuraLotto(), 30_000).unref();
+  setInterval(() => void misuraLotto(), 120_000).unref();
 
   if (BACKUP_EVERY_H > 0) {
     console.log(`Backup automatico ogni ${BACKUP_EVERY_H} ore in ${BACKUP_DIR}`);

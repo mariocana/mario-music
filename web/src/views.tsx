@@ -18,6 +18,8 @@ import { useListening } from './listening.tsx';
 import { formatBytes, useDownloads } from './downloads.tsx';
 import { useQualita } from './useQualita.ts';
 import { useCrossfade } from './useCrossfade.ts';
+import { useNormalizza } from './useNormalizza.ts';
+import { RIFERIMENTO } from './loudness.ts';
 import { DURATE_CROSSFADE, volumeControllabile } from './gapless.ts';
 
 function Loading() { return <p className="hint">Carico…</p>; }
@@ -465,6 +467,7 @@ function QualitaAudio() {
  */
 function Riproduzione() {
   const [secondi, imposta] = useCrossfade();
+  const [normalizza, imponi] = useNormalizza();
   const possibile = useRef<boolean | null>(null);
   if (possibile.current === null) {
     possibile.current = typeof Audio === 'undefined' ? false : volumeControllabile(new Audio());
@@ -480,6 +483,18 @@ function Riproduzione() {
 
       {possibile.current ? (
         <>
+          <h3>Volume uniforme</h3>
+          <div className="albumhead-actions">
+            <button className={normalizza ? 'primary' : 'ghost'} onClick={() => imponi(true)}>Attivo</button>
+            <button className={!normalizza ? 'primary' : 'ghost'} onClick={() => imponi(false)}>Disattivo</button>
+          </div>
+          <p className="dim">
+            {normalizza
+              ? `I brani più forti vengono abbassati al livello di riferimento (${RIFERIMENTO} LUFS): un album rimasterizzato non ti fa più sobbalzare dopo uno del 1975. Il volume non viene mai alzato, quindi niente distorsione.`
+              : 'Ogni brano suona al volume con cui è stato masterizzato.'}
+          </p>
+
+          <h3>Dissolvenza incrociata</h3>
           <div className="albumhead-actions">
             {DURATE_CROSSFADE.map((s) => (
               <button

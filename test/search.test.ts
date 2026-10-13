@@ -7,7 +7,7 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { DatabaseSync } from 'node:sqlite';
+import { openDb } from '../server/db.ts';
 import { buildMatchQuery, searchTracks } from '../server/search.ts';
 
 test('buildMatchQuery: ogni parola diventa un prefisso fra virgolette', () => {
@@ -41,28 +41,23 @@ test('buildMatchQuery: si ferma a otto parole', () => {
 
 /* ── la ricerca vera, su un database in memoria ── */
 
+/**
+ * Lo schema vero, non una copia scritta a mano.
+ *
+ * Prima qui c'era un `CREATE TABLE tracks` ridotto all'osso, e ogni colonna
+ * aggiunta altrove (l'impronta, la data di ingresso, il loudness) rompeva
+ * questi test senza che ci fosse niente di rotto nella ricerca. Con openDb lo
+ * schema è uno solo e non può andare fuori sincrono.
+ */
 function dbDiProva() {
-  const db = new DatabaseSync(':memory:');
+  const db = openDb(':memory:');
   db.exec(`
-    CREATE TABLE artists (id INTEGER PRIMARY KEY, name TEXT);
-    CREATE TABLE albums (id INTEGER PRIMARY KEY, title TEXT, cover_key TEXT);
-    CREATE TABLE tracks (
-      id INTEGER PRIMARY KEY, title TEXT, track_no INTEGER, disc_no INTEGER,
-      duration REAL, codec TEXT, bitrate INTEGER, sample_rate INTEGER,
-      channels INTEGER, size INTEGER, album_id INTEGER, artist_id INTEGER
-    );
-    -- Le colonne condivise delle tracce leggono anche preferiti e ascolti:
-    -- servono qui, anche se questi test riguardano solo la ricerca.
-    CREATE TABLE favorites (track_id INTEGER PRIMARY KEY, added_at INTEGER);
-    CREATE TABLE plays (id INTEGER PRIMARY KEY, track_id INTEGER, played_at INTEGER);
-    CREATE VIRTUAL TABLE tracks_fts USING fts5(
-      title, artist, album, tokenize='unicode61 remove_diacritics 2'
-    );
-    INSERT INTO artists VALUES (1,'Café del Mar'), (2,'883');
-    INSERT INTO albums VALUES (1,'Terrace Mix',NULL), (2,'Nord Sud Ovest Est',NULL);
-    INSERT INTO tracks VALUES
-      (1,'Feeling Good',1,1,200,'mp3',320,44100,2,100,1,1),
-      (2,'Come mai',2,1,210,'mp3',320,44100,2,100,2,2);
+    INSERT INTO artists (id, name) VALUES (1,'Café del Mar'), (2,'883');
+    INSERT INTO albums (id, artist_id, title) VALUES (1,1,'Terrace Mix'), (2,2,'Nord Sud Ovest Est');
+    INSERT INTO tracks (id, album_id, artist_id, title, track_no, disc_no, duration, path, size, mtime, mime, codec)
+    VALUES
+      (1,1,1,'Feeling Good',1,1,200,'/x/1',100,1,'audio/mpeg','mp3'),
+      (2,2,2,'Come mai',2,1,210,'/x/2',100,1,'audio/mpeg','mp3');
     INSERT INTO tracks_fts (rowid,title,artist,album)
       SELECT t.id, t.title, ar.name, al.title
       FROM tracks t JOIN artists ar ON ar.id=t.artist_id JOIN albums al ON al.id=t.album_id;

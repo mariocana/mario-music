@@ -14,6 +14,7 @@ export const COLONNE_TRACCIA = `
   t.codec, t.bitrate, t.sample_rate AS sampleRate, t.channels, t.size,
   al.id AS albumId, al.title AS album, al.cover_key AS coverKey,
   ar.id AS artistId, ar.name AS artist,
+  t.loudness, t.peak,
   EXISTS (SELECT 1 FROM favorites f WHERE f.track_id = t.id) AS favorite,
   (SELECT COUNT(*) FROM plays p WHERE p.track_id = t.id) AS playCount
 `;

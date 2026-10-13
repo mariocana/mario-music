@@ -29,6 +29,10 @@ export type Track = {
   coverKey: string | null;
   artistId: number;
   artist: string;
+  /** quanto suona forte, in LUFS: serve a livellare il volume (vedi loudness.ts) */
+  loudness: number | null;
+  /** picco reale in dBFS, misurato insieme al loudness */
+  peak: number | null;
   /** 0 o 1: SQLite non ha il tipo booleano */
   favorite: number;
   playCount: number;

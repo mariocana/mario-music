@@ -51,6 +51,11 @@ CREATE TABLE IF NOT EXISTS tracks (
   fingerprint TEXT,
   size        INTEGER NOT NULL,
   mtime       INTEGER NOT NULL,
+  -- quanto suona forte, in LUFS (standard EBU R128), e il picco reale in
+  -- dBFS: servono a livellare il volume fra album masterizzati in epoche
+  -- diverse. NULL = non ancora misurata (vedi loudness.ts).
+  loudness    REAL,
+  peak        REAL,
   -- quando la traccia è entrata IN LIBRERIA, che non è la data del file:
   -- un album del 1973 copiato ieri è una novità per te, e mtime direbbe 1973
   -- (o la data della copia, a seconda di come è stato copiato). Senza questa
@@ -150,6 +155,8 @@ export function openDb(dbPath: string = DB_PATH): DatabaseSync {
   try { db.exec('ALTER TABLE albums ADD COLUMN cover_key TEXT'); } catch { /* già presente */ }
   try { db.exec('ALTER TABLE tracks ADD COLUMN embedded_lyrics TEXT'); } catch { /* già presente */ }
   try { db.exec('ALTER TABLE tracks ADD COLUMN fingerprint TEXT'); } catch { /* già presente */ }
+  try { db.exec('ALTER TABLE tracks ADD COLUMN loudness REAL'); } catch { /* già presente */ }
+  try { db.exec('ALTER TABLE tracks ADD COLUMN peak REAL'); } catch { /* già presente */ }
   try {
     db.exec('ALTER TABLE tracks ADD COLUMN added_at INTEGER');
     // Il passato non si può ricostruire: per le tracce già in libreria si usa

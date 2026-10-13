@@ -25,6 +25,7 @@ import { accoda, inserisciDopo } from './coda.ts';
 import {
   crossfadeCorrente, deveIniziare, devePrecaricare, durataEffettiva, guadagni, volumeControllabile,
 } from './gapless.ts';
+import { volumeDelBrano, sottoscriviNormalizza } from './loudness.ts';
 import { sogliaAscolto } from './soglia.ts';
 
 export type RepeatMode = 'off' | 'all' | 'one';
@@ -116,6 +117,20 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       return elementiRef.current?.[attivoRef.current] ?? null;
     },
   };
+  /**
+   * Il volume con cui deve suonare un certo brano su un certo elemento:
+   * quello scelto dall'utente, corretto per il livellamento (loudness.ts) e
+   * infine moltiplicato per la rampa, quando c'è una dissolvenza in corso.
+   *
+   * Tutto passa di qui: è l'unico modo per non ritrovarsi tre pezzi di codice
+   * che scrivono `volume` ognuno per conto suo e si sovrascrivono a vicenda.
+   */
+  const volumePer = (track: Track | null | undefined, rampa = 1): number => {
+    const s = stateRef.current;
+    if (s.muted) return 0;
+    return s.volume * volumeDelBrano(track?.loudness) * rampa;
+  };
+
   /** L'elemento fermo, quello che tiene in carica il brano successivo. */
   const inAttesa = (): HTMLAudioElement | null =>
     elementiRef.current?.[1 - attivoRef.current] ?? null;
@@ -240,10 +255,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     const inCorso = rampaRef.current !== null;
     fermaTimer();
     if (!inCorso) return;
-    const s = stateRef.current;
-    const pieno = s.muted ? 0 : s.volume;
     inAttesa()?.pause();
-    if (volumeOkRef.current) for (const el of elementiRef.current ?? []) el.volume = pieno;
+    const attivo = audioRef.current;
+    if (volumeOkRef.current && attivo) attivo.volume = volumePer(stateRef.current.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fermaTimer]);
 
@@ -260,10 +274,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     concludiTransizione();
     fermaTimer();
     inAttesa()?.pause();
-    if (volumeOkRef.current) {
-      const pieno = stateRef.current.muted ? 0 : stateRef.current.volume;
-      for (const el of elementiRef.current ?? []) el.volume = pieno;
-    }
+    // Il volume è quello del brano che sta per partire: con il livellamento
+    // attivo ogni traccia ha il suo (vedi volumePer).
+    if (volumeOkRef.current) audio.volume = volumePer(track);
     precaricatoRef.current = null;
 
     audio.src = srcDi(track);
@@ -341,11 +354,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     fermaTimer();
     const cf = durataEffettiva(crossfadeCorrente(), uscente.duration || track.duration);
     const dissolve = cf > 0 && volumeOkRef.current;
-    const pieno = s.muted ? 0 : s.volume;
+    const inAscolto = s.current;
 
     entrante.currentTime = 0;
     entrante.muted = s.muted;
-    if (volumeOkRef.current) entrante.volume = dissolve ? 0 : pieno;
+    // Il brano entrante parte dal suo volume (non da quello del precedente:
+    // con il livellamento i due possono essere molto diversi).
+    if (volumeOkRef.current) entrante.volume = dissolve ? 0 : volumePer(track);
 
     // Lo scambio dei ruoli avviene subito: da questo momento "l'elemento
     // attivo" è quello nuovo, e tutto il resto del player (barra, ripresa,
@@ -369,12 +384,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     rampaRef.current = setInterval(() => {
       const p = Math.min(1, entrante.currentTime / cf);
       const g = guadagni(p);
-      uscente.volume = pieno * g.uscente;
-      entrante.volume = pieno * g.entrante;
+      uscente.volume = volumePer(inAscolto, g.uscente);
+      entrante.volume = volumePer(track, g.entrante);
       if (p >= 1) {
         fermaTimer();
         uscente.pause();
-        uscente.volume = pieno;
+        uscente.volume = volumePer(inAscolto);
       }
     }, 50);
     return true;
@@ -595,6 +610,18 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     };
   }, [next, patch, precarica, transisci, fermaTimer, salvaRipresa]);
 
+  /* ── il livellamento si accende e si spegne mentre la musica va ──
+   * Senza questo, accendere l'interruttore non avrebbe effetto fino al brano
+   * successivo: il volume si decide al caricamento, e quello è già passato.
+   */
+  useEffect(() => sottoscriviNormalizza(() => {
+    const audio = audioRef.current;
+    if (audio && volumeOkRef.current && rampaRef.current === null) {
+      audio.volume = volumePer(stateRef.current.current);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), []);
+
   /* ── alla chiusura non restano timer appesi ── */
   useEffect(() => fermaTimer, [fermaTimer]);
 
@@ -715,9 +742,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setVolume: (v) => {
       const audio = audioRef.current;
       if (!audio) return;
-      // A entrambi: il prossimo brano è già carico nell'altro elemento, e
-      // partirebbe col volume di prima.
-      for (const el of elementiRef.current ?? []) { el.volume = v; el.muted = false; }
+      stateRef.current = { ...stateRef.current, volume: v, muted: false };
+      for (const el of elementiRef.current ?? []) el.muted = false;
+      // Solo all'elemento che suona: l'altro riceverà il suo quando tocca a
+      // lui, e il suo volume dipende dal brano che contiene.
+      audio.volume = volumePer(stateRef.current.current);
       patch({ volume: v, muted: false });
     },
     toggleMute: () => {

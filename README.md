@@ -138,6 +138,8 @@ server/backup.ts  copia di sicurezza e ripristino dei dati personali
 server/stats.ts   il riepilogo degli ascolti (Ascolti → Riepilogo)
 web/src/coda.ts   "riproduci dopo" e "aggiungi alla coda", come funzioni pure
 web/src/gapless.ts quando parte il brano dopo, e con che volume
+server/loudness.ts misura quanto suona forte un brano (EBU R128)
+web/src/loudness.ts da quella misura al volume di riproduzione
 scripts/backup.ts il comando `npm run backup`; scripts/restore.ts il ritorno
 server/db.ts      schema: artists → albums → tracks
 server/stream.ts  invio dei file con HTTP Range (il cuore dello streaming)
@@ -437,6 +439,58 @@ discografia, quanto basta a disegnare la pagina. I brani per il tasto
 Riproduci arrivano da `/api/artists/:id/tracks`, e solo quando lo si preme:
 spedirne settanta per mostrarne cinque sarebbe sprecato.
 
+## Volume uniforme
+
+Un album del 1985 e la sua rimasterizzazione del 2015 hanno lo stesso
+contenuto e due volumi diversi: in trent'anni di *loudness war* i dischi sono
+stati masterizzati sempre più forti. In una playlist che li mescola, la mano
+corre alla manopola a ogni traccia.
+
+Nella libreria di prova la forbice è di **23 dB**: dal brano più sommesso
+(-27,4 LUFS) a *Easily* dei Red Hot Chili Peppers (-4,2 LUFS). Con
+"Scaricati → Riproduzione → Volume uniforme" attivo, quel brano viene
+riprodotto al 20% del volume — misurato: 0,204, esattamente il valore
+calcolato.
+
+### Si misura il loudness, non il picco
+
+Un colpo di rullante non dice quanto suona forte un brano. Si misura il
+**loudness integrato** secondo lo standard EBU R128, in LUFS: una media su
+tutto il brano pesata come la sente l'orecchio, più sensibile ai medi che ai
+bassi. È lo stesso numero che usano Spotify, YouTube e Apple.
+
+ffmpeg ha due filtri che lo calcolano. `loudnorm` impiega **9 secondi** per
+brano, perché calcola anche come normalizzare; `ebur128` dà loudness e true
+peak in **1,4 secondi**, ed è lo stesso numero (verificato sullo stesso file:
+-22,8 LUFS da entrambi). Su 1600 brani è la differenza fra dieci minuti e
+quattro ore.
+
+### Si può solo abbassare
+
+`audio.volume` va da 0 a 1: alzare non si può. Quindi non si porta ogni brano
+al riferimento, si portano i brani **più forti** giù fino a lui. Il
+riferimento è -18 LUFS, più basso dei -14 di Spotify e dei -16 di Apple,
+proprio perché con un riferimento alto bisognerebbe amplificare — cosa che
+non possiamo fare. Si perde un po' di volume assoluto (si alza la manopola
+una volta) e si guadagna che la libreria suona allo stesso livello. Il 15%
+dei brani, quelli già più sommessi del riferimento, resta com'è.
+
+Il vantaggio collaterale: non amplificando mai, **nessun brano può
+distorcere**. Per questo il picco si misura ma non serve a correggere nulla —
+tornerà utile il giorno che il guadagno venisse applicato lato server, dove
+amplificare si può.
+
+### Quando si misura
+
+Mai durante lo scan, che gira ogni cinque minuti e deve restare veloce. Il
+server lavora in sottofondo, venticinque brani ogni due minuti, finché la
+libreria non è tutta misurata; `npm run loudness` fa tutto subito. Un brano
+non ancora misurato suona come ha sempre suonato: `NULL` significa "non
+toccare", non "silenzio".
+
+Come la dissolvenza, il livellamento ha bisogno di poter scrivere `volume`:
+su iPhone non è possibile e l'interfaccia lo dice.
+
 ## Senza pause, e dissolvenza incrociata
 
 Il brano successivo viene messo in carica **prima** che finisca quello in
@@ -682,6 +736,7 @@ curl -s -D - -o /dev/null -H "Range: bytes=0-99" localhost:4000/api/tracks/1/str
 - [x] **12. Riepilogo ascolti** — minuti, classifiche, mese per mese, ore della giornata
 - [x] **13. Docker** — immagine senza dipendenze, musica in sola lettura, percorsi montabili
 - [x] **14. Senza pause** — due elementi audio, dissolvenza incrociata equal-power
-- [ ] **15. Karaoke** — testo a tutto schermo, riga corrente grande e centrata,
+- [x] **15. Volume uniforme** — loudness EBU R128 allo scan, livellamento in riproduzione
+- [ ] **16. Karaoke** — testo a tutto schermo, riga corrente grande e centrata,
       colorata in proporzione alla sua durata (LRCLIB dà i tempi per riga, non
       per parola). Voce abbassata (ffmpeg o Demucs) solo se poi manca davvero.
