@@ -22,6 +22,9 @@ import { coverUrl, send } from './api.ts';
 import { useDownloads } from './downloads.tsx';
 import { urlBrano, qualitaCorrente } from './sorgente.ts';
 import { accoda, inserisciDopo } from './coda.ts';
+import {
+  crossfadeCorrente, deveIniziare, devePrecaricare, durataEffettiva, guadagni, volumeControllabile,
+} from './gapless.ts';
 import { sogliaAscolto } from './soglia.ts';
 
 export type RepeatMode = 'off' | 'all' | 'one';
@@ -83,13 +86,49 @@ function shuffled<T>(items: T[]): T[] {
 }
 
 export function PlayerProvider({ children }: { children: ReactNode }) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  if (audioRef.current === null && typeof Audio !== 'undefined') {
-    const audio = new Audio();
-    // 'metadata' scaricherebbe solo l'intestazione: con 'auto' diciamo al
-    // browser che può riempire il buffer in anticipo, come fa Apple Music.
-    audio.preload = 'auto';
-    audioRef.current = audio;
+  /*
+   * DUE elementi audio, non uno.
+   *
+   * Mentre il primo suona, il secondo tiene già in carica il brano
+   * successivo: quando è il momento parte subito, senza il silenzio che
+   * serviva per chiedere il file alla rete e leggerne l'intestazione (vedi
+   * gapless.ts). A fine transizione i due si scambiano i ruoli.
+   *
+   * `attivo` dice quale dei due sta suonando adesso; `audioRef` resta il modo
+   * in cui tutto il resto del player chiede "l'elemento corrente", così il
+   * codice che c'era prima continua a funzionare senza sapere niente di tutto
+   * questo.
+   */
+  const elementiRef = useRef<[HTMLAudioElement, HTMLAudioElement] | null>(null);
+  const attivoRef = useRef(0);
+  if (elementiRef.current === null && typeof Audio !== 'undefined') {
+    const crea = () => {
+      const audio = new Audio();
+      // 'metadata' scaricherebbe solo l'intestazione: con 'auto' diciamo al
+      // browser che può riempire il buffer in anticipo, come fa Apple Music.
+      audio.preload = 'auto';
+      return audio;
+    };
+    elementiRef.current = [crea(), crea()];
+  }
+  const audioRef = {
+    get current(): HTMLAudioElement | null {
+      return elementiRef.current?.[attivoRef.current] ?? null;
+    },
+  };
+  /** L'elemento fermo, quello che tiene in carica il brano successivo. */
+  const inAttesa = (): HTMLAudioElement | null =>
+    elementiRef.current?.[1 - attivoRef.current] ?? null;
+
+  /**
+   * Su iPhone e iPad scrivere `volume` non ha effetto: il volume è solo quello
+   * dei tasti fisici. Lo si scopre provando, una volta sola (vedi
+   * volumeControllabile): dove non risponde, la dissolvenza incrociata non è
+   * possibile e resta il gapless, che del volume non ha bisogno.
+   */
+  const volumeOkRef = useRef(false);
+  if (elementiRef.current && !volumeOkRef.current) {
+    volumeOkRef.current = volumeControllabile(elementiRef.current[0]);
   }
 
   // La coda "originale" serve per tornare all'ordine dell'album quando si
@@ -171,11 +210,61 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     })
   ), [patch]);
 
+  /* ──────────────── gapless: il brano dopo è già in carica ────────────────
+   *
+   * `precaricato` ricorda quale posizione della coda sta nell'elemento in
+   * attesa: senza, dopo un cambio di coda si rischierebbe di far partire il
+   * brano sbagliato — quello che era "il prossimo" un minuto fa.
+   */
+  const precaricatoRef = useRef<{ index: number; id: number } | null>(null);
+  /** Il timer della dissolvenza, da fermare se l'utente cambia brano a metà. */
+  const rampaRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /** Controllo ravvicinato negli ultimi secondi: timeupdate arriva 4 volte al secondo. */
+  const vigilRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fermaTimer = useCallback(() => {
+    if (rampaRef.current) { clearInterval(rampaRef.current); rampaRef.current = null; }
+    if (vigilRef.current) { clearInterval(vigilRef.current); vigilRef.current = null; }
+  }, []);
+
+  /**
+   * Chiude in anticipo una dissolvenza in corso: spegne il brano uscente e
+   * riporta quello nuovo a volume pieno.
+   *
+   * Serve ogni volta che la dissolvenza viene interrotta da fuori — una pausa,
+   * un cambio di brano. Senza, i volumi restano congelati a metà strada: si
+   * riprende e il brano suona per sempre al sessanta per cento, senza che si
+   * capisca perché.
+   */
+  const concludiTransizione = useCallback(() => {
+    const inCorso = rampaRef.current !== null;
+    fermaTimer();
+    if (!inCorso) return;
+    const s = stateRef.current;
+    const pieno = s.muted ? 0 : s.volume;
+    inAttesa()?.pause();
+    if (volumeOkRef.current) for (const el of elementiRef.current ?? []) el.volume = pieno;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fermaTimer]);
+
   /** Carica una traccia nell'elemento audio e prova a farla partire. */
   const load = useCallback((queue: Track[], index: number, autoplay: boolean) => {
     const audio = audioRef.current;
     const track = queue[index];
     if (!audio || !track) return;
+
+    // Qualunque cambio di brano deciso dall'utente annulla una transizione in
+    // corso: si fermano i timer, si zittisce l'altro elemento e si rimette il
+    // volume pieno — altrimenti il brano nuovo partirebbe a metà dissolvenza,
+    // cioè quasi muto.
+    concludiTransizione();
+    fermaTimer();
+    inAttesa()?.pause();
+    if (volumeOkRef.current) {
+      const pieno = stateRef.current.muted ? 0 : stateRef.current.volume;
+      for (const el of elementiRef.current ?? []) el.volume = pieno;
+    }
+    precaricatoRef.current = null;
 
     audio.src = srcDi(track);
     prepara(queue, index);
@@ -184,7 +273,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     patch({ queue, index, current: track, currentTime: 0, duration: track.duration, buffered: 0, error: null, isLoading: true });
 
     if (autoplay) void avvia(audio);
-  }, [patch, avvia]);
+  }, [patch, avvia, concludiTransizione, fermaTimer]);
 
   const playQueue = useCallback((tracks: Track[], startIndex = 0) => {
     if (tracks.length === 0) return;
@@ -212,6 +301,85 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       return s;
     });
   }, [load]);
+
+  /** Qual è il brano dopo, tenendo conto della ripetizione. -1 se non c'è. */
+  const indiceProssimo = useCallback((s: PlayerState): number => {
+    if (s.index < 0 || s.repeat === 'one') return -1;
+    if (s.index < s.queue.length - 1) return s.index + 1;
+    return s.repeat === 'all' ? 0 : -1;
+  }, []);
+
+  /** Mette il brano successivo nell'elemento fermo e lo lascia caricare. */
+  const precarica = useCallback(() => {
+    const s = stateRef.current;
+    const i = indiceProssimo(s);
+    const altro = inAttesa();
+    const track = i >= 0 ? s.queue[i] : undefined;
+    if (!altro || !track) return;
+    if (precaricatoRef.current?.index === i && precaricatoRef.current.id === track.id) return;
+
+    altro.src = srcDi(track);
+    altro.load();
+    precaricatoRef.current = { index: i, id: track.id };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [indiceProssimo]);
+
+  /**
+   * Il passaggio vero e proprio: il secondo elemento parte, il primo si
+   * spegne — di colpo se non c'è dissolvenza, con la curva equal-power se c'è
+   * (vedi guadagni() in gapless.ts).
+   */
+  const transisci = useCallback(() => {
+    const s = stateRef.current;
+    const i = indiceProssimo(s);
+    const uscente = audioRef.current;
+    const entrante = inAttesa();
+    const track = i >= 0 ? s.queue[i] : undefined;
+    if (!uscente || !entrante || !track) return false;
+    if (precaricatoRef.current?.index !== i || precaricatoRef.current.id !== track.id) return false;
+
+    fermaTimer();
+    const cf = durataEffettiva(crossfadeCorrente(), uscente.duration || track.duration);
+    const dissolve = cf > 0 && volumeOkRef.current;
+    const pieno = s.muted ? 0 : s.volume;
+
+    entrante.currentTime = 0;
+    entrante.muted = s.muted;
+    if (volumeOkRef.current) entrante.volume = dissolve ? 0 : pieno;
+
+    // Lo scambio dei ruoli avviene subito: da questo momento "l'elemento
+    // attivo" è quello nuovo, e tutto il resto del player (barra, ripresa,
+    // Media Session) guarda lui.
+    attivoRef.current = 1 - attivoRef.current;
+    precaricatoRef.current = null;
+    contatoRef.current = null;
+    seekInSospeso.current = null;
+    void avvia(entrante);
+    patch({ index: i, current: track, currentTime: 0, duration: track.duration, buffered: 0, error: null });
+    prepara(s.queue, i);
+
+    if (!dissolve) {
+      uscente.pause();
+      return true;
+    }
+
+    // La rampa si regola sul tempo vero del brano entrante, non su un
+    // contatore nostro: se il browser rallenta, i volumi restano in accordo
+    // con quello che si sente davvero.
+    rampaRef.current = setInterval(() => {
+      const p = Math.min(1, entrante.currentTime / cf);
+      const g = guadagni(p);
+      uscente.volume = pieno * g.uscente;
+      entrante.volume = pieno * g.entrante;
+      if (p >= 1) {
+        fermaTimer();
+        uscente.pause();
+        uscente.volume = pieno;
+      }
+    }, 50);
+    return true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [indiceProssimo, fermaTimer, avvia, patch]);
 
   const previous = useCallback(() => {
     setState((s) => {
@@ -303,12 +471,52 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     };
   }, [salvaRipresa]);
 
-  /* ── eventi dell'elemento audio → stato React ── */
+  /* ── eventi degli elementi audio → stato React ──
+   *
+   * I gestori stanno su ENTRAMBI gli elementi, ma lavorano solo per quello
+   * attivo: l'altro, mentre carica o finisce di sfumare, continua a emettere
+   * timeupdate ed ended, e senza questo filtro la barra impazzirebbe e il
+   * brano successivo verrebbe saltato due volte.
+   */
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
+    const elementi = elementiRef.current;
+    if (!elementi) return;
+    const audio = elementi[attivoRef.current];
+    const suoi = (e: Event) => e.target === elementiRef.current?.[attivoRef.current];
 
-    const onTime = () => {
+    /**
+     * Il controllo che decide tutto: prima mette in carica il brano dopo,
+     * poi, al momento giusto, lo fa partire. Lo chiama `timeupdate` (quattro
+     * volte al secondo) e, negli ultimi due secondi, un timer più fitto:
+     * quattro volte al secondo basta per una barra, non per un attacco che
+     * non si deve sentire.
+     */
+    const sorveglia = (audio: HTMLAudioElement) => {
+      const s = stateRef.current;
+      if (!s.isPlaying || s.repeat === 'one') return;
+      const durata = audio.duration || s.duration;
+      const cf = crossfadeCorrente();
+      if (!Number.isFinite(durata) || durata <= 0) return;
+
+      if (devePrecaricare(audio.currentTime, durata, cf)) precarica();
+
+      const manca = durata - durataEffettiva(cf, durata) - audio.currentTime;
+      if (manca <= 2 && !vigilRef.current && !rampaRef.current) {
+        vigilRef.current = setInterval(() => {
+          const a = audioRef.current;
+          if (!a) return;
+          if (deveIniziare(a.currentTime, a.duration || durata, crossfadeCorrente())) {
+            if (vigilRef.current) { clearInterval(vigilRef.current); vigilRef.current = null; }
+            transisci();
+          }
+        }, 50);
+      }
+      if (deveIniziare(audio.currentTime, durata, cf) && !rampaRef.current) transisci();
+    };
+
+    const onTime = (e: Event) => {
+      if (!suoi(e)) return;
+      const audio = e.target as HTMLAudioElement;
       // `buffered` è una lista di intervalli già scaricati: cerchiamo quello
       // che contiene la posizione attuale per disegnare la barra di buffering.
       let ahead = audio.currentTime;
@@ -333,8 +541,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
         contatoRef.current = corrente.id;
         void send(`/api/tracks/${corrente.id}/play`, 'POST').catch(() => undefined);
       }
+
+      sorveglia(audio);
     };
-    const onMeta = () => {
+    const onMeta = (e: Event) => {
+      if (!suoi(e)) return;
+      const audio = e.target as HTMLAudioElement;
       // Impostare currentTime prima che l'audio conosca la sua durata non
       // attacca su tutti i browser (iOS in testa): si aspetta questo evento.
       if (seekInSospeso.current !== null) {
@@ -343,43 +555,48 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       }
       patch({ duration: audio.duration, isLoading: false });
     };
-    const onPlay = () => patch({ isPlaying: true, error: null });
-    const onPause = () => { patch({ isPlaying: false }); salvaRipresa(); };
-    const onWaiting = () => patch({ isLoading: true });
-    const onPlaying = () => patch({ isLoading: false });
-    const onError = () => patch({ isLoading: false, isPlaying: false, error: 'Impossibile leggere questo file audio.' });
-    const onEnded = () => {
-      if (audioRef.current && stateRef.current.repeat === 'one') {
-        audioRef.current.currentTime = 0;
-        void audioRef.current.play();
-      } else {
-        next();
+    const onPlay = (e: Event) => { if (suoi(e)) patch({ isPlaying: true, error: null }); };
+    const onPause = (e: Event) => { if (suoi(e)) { patch({ isPlaying: false }); salvaRipresa(); } };
+    const onWaiting = (e: Event) => { if (suoi(e)) patch({ isLoading: true }); };
+    const onPlaying = (e: Event) => { if (suoi(e)) patch({ isLoading: false }); };
+    const onError = (e: Event) => {
+      // Un errore sull'elemento in attesa non è un problema dell'ascolto in
+      // corso: si dimentica il precaricamento e si riproverà alla fine.
+      if (!suoi(e)) { precaricatoRef.current = null; return; }
+      patch({ isLoading: false, isPlaying: false, error: 'Impossibile leggere questo file audio.' });
+    };
+    const onEnded = (e: Event) => {
+      if (!suoi(e)) return;
+      fermaTimer();
+      const attivo = audioRef.current;
+      if (attivo && stateRef.current.repeat === 'one') {
+        attivo.currentTime = 0;
+        void attivo.play();
+        return;
       }
+      // Se la transizione è già avvenuta questo 'ended' arriva dall'elemento
+      // vecchio, che non è più l'attivo: il filtro qui sopra l'ha già
+      // scartato. Qui ci si arriva solo quando il gapless non ha funzionato
+      // (niente precaricato, o coda cambiata all'ultimo), e allora si fa
+      // come si è sempre fatto.
+      next();
     };
 
-    audio.addEventListener('timeupdate', onTime);
-    audio.addEventListener('progress', onTime);
-    audio.addEventListener('loadedmetadata', onMeta);
-    audio.addEventListener('durationchange', onMeta);
-    audio.addEventListener('play', onPlay);
-    audio.addEventListener('pause', onPause);
-    audio.addEventListener('waiting', onWaiting);
-    audio.addEventListener('playing', onPlaying);
-    audio.addEventListener('error', onError);
-    audio.addEventListener('ended', onEnded);
+    const eventi: Array<[string, (e: Event) => void]> = [
+      ['timeupdate', onTime], ['progress', onTime],
+      ['loadedmetadata', onMeta], ['durationchange', onMeta],
+      ['play', onPlay], ['pause', onPause],
+      ['waiting', onWaiting], ['playing', onPlaying],
+      ['error', onError], ['ended', onEnded],
+    ];
+    for (const el of elementi) for (const [nome, fn] of eventi) el.addEventListener(nome, fn);
     return () => {
-      audio.removeEventListener('timeupdate', onTime);
-      audio.removeEventListener('progress', onTime);
-      audio.removeEventListener('loadedmetadata', onMeta);
-      audio.removeEventListener('durationchange', onMeta);
-      audio.removeEventListener('play', onPlay);
-      audio.removeEventListener('pause', onPause);
-      audio.removeEventListener('waiting', onWaiting);
-      audio.removeEventListener('playing', onPlaying);
-      audio.removeEventListener('error', onError);
-      audio.removeEventListener('ended', onEnded);
+      for (const el of elementi) for (const [nome, fn] of eventi) el.removeEventListener(nome, fn);
     };
-  }, [next, patch]);
+  }, [next, patch, precarica, transisci, fermaTimer, salvaRipresa]);
+
+  /* ── alla chiusura non restano timer appesi ── */
+  useEffect(() => fermaTimer, [fermaTimer]);
 
   /* ── controlli del sistema operativo (barra multimediale, cuffie, lock screen) ── */
   useEffect(() => {
@@ -405,7 +622,12 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       const audio = audioRef.current;
       if (!audio || !stateRef.current.current) return;
       if (audio.paused) void avvia(audio);
-      else audio.pause();
+      else {
+        // In mezzo a una dissolvenza suonano in due: si chiude la transizione
+        // (l'uscente si ferma, i volumi tornano pieni) e poi si mette in pausa.
+        concludiTransizione();
+        audio.pause();
+      }
     },
     playAt: (index) => {
       const s = stateRef.current;
@@ -493,15 +715,17 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setVolume: (v) => {
       const audio = audioRef.current;
       if (!audio) return;
-      audio.volume = v;
-      audio.muted = false;
+      // A entrambi: il prossimo brano è già carico nell'altro elemento, e
+      // partirebbe col volume di prima.
+      for (const el of elementiRef.current ?? []) { el.volume = v; el.muted = false; }
       patch({ volume: v, muted: false });
     },
     toggleMute: () => {
       const audio = audioRef.current;
       if (!audio) return;
-      audio.muted = !audio.muted;
-      patch({ muted: audio.muted });
+      const muto = !audio.muted;
+      for (const el of elementiRef.current ?? []) el.muted = muto;
+      patch({ muted: muto });
     },
     toggleShuffle: () => {
       setState((s) => {

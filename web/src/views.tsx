@@ -17,6 +17,8 @@ import { usePlaylists } from './playlists.tsx';
 import { useListening } from './listening.tsx';
 import { formatBytes, useDownloads } from './downloads.tsx';
 import { useQualita } from './useQualita.ts';
+import { useCrossfade } from './useCrossfade.ts';
+import { DURATE_CROSSFADE, volumeControllabile } from './gapless.ts';
 
 function Loading() { return <p className="hint">Carico…</p>; }
 function Failure({ message }: { message: string }) { return <p className="hint error">Errore: {message}</p>; }
@@ -397,6 +399,8 @@ export function DownloadsView() {
 
       <QualitaAudio />
 
+      <Riproduzione />
+
       {items.length === 0 ? (
         <p className="hint">
           Nessun brano scaricato. Usa il pulsante di download su un album o su un singolo brano:
@@ -445,6 +449,59 @@ function QualitaAudio() {
           ? 'I file come sono in libreria: FLAC lossless dove c\'è, fino a ~900 kbps.'
           : 'FLAC e formati esotici convertiti in AAC 256 kbps: un terzo dei dati e dello spazio, differenza quasi inudibile. MP3 e AAC restano originali.'}
       </p>
+    </section>
+  );
+}
+
+/**
+ * Senza pause e dissolvenza incrociata.
+ *
+ * Il "senza pause" non si sceglie: c'è sempre, perché non ha controindicazioni
+ * — il brano dopo viene semplicemente messo in carica prima. La dissolvenza
+ * invece è un gusto, e su iPhone non è nemmeno possibile: lì il volume degli
+ * elementi audio è solo quello dei tasti fisici, e una dissolvenza senza
+ * controllo del volume non esiste. Lo si verifica provando, non indovinando
+ * dal nome del browser (vedi gapless.ts).
+ */
+function Riproduzione() {
+  const [secondi, imposta] = useCrossfade();
+  const possibile = useRef<boolean | null>(null);
+  if (possibile.current === null) {
+    possibile.current = typeof Audio === 'undefined' ? false : volumeControllabile(new Audio());
+  }
+
+  return (
+    <section className="qualita">
+      <h2>Riproduzione</h2>
+      <p className="dim" style={{ marginTop: 0 }}>
+        Il brano successivo viene messo in carica prima che finisca quello in ascolto: fra
+        uno e l'altro non c'è silenzio. Vale sempre, anche senza dissolvenza.
+      </p>
+
+      {possibile.current ? (
+        <>
+          <div className="albumhead-actions">
+            {DURATE_CROSSFADE.map((s) => (
+              <button
+                key={s}
+                className={secondi === s ? 'primary' : 'ghost'}
+                onClick={() => imposta(s)}
+              >{s === 0 ? 'Nessuna' : `${s} s`}</button>
+            ))}
+          </div>
+          <p className="dim">
+            {secondi === 0
+              ? 'Dissolvenza incrociata disattivata: i brani si susseguono senza sovrapporsi.'
+              : `Gli ultimi ${secondi} secondi di un brano si sovrappongono ai primi del successivo.`}
+          </p>
+        </>
+      ) : (
+        <p className="dim">
+          La dissolvenza incrociata non è disponibile su questo dispositivo: il browser non
+          lascia regolare il volume via software (è il caso di iPhone e iPad). Il passaggio
+          senza pause funziona lo stesso.
+        </p>
+      )}
     </section>
   );
 }

@@ -137,6 +137,7 @@ server/home.ts    "Per te": recenti, novità, riscopri, mai ascoltati
 server/backup.ts  copia di sicurezza e ripristino dei dati personali
 server/stats.ts   il riepilogo degli ascolti (Ascolti → Riepilogo)
 web/src/coda.ts   "riproduci dopo" e "aggiungi alla coda", come funzioni pure
+web/src/gapless.ts quando parte il brano dopo, e con che volume
 scripts/backup.ts il comando `npm run backup`; scripts/restore.ts il ritorno
 server/db.ts      schema: artists → albums → tracks
 server/stream.ts  invio dei file con HTTP Range (il cuore dello streaming)
@@ -436,6 +437,62 @@ discografia, quanto basta a disegnare la pagina. I brani per il tasto
 Riproduci arrivano da `/api/artists/:id/tracks`, e solo quando lo si preme:
 spedirne settanta per mostrarne cinque sarebbe sprecato.
 
+## Senza pause, e dissolvenza incrociata
+
+Il brano successivo viene messo in carica **prima** che finisca quello in
+ascolto, in un secondo elemento `<audio>`. Quando è il momento parte subito:
+fra una traccia e l'altra non c'è più il silenzio che serviva per chiedere il
+file alla rete e leggerne l'intestazione. Su un disco dal vivo o su un concept
+album è la differenza tra ascoltare l'opera e ascoltare dei pezzi.
+
+Misurato: su un brano di **8,951 s**, il passaggio è avvenuto dopo **8,955 s**
+di riproduzione. Quattro millesimi di scarto, e nessuna richiesta di rete al
+momento del cambio — il file era già lì.
+
+In "Scaricati → Riproduzione" si sceglie anche una dissolvenza incrociata di
+3, 6 o 12 secondi.
+
+### Perché due `<audio>` e non Web Audio
+
+`decodeAudioData` con `AudioBufferSourceNode` darebbe una transizione esatta
+al singolo campione — il gapless "vero", quello che non lascia passare
+nemmeno il silenzio interno di un MP3. Ma su iOS l'`AudioContext` viene
+**sospeso quando l'app va in secondo piano**, e con lui si fermerebbe tutta la
+riproduzione a schermo bloccato: in auto, sulle casse Bluetooth, in tasca.
+Due elementi `<audio>` restano invece media nativi, e il sistema continua a
+trattarli come musica.
+
+Si rinuncia alla precisione al campione per non perdere la cosa che si usa
+ogni giorno. Il risultato non è gapless al millesimo, è gapless *pratico*:
+sparisce il buco vero, quello da mezzo secondo.
+
+### La curva della dissolvenza non è una retta
+
+Il volume che senti va con la **potenza** del segnale, che è il quadrato
+dell'ampiezza. Con due rampe dritte, a metà transizione i due brani stanno a
+0,5 di ampiezza ciascuno: 0,5² + 0,5² = 0,5, cioè metà della potenza di
+partenza — si sente un avvallamento proprio in mezzo. Con coseno e seno,
+invece, cos² + sin² = 1 a ogni istante.
+
+Verificato dal vivo: a metà dissolvenza i due elementi stanno entrambi a
+**0,71** di volume (√2/2), e il passaggio non ha buchi.
+
+### Su iPhone la dissolvenza non c'è, e lo dice
+
+Su iOS scrivere `volume` non ha effetto: il volume è solo quello dei tasti
+fisici. Invece di indovinarlo dal nome del browser — che mente, e cambia a
+ogni versione — si prova: si scrive un valore e si rilegge. Dove non risponde,
+l'interfaccia spiega che la dissolvenza non è disponibile; il passaggio senza
+pause funziona lo stesso, perché del volume non ha bisogno.
+
+### Le interruzioni a metà strada
+
+Mettere in pausa, o saltare al brano dopo, mentre due brani si stanno
+sovrapponendo **chiude** la dissolvenza invece di congelarla: il brano in
+uscita si ferma e i volumi tornano pieni. Senza, i volumi restavano a metà
+strada e il brano successivo suonava per sempre al sessanta per cento, senza
+che si capisse perché — è successo davvero, in prova.
+
 ## La coda
 
 Nel menù ⋯ di ogni brano, album e playlist ci sono due voci:
@@ -624,6 +681,7 @@ curl -s -D - -o /dev/null -H "Range: bytes=0-99" localhost:4000/api/tracks/1/str
 - [x] **11. Backup** — copia automatica giornaliera, verificata, con ripristino provato
 - [x] **12. Riepilogo ascolti** — minuti, classifiche, mese per mese, ore della giornata
 - [x] **13. Docker** — immagine senza dipendenze, musica in sola lettura, percorsi montabili
-- [ ] **14. Karaoke** — testo a tutto schermo, riga corrente grande e centrata,
+- [x] **14. Senza pause** — due elementi audio, dissolvenza incrociata equal-power
+- [ ] **15. Karaoke** — testo a tutto schermo, riga corrente grande e centrata,
       colorata in proporzione alla sua durata (LRCLIB dà i tempi per riga, non
       per parola). Voce abbassata (ffmpeg o Demucs) solo se poi manca davvero.
