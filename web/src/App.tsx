@@ -6,6 +6,7 @@ import { useAsync } from './useAsync.ts';
 import { PlayerBar } from './components/PlayerBar.tsx';
 import { QueuePanel } from './components/QueuePanel.tsx';
 import { NowPlaying } from './components/NowPlaying.tsx';
+import { Karaoke } from './components/Karaoke.tsx';
 import { useIsMobile } from './useMediaQuery.ts';
 import { usePlayer } from './player.tsx';
 import {
@@ -49,6 +50,9 @@ export function App() {
   // schermata piena (dove esiste anche 'brano', che su desktop non serve).
   const isMobile = useIsMobile();
   const [vista, setVista] = useState<'chiusa' | 'brano' | 'coda' | 'testo'>('chiusa');
+  // Il karaoke copre tutto, su telefono come su desktop: è l'unica schermata
+  // che si guarda da lontano, e mezza pagina di libreria intorno distrae.
+  const [karaoke, setKaraoke] = useState(false);
   const colonnaAperta = !isMobile && (vista === 'coda' || vista === 'testo');
   const library = useLibrary();
   const { data: stats } = useAsync(() => api.stats(), [library.revision]);
@@ -186,6 +190,7 @@ export function App() {
             scheda={vista === 'testo' ? 'testo' : 'coda'}
             onScheda={setVista}
             onClose={() => setVista('chiusa')}
+            onKaraoke={() => setKaraoke(true)}
           />
         )}
 
@@ -196,8 +201,15 @@ export function App() {
         />
 
         {isMobile && vista !== 'chiusa' && (
-          <NowPlaying faccia={vista} onFaccia={setVista} onClose={() => setVista('chiusa')} />
+          <NowPlaying
+            faccia={vista}
+            onFaccia={setVista}
+            onClose={() => setVista('chiusa')}
+            onKaraoke={() => setKaraoke(true)}
+          />
         )}
+
+        {karaoke && <Karaoke onClose={() => setKaraoke(false)} />}
       </div>
     </NavContext.Provider>
   );

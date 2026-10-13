@@ -13,8 +13,9 @@ import { api } from '../api.ts';
 import { useAsync } from '../useAsync.ts';
 import { usePlayer } from '../player.tsx';
 import { indiceAttivo } from '../lyricsSync.ts';
+import { Icon } from './Icon.tsx';
 
-export function Lyrics() {
+export function Lyrics({ onKaraoke }: { onKaraoke?: () => void } = {}) {
   const p = usePlayer();
   const trackId = p.current?.id ?? null;
 
@@ -79,6 +80,12 @@ export function Lyrics() {
 
   if (data.synced?.length) {
     return (
+      <>
+      {onKaraoke && (
+        <button className="ghost ly-karaoke" onClick={onKaraoke}>
+          <Icon name="mic" size={15} /> Karaoke
+        </button>
+      )}
       <ol className="ly" ref={listaRef}>
         {data.synced.map((riga, i) => (
           <li
@@ -91,6 +98,7 @@ export function Lyrics() {
           </li>
         ))}
       </ol>
+      </>
     );
   }
 

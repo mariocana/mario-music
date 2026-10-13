@@ -24,10 +24,12 @@ const SOGLIA_CHIUSURA = 110;
 
 type Faccia = 'brano' | 'coda' | 'testo';
 
-export function NowPlaying({ faccia, onFaccia, onClose }: {
+export function NowPlaying({ faccia, onFaccia, onClose, onKaraoke }: {
   faccia: Faccia;
   onFaccia: (f: Faccia) => void;
   onClose: () => void;
+  /** apre il karaoke a tutto schermo */
+  onKaraoke: () => void;
 }) {
   const p = usePlayer();
   const navigate = useNavigate();
@@ -159,7 +161,7 @@ export function NowPlaying({ faccia, onFaccia, onClose }: {
         </div>
       ) : faccia === 'testo' ? (
         <div className="np-body np-body-testo">
-          <Lyrics />
+          <Lyrics onKaraoke={onKaraoke} />
         </div>
       ) : (
         <div className="np-body np-body-queue">

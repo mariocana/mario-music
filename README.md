@@ -138,6 +138,7 @@ server/backup.ts  copia di sicurezza e ripristino dei dati personali
 server/stats.ts   il riepilogo degli ascolti (Ascolti → Riepilogo)
 web/src/coda.ts   "riproduci dopo" e "aggiungi alla coda", come funzioni pure
 web/src/gapless.ts quando parte il brano dopo, e con che volume
+web/src/karaoke.ts quanto è avanzata la riga che si sta cantando
 server/loudness.ts misura quanto suona forte un brano (EBU R128)
 web/src/loudness.ts da quella misura al volume di riproduzione
 scripts/backup.ts il comando `npm run backup`; scripts/restore.ts il ritorno
@@ -718,6 +719,44 @@ conosce ancora la propria durata non attacca su tutti i browser, iOS in testa.
 L'ascolto non viene ricontato alla ripresa: era già stato conteggiato prima
 della chiusura.
 
+## Karaoke
+
+Dal pannello del testo, il pulsante **Karaoke** apre una schermata a tutto
+campo: la riga in corso grande al centro, le vicine sbiadite, lo sfondo tinto
+dalla copertina sfocata. Le parole si accendono una alla volta mentre il verso
+viene cantato. Toccare una riga salta a quel punto del brano; Esc esce.
+
+### Non è il karaoke di Apple, e il motivo è nei dati
+
+Apple Music ha i tempi **di ogni parola**. LRCLIB dà un tempo per **riga**: sa
+quando comincia un verso, non quando arriva la terza sillaba. Nessuna fonte
+libera ha i tempi per parola.
+
+Quello che si può fare è distribuire le parole dentro la riga in proporzione
+alla loro lunghezza in caratteri, e accenderle man mano. Una parola tenuta
+lunga va avanti come le altre, quindi non è esatto — ma segue il canto
+abbastanza da dirti dove sei, che è a cosa serve.
+
+### Quanto dura una riga non è quanto dista dalla successiva
+
+Fra un verso e l'altro può esserci un assolo di venti secondi: riempire la
+riga in venti secondi la farebbe strisciare, e resterebbe a metà per tutto
+l'intermezzo. Allora si stima anche quanto ci vuole a **cantarla**, dai
+caratteri, e vince la più breve delle due: la riga finisce di accendersi
+quando è ragionevolmente finita, poi aspetta la prossima. Il caso opposto —
+versi fitti e testo lungo — è coperto dalla stessa regola al contrario.
+
+### Parole, non un gradiente che scorre
+
+Il primo tentativo faceva scivolare una maschera sfumata sopra la riga.
+Sembrava più semplice, ma su un verso lungo che va a capo colora le due righe
+visive **in parallelo**: la seconda si illumina da sinistra mentre la prima
+non è ancora finita. Parola per parola il problema non esiste.
+
+L'accensione non passa da React: sarebbero sessanta render al secondo per
+cambiare un colore. Il ciclo di animazione legge il tempo dall'elemento audio
+e aggiunge una classe alle parole già dette, direttamente nel DOM.
+
 ## Testi
 
 Il pannello dei testi li cerca su [LRCLIB](https://lrclib.net) alla prima
@@ -764,6 +803,5 @@ curl -s -D - -o /dev/null -H "Range: bytes=0-99" localhost:4000/api/tracks/1/str
 - [x] **14. Senza pause** — due elementi audio, dissolvenza incrociata equal-power
 - [x] **15. Volume uniforme** — loudness EBU R128 allo scan, livellamento in riproduzione
 - [x] **16. Transcodifica progressiva** — MP4 frammentato servito mentre viene scritto
-- [ ] **17. Karaoke** — testo a tutto schermo, riga corrente grande e centrata,
-      colorata in proporzione alla sua durata (LRCLIB dà i tempi per riga, non
-      per parola). Voce abbassata (ffmpeg o Demucs) solo se poi manca davvero.
+- [x] **17. Karaoke** — testo a tutto schermo, parole che si accendono sul canto
+      (LRCLIB dà i tempi per riga, non per parola: il resto è stimato)

@@ -66,10 +66,12 @@ export function QueueList() {
 }
 
 /** La colonna di destra su desktop: coda e testo, due schede sullo stesso spazio. */
-export function QueuePanel({ scheda, onScheda, onClose }: {
+export function QueuePanel({ scheda, onScheda, onClose, onKaraoke }: {
   scheda: 'coda' | 'testo';
   onScheda: (s: 'coda' | 'testo') => void;
   onClose: () => void;
+  /** apre il karaoke a tutto schermo */
+  onKaraoke: () => void;
 }) {
   const riepilogo = useQueueSummary();
 
@@ -99,7 +101,7 @@ export function QueuePanel({ scheda, onScheda, onClose }: {
           <QueueList />
         </>
       ) : (
-        <div className="queue-testo"><Lyrics /></div>
+        <div className="queue-testo"><Lyrics onKaraoke={onKaraoke} /></div>
       )}
     </aside>
   );

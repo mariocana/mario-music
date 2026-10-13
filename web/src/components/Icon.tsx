@@ -18,7 +18,7 @@ export type IconName =
   | 'queue' | 'queueNext' | 'queueEnd' | 'close' | 'up' | 'down' | 'lyrics'
   | 'more' | 'plus' | 'playlist' | 'trash' | 'heart' | 'heartFilled' | 'chart'
   | 'grid' | 'library' | 'search' | 'artist' | 'note' | 'downloadBox' | 'back'
-  | 'edit' | 'image' | 'sparkle';
+  | 'edit' | 'image' | 'sparkle' | 'mic';
 
 /** Icone piene: sagome compatte, leggibili anche a 14px. */
 const FILLED: Partial<Record<IconName, React.ReactNode>> = {
@@ -131,6 +131,14 @@ const STROKED: Partial<Record<IconName, React.ReactNode>> = {
       <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
       <circle cx="9" cy="10" r="1.6" />
       <path d="m20.5 16-5-5-8 8" />
+    </>
+  ),
+  /* Il microfono del karaoke: capsula, archetto e piedino. */
+  mic: (
+    <>
+      <rect x="9" y="2.5" width="6" height="11" rx="3" />
+      <path d="M5.5 11a6.5 6.5 0 0 0 13 0" />
+      <path d="M12 17.5V21" />
     </>
   ),
   /* "Per te": la stella a quattro punte usata un po' ovunque per i
