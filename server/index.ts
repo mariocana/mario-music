@@ -17,7 +17,10 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { openDb } from './db.ts';
 import { sendFile } from './stream.ts';
-import { transcodedFile, giaPronto, vaTranscodificato, TRANSCODE_MIME } from './transcode.ts';
+import {
+  transcodedFile, giaPronto, vaTranscodificato, iniziaConversione, leggiMentreCresce, TRANSCODE_MIME,
+} from './transcode.ts';
+import type { Conversione } from './transcode.ts';
 import { scanLibrary, LibraryMissingError } from './scanner.ts';
 import { getLyrics } from './lyrics.ts';
 import { searchTracks, rebuildSearchIndex, indexIsStale } from './search.ts';
@@ -435,6 +438,50 @@ get(/^\/api\/tracks\/(\d+)\/lyrics$/, async (_req, res, [id]) => {
 
 type TrackFile = { path: string; mime: string; title: string; codec: string | null; size: number; fingerprint: string | null };
 
+/**
+ * Manda un file che sta ancora crescendo.
+ *
+ * Senza lunghezza dichiarata: non la si conosce, perché l'AAC a bitrate
+ * variabile si misura solo quando è finito. Il protocollo lo prevede — la
+ * risposta viaggia a pezzi (`chunked`) e finisce quando il server chiude — e
+ * il prezzo è che il browser non può saltare a un punto preciso finché il
+ * file non è completo. Per la PRIMA riproduzione di un brano è uno scambio
+ * conveniente: si rinuncia al salto immediato per non aspettare cinque
+ * secondi prima di sentire qualcosa.
+ *
+ * `Accept-Ranges: none` lo dice al browser invece di lasciarglielo scoprire
+ * con una richiesta fallita.
+ */
+function sendGrowing(req: IncomingMessage, res: ServerResponse, conv: Conversione, contentType: string) {
+  res.writeHead(200, {
+    'Content-Type': contentType,
+    'Accept-Ranges': 'none',
+    // Mai in cache: è un file a metà. La versione buona arriva dopo, dallo
+    // stesso indirizzo, e quella sì che può essere conservata.
+    'Cache-Control': 'no-store',
+  });
+
+  let vivo = true;
+  res.on('close', () => { vivo = false; });
+
+  void (async () => {
+    try {
+      for await (const pezzo of leggiMentreCresce(conv)) {
+        if (!vivo) return;
+        // Se il client legge più piano di quanto ffmpeg scriva, si aspetta
+        // che il buffer si svuoti invece di riempire la memoria del server.
+        if (!res.write(pezzo)) {
+          await new Promise((r) => res.once('drain', r));
+        }
+      }
+      res.end();
+    } catch (err) {
+      console.error('invio progressivo interrotto:', err instanceof Error ? err.message : err);
+      res.destroy();
+    }
+  })();
+}
+
 // Lo streaming vero e proprio.
 get(/^\/api\/tracks\/(\d+)\/stream$/, async (req, res, [id], url) => {
   const row = q.trackFile.get(Number(id)) as TrackFile | undefined;
@@ -454,6 +501,36 @@ get(/^\/api\/tracks\/(\d+)\/stream$/, async (req, res, [id], url) => {
   if (url.searchParams.get('format') === 'aac' && vaTranscodificato(row.codec)) {
     const t0 = Date.now();
     const pronto = await giaPronto(row);
+
+    /*
+     * Se la conversione non c'è ancora, invece di farla aspettare la si serve
+     * mentre viene scritta: la musica parte in un secondo invece che in
+     * cinque. Due casi la escludono.
+     *
+     * Un Range che non parte da zero è una richiesta di saltare a un punto
+     * preciso: su un file che sta ancora crescendo non si può, e si aspetta
+     * che sia completo. È raro — succede solo se si trascina la barra sul
+     * primo ascolto di un brano — e costa qualche secondo una volta sola.
+     *
+     * `full=1` è la via d'uscita del client: se il suo lettore non digerisce
+     * una risposta senza lunghezza dichiarata, ripiega su questa (vedi il
+     * commento in player.tsx).
+     */
+    const range = req.headers.range;
+    const saltoAltrove = Boolean(range && !/^bytes=0-/.test(range.trim()));
+    const vuoleIntero = url.searchParams.get('full') === '1';
+
+    if (!pronto && !saltoAltrove && !vuoleIntero) {
+      try {
+        const conv = await iniziaConversione(row, { urgente: true });
+        console.log(`transcodifica progressiva: ${row.title}`);
+        return sendGrowing(req, res, conv, TRANSCODE_MIME);
+      } catch (err) {
+        console.error(`transcodifica fallita: ${row.title}`, err);
+        return json(res, 500, { error: 'Conversione fallita: ffmpeg è installato?' });
+      }
+    }
+
     try {
       file = await transcodedFile(row);
       contentType = TRANSCODE_MIME;
@@ -551,6 +628,21 @@ const server = createServer(async (req, res) => {
     if (!res.headersSent) json(res, 500, { error: 'Errore interno' });
     else res.destroy();
   }
+});
+
+/*
+ * Una rete di sicurezza per il processo.
+ *
+ * Un server musicale di casa che muore perché una connessione si è chiusa nel
+ * momento sbagliato è peggio di un errore scritto nel registro: la musica si
+ * ferma e nessuno sa perché. Si annota e si va avanti; i problemi veri
+ * restano visibili nel log, dove si possono leggere.
+ */
+process.on('unhandledRejection', (err) => {
+  console.error('Errore non gestito (il server continua):', err);
+});
+process.on('uncaughtException', (err) => {
+  console.error('Eccezione non gestita (il server continua):', err);
 });
 
 server.listen(PORT, () => {

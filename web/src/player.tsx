@@ -578,6 +578,25 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       // Un errore sull'elemento in attesa non è un problema dell'ascolto in
       // corso: si dimentica il precaricamento e si riproverà alla fine.
       if (!suoi(e)) { precaricatoRef.current = null; return; }
+      const audio = e.target as HTMLAudioElement;
+
+      /*
+       * Ripiego sulla conversione completa.
+       *
+       * Un brano non ancora convertito arriva mentre viene scritto, in una
+       * risposta senza lunghezza dichiarata (vedi transcode.ts). Non tutti i
+       * lettori la digeriscono, e non c'è modo di saperlo in anticipo: si
+       * prova, e se va male si richiede lo stesso brano con `full=1`, che
+       * aspetta la fine della conversione e risponde come un file qualunque.
+       * Qualche secondo di attesa invece di un errore.
+       */
+      if (audio.src.includes('format=aac') && !audio.src.includes('full=1')) {
+        const posizione = audio.currentTime;
+        audio.src = `${audio.src}&full=1`;
+        seekInSospeso.current = posizione > 0 ? posizione : null;
+        if (stateRef.current.isPlaying) void avvia(audio);
+        return;
+      }
       patch({ isLoading: false, isPlaying: false, error: 'Impossibile leggere questo file audio.' });
     };
     const onEnded = (e: Event) => {
@@ -608,7 +627,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     return () => {
       for (const el of elementi) for (const [nome, fn] of eventi) el.removeEventListener(nome, fn);
     };
-  }, [next, patch, precarica, transisci, fermaTimer, salvaRipresa]);
+  }, [next, patch, precarica, transisci, fermaTimer, salvaRipresa, avvia]);
 
   /* ── il livellamento si accende e si spegne mentre la musica va ──
    * Senza questo, accendere l'interruttore non avrebbe effetto fino al brano
@@ -734,9 +753,43 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     seek: (seconds) => {
       const audio = audioRef.current;
       if (!audio) return;
+      // Mentre un brano carica, `audio.duration` è NaN: usarla come limite
+      // porterebbe ogni salto a zero. La durata vera sta nel catalogo.
+      const durata = Number.isFinite(audio.duration) && audio.duration > 0
+        ? audio.duration
+        : stateRef.current.duration;
+      const dove = Math.max(0, durata > 0 ? Math.min(seconds, durata) : seconds);
+
+      // Se stiamo già aspettando un caricamento, si cambia la destinazione
+      // invece di scrivere su un elemento che non è pronto a riceverla.
+      if (seekInSospeso.current !== null) {
+        seekInSospeso.current = dove;
+        patch({ currentTime: dove });
+        return;
+      }
+
+      /*
+       * Un brano che sta ancora venendo convertito arriva senza possibilità di
+       * salto (vedi transcode.ts): `seekable` è vuoto, e assegnare currentTime
+       * non porta dove si è chiesto — il brano riparte da capo, e sembra
+       * rotto. In quel caso si richiede lo stesso brano in versione completa e
+       * si salta lì: si aspettano i secondi della conversione, una volta sola,
+       * ma la barra fa quello che dice di fare.
+       */
+      const puoSaltare = Array.from({ length: audio.seekable.length })
+        .some((_, i) => audio.seekable.start(i) <= dove && dove <= audio.seekable.end(i));
+      if (!puoSaltare && audio.src.includes('format=aac') && !audio.src.includes('full=1')) {
+        const suonava = !audio.paused;
+        seekInSospeso.current = dove;
+        audio.src = `${audio.src}&full=1`;
+        patch({ currentTime: dove, isLoading: true });
+        if (suonava) void avvia(audio);
+        return;
+      }
+
       // Assegnare currentTime fa partire una nuova richiesta HTTP con Range:
       // è letteralmente questa riga a innescare il seek lato rete.
-      audio.currentTime = Math.max(0, Math.min(seconds, audio.duration || 0));
+      audio.currentTime = dove;
       patch({ currentTime: audio.currentTime });
     },
     setVolume: (v) => {

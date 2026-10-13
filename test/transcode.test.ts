@@ -7,10 +7,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, readdirSync, writeFileSync, existsSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
+import { appendFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { transcodedFile, giaPronto, vaTranscodificato, percorsoTranscodificato } from '../server/transcode.ts';
+import {
+  transcodedFile, giaPronto, vaTranscodificato, percorsoTranscodificato,
+  iniziaConversione, leggiMentreCresce,
+} from '../server/transcode.ts';
 import { urlBrano, leggibile } from '../web/src/sorgente.ts';
 
 function cartella() {
@@ -77,7 +80,8 @@ test('due richieste insieme → una conversione sola', async () => {
     const f = convertitoreFinto();
     const a = transcodedFile(t, { dir, converti: f.converti });
     const b = transcodedFile(t, { dir, converti: f.converti });
-    assert.equal(a, b, 'la seconda deve agganciarsi alla promise della prima');
+    // Non conta che sia la stessa promise — è un dettaglio interno — ma che
+    // ffmpeg venga lanciato una volta sola e che entrambe ottengano il file.
     assert.equal(await a, await b);
     assert.equal(f.chiamate(), 1);
   } finally { pulisci(); }
@@ -143,4 +147,89 @@ test('urlBrano: formato illeggibile per QUESTO browser → AAC anche in qualità
 test('urlBrano: codec sconosciuto → si prova l\'originale', () => {
   assert.equal(leggibile('boh', chrome), true);
   assert.equal(leggibile(null, chrome), true);
+});
+
+/* ── conversione progressiva: servire il file mentre viene scritto ── */
+
+test('leggiMentreCresce: segue un file che qualcun altro sta scrivendo', async () => {
+  const { dir, pulisci } = cartella();
+  try {
+    const file = path.join(dir, 'cresce.bin');
+    await writeFile(file, 'uno');
+    let finisci: () => void = () => {};
+    const fine = new Promise<void>((r) => { finisci = r; });
+
+    // Mentre leggiamo, qualcuno aggiunge pezzi e poi dichiara di aver finito.
+    void (async () => {
+      for (const pezzo of ['due', 'tre']) {
+        await new Promise((r) => setTimeout(r, 60));
+        await appendFile(file, pezzo);
+      }
+      await new Promise((r) => setTimeout(r, 60));
+      finisci();
+    })();
+
+    let tutto = '';
+    const conv = { tmp: file, dest: path.join(dir, 'mai-rinominato'), fine };
+    for await (const p of leggiMentreCresce(conv, { attesa: 20 })) tutto += p.toString();
+    assert.equal(tutto, 'unoduetre', 'niente deve andare perso e niente duplicato');
+  } finally { pulisci(); }
+});
+
+test('leggiMentreCresce: se la conversione fallisce, l\'errore arriva a chi legge', async () => {
+  const { dir, pulisci } = cartella();
+  try {
+    const file = path.join(dir, 'rotto.bin');
+    await writeFile(file, 'inizio');
+    const fine = Promise.reject(new Error('ffmpeg è morto'));
+    fine.catch(() => undefined);
+
+    const conv = { tmp: file, dest: path.join(dir, 'mai-rinominato'), fine };
+    await assert.rejects(async () => {
+      for await (const _ of leggiMentreCresce(conv, { attesa: 10 })) { /* consuma */ }
+    }, /ffmpeg è morto/);
+  } finally { pulisci(); }
+});
+
+test('la conversione progressiva dà subito un file da leggere, e lo completa dopo', async () => {
+  const { dir, pulisci } = cartella();
+  try {
+    const t = brano(dir);
+    // Un convertitore lento che scrive a pezzi, come fa ffmpeg.
+    const converti = async (_i: string, output: string) => {
+      await writeFile(output, 'parte1');
+      await new Promise((r) => setTimeout(r, 80));
+      await appendFile(output, 'parte2');
+    };
+
+    const conv = await iniziaConversione(t, { dir, converti });
+    // Il file provvisorio esiste già: si può cominciare a leggerlo adesso.
+    assert.ok(existsSync(conv.tmp));
+    assert.equal(conv.dest, path.join(dir, 'abc123.m4a'));
+
+    let letto = '';
+    for await (const p of leggiMentreCresce(conv, { attesa: 20 })) letto += p.toString();
+    assert.equal(letto, 'parte1parte2');
+
+    // A conversione finita il file ha preso il nome buono ed è in cache.
+    assert.equal(await conv.fine, conv.dest);
+    assert.ok(existsSync(conv.dest));
+    assert.ok(!existsSync(conv.tmp), 'il provvisorio non deve restare in giro');
+  } finally { pulisci(); }
+});
+
+test('chi aspetta il file intero e chi lo legge mentre cresce usano la STESSA conversione', async () => {
+  const { dir, pulisci } = cartella();
+  try {
+    const t = brano(dir);
+    const f = convertitoreFinto();
+    // È il caso che si presenta trascinando la barra durante il primo
+    // ascolto: due strade diverse per lo stesso brano. Due ffmpeg sullo
+    // stesso file provvisorio si rovinerebbero a vicenda.
+    const progressiva = iniziaConversione(t, { dir, converti: f.converti });
+    const intero = transcodedFile(t, { dir, converti: f.converti });
+    const conv = await progressiva;
+    assert.equal(await intero, conv.dest);
+    assert.equal(f.chiamate(), 1);
+  } finally { pulisci(); }
 });

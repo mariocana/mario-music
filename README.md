@@ -250,15 +250,41 @@ Safari non legge Ogg, WMA e APE non li legge nessuno: il client lo chiede al
 browser (`audio.canPlayType`) e, se la risposta è no, chiede l'AAC da solo.
 È il browser a sapere cosa legge, non il server.
 
-### Un file, non un flusso
+### Si ascolta mentre si converte
 
-ffmpeg potrebbe scrivere direttamente nella risposta HTTP e la musica
-partirebbe un attimo prima. Ma la lunghezza in byte si conosce solo alla
-fine: niente `Content-Length`, niente Range, niente seek. Qui invece ffmpeg
-scrive un file in `data/transcoded/`, e quello viene servito da `stream.ts`
-come qualunque altro: fette, ETag, cache del browser. Costa qualche secondo
-la prima volta (un brano di 4 minuti si converte in ~4 s, uno di 6 in ~8),
-poi è istantaneo.
+La prima riproduzione di un FLAC costava **4,6 secondi** di attesa: il tempo
+di convertirlo tutto. Adesso il file viene servito **mentre ffmpeg lo scrive**,
+e il primo byte parte dopo **0,10 s** — dal clic al suono passano circa tre
+decimi di secondo, misurati nel browser.
+
+Funziona perché ffmpeg converte una settantina di volte più in fretta di
+quanto si ascolti: chi ascolta non raggiunge mai la coda di ciò che è stato
+scritto. Se la raggiungesse, il lettore aspetterebbe i byte mancanti come
+farebbe con una rete lenta.
+
+**Serve un MP4 fatto in un altro modo.** Un MP4 normale tiene l'indice in
+fondo e `+faststart` lo sposta in testa solo alla fine, riscrivendo tutto:
+finché la conversione non è finita il file è illeggibile (provato: *moov atom
+not found* con 4,7 MB già sul disco). Nella forma **frammentata**
+(`+frag_keyframe+empty_moov`) l'indice è distribuito, e un file troncato a
+metà è comunque audio valido — ffprobe legge 13 secondi di AAC da un pezzo in
+scrittura. È la struttura di DASH e HLS. Servono anche `-flush_packets 1` e
+frammenti da un secondo, altrimenti ffmpeg tiene tutto nei suoi buffer: dopo
+due secondi, sul disco ci sono 28 byte.
+
+**Il prezzo è il salto.** La risposta viaggia senza lunghezza dichiarata —
+l'AAC a bitrate variabile si misura solo quando è finito — quindi il browser
+non può saltare a un punto preciso. Finché il brano è in conversione,
+trascinare la barra fa ricaricare lo stesso brano in versione completa
+(`full=1`) e saltare lì: si aspettano i secondi della conversione, una volta
+sola, invece di veder ripartire la musica da capo. Dalla seconda riproduzione
+in poi il file è in cache e tutto torna come prima: 206, Range, ETag.
+
+**Chi suona passa davanti.** Premere play fa partire due conversioni: quella
+del brano scelto e quella del successivo (il precaricamento per il gapless).
+Con due soli ffmpeg alla volta, senza precedenze il brano che si vuole
+sentire adesso finiva terzo in coda — misurato: 2,7 secondi invece di 0,1.
+Ora la coda del semaforo mette davanti chi sta aspettando di sentire.
 
 Per non farli sentire, il player chiede in anticipo il brano successivo
 (`POST /api/tracks/:id/prepare`) appena parte quello corrente: quando tocca a
@@ -737,6 +763,7 @@ curl -s -D - -o /dev/null -H "Range: bytes=0-99" localhost:4000/api/tracks/1/str
 - [x] **13. Docker** — immagine senza dipendenze, musica in sola lettura, percorsi montabili
 - [x] **14. Senza pause** — due elementi audio, dissolvenza incrociata equal-power
 - [x] **15. Volume uniforme** — loudness EBU R128 allo scan, livellamento in riproduzione
-- [ ] **16. Karaoke** — testo a tutto schermo, riga corrente grande e centrata,
+- [x] **16. Transcodifica progressiva** — MP4 frammentato servito mentre viene scritto
+- [ ] **17. Karaoke** — testo a tutto schermo, riga corrente grande e centrata,
       colorata in proporzione alla sua durata (LRCLIB dà i tempi per riga, non
       per parola). Voce abbassata (ffmpeg o Demucs) solo se poi manca davvero.
