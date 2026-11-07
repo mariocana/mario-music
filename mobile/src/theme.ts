@@ -1,0 +1,30 @@
+export const theme = {
+  colors: {
+    background: '#121214',
+    card: '#1c1c1e',
+    cardLight: '#2c2c2e',
+    tint: '#fa243c',
+    tintSubtle: 'rgba(250, 36, 60, 0.15)',
+    textPrimary: '#ffffff',
+    textSecondary: '#a1a1aa',
+    textMuted: '#71717a',
+    separator: '#27272a',
+    tabBar: 'rgba(20, 20, 22, 0.94)',
+    miniPlayer: 'rgba(30, 30, 32, 0.92)',
+    error: '#ef4444',
+    success: '#22c55e',
+  },
+  spacing: {
+    xs: 4,
+    sm: 8,
+    md: 16,
+    lg: 24,
+    xl: 32,
+  },
+  radii: {
+    sm: 6,
+    md: 10,
+    lg: 16,
+    full: 9999,
+  },
+};

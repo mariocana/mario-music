@@ -10,6 +10,7 @@
     "restart": "npm run stop && npm start",
     "dev:server": "tsx watch server/index.ts",
     "dev:web": "vite",
+    "dev:mobile": "cd mobile && npx expo start",
     "build": "vite build",
     "seed": "node scripts/seed.ts",
     "scan": "node scripts/scan.ts",
