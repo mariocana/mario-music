@@ -1,0 +1,113 @@
+name: Deploy Mobile (TestFlight & Android APK)
+
+on:
+  workflow_call:
+    inputs:
+      platform:
+        type: string
+        default: "all"
+        required: false
+      android_profile:
+        type: string
+        default: "preview"
+        required: false
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Piattaforma da compilare"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - ios
+          - android
+      android_profile:
+        description: "Profilo Android (preview = APK installabile, production = AAB Play Store)"
+        required: true
+        default: "preview"
+        type: choice
+        options:
+          - preview
+          - production
+
+concurrency:
+  group: deploy-mobile-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-android:
+    name: Build Android (APK / AAB)
+    if: |
+      github.event_name == 'workflow_call' ||
+      inputs.platform == 'all' ||
+      inputs.platform == 'android'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Ensure EAS project is initialized
+        run: eas init --non-interactive || true
+
+      - name: Build Android via EAS
+        run: |
+          PROFILE="${{ inputs.android_profile || 'preview' }}"
+          echo "Building Android with profile: $PROFILE"
+          eas build --platform android --profile "$PROFILE" --non-interactive
+
+  build-ios:
+    name: Build & Submit iOS (TestFlight)
+    if: |
+      github.event_name == 'workflow_call' ||
+      inputs.platform == 'all' ||
+      inputs.platform == 'ios'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Ensure EAS project is initialized
+        run: eas init --non-interactive || true
+
+      - name: Build iOS and submit to TestFlight
+        run: |
+          eas build --platform ios --profile production --auto-submit --non-interactive
