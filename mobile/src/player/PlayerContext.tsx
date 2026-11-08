@@ -203,7 +203,7 @@ export function PlayerProvider({
             title: track.title,
             artist: track.artist,
             albumTitle: track.album,
-            artworkUrl: coverUrl(track.albumId, track.coverKey),
+            artworkUrl: track.coverKey ? coverUrl(track.albumId, track.coverKey) : undefined,
           },
           {
             showNextTrack: true,
