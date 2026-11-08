@@ -106,7 +106,15 @@ function MainApp() {
           />
         ) : (
           <>
-            {activeTab === 'home' && <HomeScreen onSelectAlbum={setSelectedAlbum} />}
+            {activeTab === 'home' && (
+              <HomeScreen
+                onSelectAlbum={setSelectedAlbum}
+                onOpenListening={() => {
+                  setActiveTab('library');
+                  setLibrarySubScreen('listening');
+                }}
+              />
+            )}
 
             {activeTab === 'library' && (
               <>

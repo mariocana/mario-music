@@ -11,15 +11,17 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../api';
 import { CoverImage } from '../components/CoverImage';
+import { TrackRow } from '../components/TrackRow';
 import { usePlayer } from '../player/PlayerContext';
 import { theme } from '../theme';
-import type { Album, Home } from '../types';
+import type { Album, Home, Track } from '../types';
 
 type Props = {
   onSelectAlbum: (album: Album) => void;
+  onOpenListening?: () => void;
 };
 
-export const HomeScreen: React.FC<Props> = ({ onSelectAlbum }) => {
+export const HomeScreen: React.FC<Props> = ({ onSelectAlbum, onOpenListening }) => {
   const [data, setData] = useState<Home | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -47,6 +49,17 @@ export const HomeScreen: React.FC<Props> = ({ onSelectAlbum }) => {
   const onRefresh = () => {
     setRefreshing(true);
     void loadData();
+  };
+
+  const handleResume = async (track: Track) => {
+    try {
+      const album = await api.album(track.albumId).catch(() => null);
+      const tracce = album?.tracks && album.tracks.length > 0 ? album.tracks : [track];
+      const i = Math.max(0, tracce.findIndex((t) => t.id === track.id));
+      playQueue(tracce, i);
+    } catch {
+      playQueue([track], 0);
+    }
   };
 
   if (loading) {
@@ -110,7 +123,7 @@ export const HomeScreen: React.FC<Props> = ({ onSelectAlbum }) => {
           <Pressable
             style={styles.resumeCard}
             onPress={() => {
-              if (data.ripresa) playQueue([data.ripresa], 0);
+              if (data.ripresa) void handleResume(data.ripresa);
             }}
           >
             <CoverImage
@@ -134,8 +147,32 @@ export const HomeScreen: React.FC<Props> = ({ onSelectAlbum }) => {
 
       {data && renderShelf('Ascoltati di recente', data.recenti)}
       {data && renderShelf('Aggiunti di recente', data.aggiunti)}
+
+      {data?.top && data.top.length > 0 && (
+        <View style={styles.topTracksSection}>
+          <Text style={styles.shelfTitle}>I tuoi brani del mese</Text>
+          <View style={styles.topTracksList}>
+            {data.top.map((track, i) => (
+              <TrackRow
+                key={track.id}
+                track={track}
+                index={i}
+                showCover
+                onPress={() => playQueue(data.top, i)}
+              />
+            ))}
+          </View>
+        </View>
+      )}
+
       {data && renderShelf('Riscopri', data.riscopri)}
       {data && renderShelf('Mai ascoltati', data.mai)}
+
+      {onOpenListening && (
+        <Pressable style={styles.listeningLink} onPress={onOpenListening}>
+          <Text style={styles.listeningLinkText}>Tutti gli ascolti →</Text>
+        </Pressable>
+      )}
 
       <View style={{ height: 130 }} />
     </ScrollView>
@@ -198,6 +235,12 @@ const styles = StyleSheet.create({
   shelf: {
     marginTop: 24,
   },
+  topTracksSection: {
+    marginTop: 24,
+  },
+  topTracksList: {
+    // TrackRow already applies horizontal padding
+  },
   shelfTitle: {
     fontSize: 20,
     fontWeight: '700',
@@ -247,6 +290,17 @@ const styles = StyleSheet.create({
   },
   retryBtnText: {
     color: '#fff',
+    fontWeight: '600',
+  },
+  listeningLink: {
+    paddingVertical: 18,
+    paddingHorizontal: theme.spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  listeningLinkText: {
+    color: theme.colors.tint,
+    fontSize: 15,
     fontWeight: '600',
   },
 });
