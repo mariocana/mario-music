@@ -4,10 +4,8 @@ import {
   ActivityIndicator,
   Alert,
   Dimensions,
-  Modal,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -23,8 +21,7 @@ import { formatLength, type PlaylistDetail, type PlaylistSummary } from '../type
 
 type Props = {
   playlist: PlaylistSummary | { id: number; name: string } | null;
-  visible: boolean;
-  onClose: () => void;
+  onBack: () => void;
   onPlaylistDeleted?: (id: number) => void;
 };
 
@@ -33,8 +30,7 @@ const COVER_SIZE = Math.min(SCREEN_WIDTH * 0.55, 220);
 
 export const PlaylistDetailModal: React.FC<Props> = ({
   playlist,
-  visible,
-  onClose,
+  onBack,
   onPlaylistDeleted,
 }) => {
   const [detail, setDetail] = useState<PlaylistDetail | null>(null);
@@ -61,12 +57,12 @@ export const PlaylistDetailModal: React.FC<Props> = ({
   };
 
   useEffect(() => {
-    if (!playlist || !visible) {
+    if (!playlist) {
       setDetail(null);
       return;
     }
     return loadDetail();
-  }, [playlist, visible]);
+  }, [playlist]);
 
   if (!playlist) return null;
 
@@ -93,7 +89,7 @@ export const PlaylistDetailModal: React.FC<Props> = ({
           onPress: async () => {
             try {
               await api.deletePlaylist(playlist.id);
-              onClose();
+              onBack();
               if (onPlaylistDeleted) onPlaylistDeleted(playlist.id);
             } catch (err) {
               Alert.alert('Errore', err instanceof Error ? err.message : 'Impossibile eliminare');
@@ -124,92 +120,84 @@ export const PlaylistDetailModal: React.FC<Props> = ({
   };
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
-      onRequestClose={onClose}
-    >
-      <View style={styles.container}>
-        <SafeAreaView style={styles.safeArea}>
-          <View style={styles.header}>
-            <Pressable hitSlop={12} onPress={showMoreMenu} style={styles.iconBtn}>
-              <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.textSecondary} />
+    <View style={styles.container}>
+      <View style={styles.navBar}>
+        <Pressable hitSlop={12} onPress={onBack} style={styles.backBtn}>
+          <Ionicons name="chevron-back" size={24} color={theme.colors.tint} />
+          <Text style={styles.backLabel}>Indietro</Text>
+        </Pressable>
+
+        <Pressable hitSlop={12} onPress={showMoreMenu} style={styles.iconBtn}>
+          <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.textSecondary} />
+        </Pressable>
+      </View>
+
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        <View style={styles.topInfo}>
+          <PlaylistCover
+            playlist={{
+              id: playlist.id,
+              name: playlist.name,
+              coverKey: detail?.coverKey ?? null,
+              covers: [],
+            }}
+            size={COVER_SIZE}
+            borderRadius={theme.radii.lg}
+          />
+          <Text style={styles.title}>{playlist.name}</Text>
+          <Text style={styles.meta}>
+            {tracks.length} {tracks.length === 1 ? 'brano' : 'brani'}
+            {tracks.length > 0 ? ` · ${formatLength(totalDuration)}` : ''}
+          </Text>
+        </View>
+
+        {/* Pulsanti Riproduci / Casuale */}
+        {tracks.length > 0 && (
+          <View style={styles.actionButtons}>
+            <Pressable
+              style={[styles.btn, styles.primaryBtn]}
+              onPress={() => handlePlayAll(false)}
+            >
+              <Ionicons name="play" size={20} color="#fff" />
+              <Text style={styles.primaryBtnText}>Riproduci</Text>
             </Pressable>
 
-            <Pressable hitSlop={12} onPress={onClose} style={styles.iconBtn}>
-              <Ionicons name="close" size={24} color={theme.colors.textSecondary} />
+            <Pressable
+              style={[styles.btn, styles.secondaryBtn]}
+              onPress={() => handlePlayAll(true)}
+            >
+              <Ionicons name="shuffle" size={20} color={theme.colors.tint} />
+              <Text style={styles.secondaryBtnText}>Casuale</Text>
             </Pressable>
           </View>
+        )}
 
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-            <View style={styles.topInfo}>
-              <PlaylistCover
-                playlist={{
-                  id: playlist.id,
-                  name: playlist.name,
-                  coverKey: detail?.coverKey ?? null,
-                  covers: [],
-                }}
-                size={COVER_SIZE}
-                borderRadius={theme.radii.lg}
+        {loading ? (
+          <View style={styles.centerBox}>
+            <ActivityIndicator size="large" color={theme.colors.tint} />
+          </View>
+        ) : tracks.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="musical-notes-outline" size={40} color={theme.colors.textMuted} />
+            <Text style={styles.emptyText}>Playlist vuota</Text>
+            <Text style={styles.emptySubtext}>
+              Aggiungi brani dal menù ⋯ di qualsiasi brano nella libreria.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.trackList}>
+            {tracks.map((track, i) => (
+              <TrackRow
+                key={`${track.id}-${i}`}
+                track={track}
+                index={i}
+                onPress={() => playQueue(tracks, i)}
               />
-              <Text style={styles.title}>{playlist.name}</Text>
-              <Text style={styles.meta}>
-                {tracks.length} {tracks.length === 1 ? 'brano' : 'brani'}
-                {tracks.length > 0 ? ` · ${formatLength(totalDuration)}` : ''}
-              </Text>
-            </View>
-
-            {/* Pulsanti Riproduci / Casuale */}
-            {tracks.length > 0 && (
-              <View style={styles.actionButtons}>
-                <Pressable
-                  style={[styles.btn, styles.primaryBtn]}
-                  onPress={() => handlePlayAll(false)}
-                >
-                  <Ionicons name="play" size={20} color="#fff" />
-                  <Text style={styles.primaryBtnText}>Riproduci</Text>
-                </Pressable>
-
-                <Pressable
-                  style={[styles.btn, styles.secondaryBtn]}
-                  onPress={() => handlePlayAll(true)}
-                >
-                  <Ionicons name="shuffle" size={20} color={theme.colors.tint} />
-                  <Text style={styles.secondaryBtnText}>Casuale</Text>
-                </Pressable>
-              </View>
-            )}
-
-            {loading ? (
-              <View style={styles.centerBox}>
-                <ActivityIndicator size="large" color={theme.colors.tint} />
-              </View>
-            ) : tracks.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Ionicons name="musical-notes-outline" size={40} color={theme.colors.textMuted} />
-                <Text style={styles.emptyText}>Playlist vuota</Text>
-                <Text style={styles.emptySubtext}>
-                  Aggiungi brani dal menù ⋯ di qualsiasi brano nella libreria.
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.trackList}>
-                {tracks.map((track, i) => (
-                  <TrackRow
-                    key={`${track.id}-${i}`}
-                    track={track}
-                    index={i}
-                    onPress={() => playQueue(tracks, i)}
-                  />
-                ))}
-              </View>
-            )}
-          </ScrollView>
-        </SafeAreaView>
-      </View>
-    </Modal>
+            ))}
+          </View>
+        )}
+      </ScrollView>
+    </View>
   );
 };
 
@@ -218,15 +206,22 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  safeArea: {
-    flex: 1,
-  },
-  header: {
+  navBar: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backLabel: {
+    color: theme.colors.tint,
+    fontSize: 17,
+    fontWeight: '400',
+    marginLeft: 2,
   },
   iconBtn: {
     width: 32,
@@ -240,12 +235,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingBottom: 100,
+    paddingBottom: 130,
   },
   topInfo: {
     alignItems: 'center',
     paddingHorizontal: 24,
-    paddingTop: 12,
+    paddingTop: 8,
     paddingBottom: 20,
   },
   title: {

@@ -2,9 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Dimensions,
-  Modal,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -21,14 +19,13 @@ import { formatLength, type Album, type AlbumDetail } from '../types';
 
 type Props = {
   album: Album | null;
-  visible: boolean;
-  onClose: () => void;
+  onBack: () => void;
 };
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const COVER_SIZE = Math.min(SCREEN_WIDTH * 0.55, 220);
 
-export const AlbumDetailModal: React.FC<Props> = ({ album, visible, onClose }) => {
+export const AlbumDetailModal: React.FC<Props> = ({ album, onBack }) => {
   const [detail, setDetail] = useState<AlbumDetail | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -37,7 +34,7 @@ export const AlbumDetailModal: React.FC<Props> = ({ album, visible, onClose }) =
   const [downloadingAlbum, setDownloadingAlbum] = useState(false);
 
   useEffect(() => {
-    if (!album || !visible) {
+    if (!album) {
       setDetail(null);
       return;
     }
@@ -55,7 +52,7 @@ export const AlbumDetailModal: React.FC<Props> = ({ album, visible, onClose }) =
     return () => {
       mounted = false;
     };
-  }, [album, visible]);
+  }, [album]);
 
   if (!album) return null;
 
@@ -81,97 +78,92 @@ export const AlbumDetailModal: React.FC<Props> = ({ album, visible, onClose }) =
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={styles.container}>
-        <SafeAreaView style={styles.safeArea}>
-          <View style={styles.header}>
-            <Pressable hitSlop={12} onPress={onClose} style={styles.closeBtn}>
-              <Ionicons name="close" size={24} color={theme.colors.textSecondary} />
-            </Pressable>
-          </View>
-
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-            <View style={styles.topInfo}>
-              <CoverImage
-                albumId={album.id}
-                coverKey={album.coverKey}
-                size={COVER_SIZE}
-                borderRadius={theme.radii.lg}
-              />
-              <Text style={styles.title}>{album.title}</Text>
-              <Text style={styles.artist}>{album.artist}</Text>
-              <Text style={styles.meta}>
-                {album.year ? `${album.year} • ` : ''}
-                {album.genre ? `${album.genre} • ` : ''}
-                {tracks.length} brani, {formatLength(totalDuration)}
-              </Text>
-            </View>
-
-            {/* Pulsanti Riproduci / Casuale / Download */}
-            <View style={styles.actionButtons}>
-              <Pressable
-                style={[styles.btn, styles.primaryBtn]}
-                onPress={() => tracks.length > 0 && playQueue(tracks, 0)}
-              >
-                <Ionicons name="play" size={20} color="#fff" />
-                <Text style={styles.primaryBtnText}>Riproduci</Text>
-              </Pressable>
-
-              <Pressable
-                style={[styles.btn, styles.secondaryBtn]}
-                onPress={() => {
-                  if (tracks.length > 0) {
-                    const rnd = Math.floor(Math.random() * tracks.length);
-                    playQueue(tracks, rnd);
-                  }
-                }}
-              >
-                <Ionicons name="shuffle" size={20} color={theme.colors.tint} />
-                <Text style={styles.secondaryBtnText}>Casuale</Text>
-              </Pressable>
-
-              {tracks.length > 0 && (
-                <Pressable
-                  style={[styles.iconActionBtn, allDownloaded && styles.iconActionBtnActive]}
-                  onPress={() => void handleToggleDownloadAlbum()}
-                  disabled={downloadingAlbum}
-                  hitSlop={8}
-                >
-                  {downloadingAlbum ? (
-                    <ActivityIndicator size="small" color={theme.colors.tint} />
-                  ) : (
-                    <Ionicons
-                      name={allDownloaded ? 'checkmark-circle' : 'cloud-download-outline'}
-                      size={22}
-                      color={allDownloaded ? theme.colors.tint : theme.colors.textSecondary}
-                    />
-                  )}
-                </Pressable>
-              )}
-            </View>
-
-            {/* Elenco tracce */}
-            {loading ? (
-              <ActivityIndicator size="small" color={theme.colors.tint} style={{ marginTop: 24 }} />
-            ) : (
-              <View style={styles.trackList}>
-                {tracks.map((track, i) => (
-                  <TrackRow
-                    key={track.id}
-                    track={track}
-                    index={i}
-                    showCover={false}
-                    onPress={() => playQueue(tracks, i)}
-                  />
-                ))}
-              </View>
-            )}
-
-            <View style={{ height: 80 }} />
-          </ScrollView>
-        </SafeAreaView>
+    <View style={styles.container}>
+      <View style={styles.navBar}>
+        <Pressable hitSlop={12} onPress={onBack} style={styles.backBtn}>
+          <Ionicons name="chevron-back" size={24} color={theme.colors.tint} />
+          <Text style={styles.backLabel}>Indietro</Text>
+        </Pressable>
       </View>
-    </Modal>
+
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+        <View style={styles.topInfo}>
+          <CoverImage
+            albumId={album.id}
+            coverKey={album.coverKey}
+            size={COVER_SIZE}
+            borderRadius={theme.radii.lg}
+          />
+          <Text style={styles.title}>{album.title}</Text>
+          <Text style={styles.artist}>{album.artist}</Text>
+          <Text style={styles.meta}>
+            {album.year ? `${album.year} • ` : ''}
+            {album.genre ? `${album.genre} • ` : ''}
+            {tracks.length} brani, {formatLength(totalDuration)}
+          </Text>
+        </View>
+
+        {/* Pulsanti Riproduci / Casuale / Download */}
+        <View style={styles.actionButtons}>
+          <Pressable
+            style={[styles.btn, styles.primaryBtn]}
+            onPress={() => tracks.length > 0 && playQueue(tracks, 0)}
+          >
+            <Ionicons name="play" size={20} color="#fff" />
+            <Text style={styles.primaryBtnText}>Riproduci</Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.btn, styles.secondaryBtn]}
+            onPress={() => {
+              if (tracks.length > 0) {
+                const rnd = Math.floor(Math.random() * tracks.length);
+                playQueue(tracks, rnd);
+              }
+            }}
+          >
+            <Ionicons name="shuffle" size={20} color={theme.colors.tint} />
+            <Text style={styles.secondaryBtnText}>Casuale</Text>
+          </Pressable>
+
+          {tracks.length > 0 && (
+            <Pressable
+              style={[styles.iconActionBtn, allDownloaded && styles.iconActionBtnActive]}
+              onPress={() => void handleToggleDownloadAlbum()}
+              disabled={downloadingAlbum}
+              hitSlop={8}
+            >
+              {downloadingAlbum ? (
+                <ActivityIndicator size="small" color={theme.colors.tint} />
+              ) : (
+                <Ionicons
+                  name={allDownloaded ? 'checkmark-circle' : 'cloud-download-outline'}
+                  size={22}
+                  color={allDownloaded ? theme.colors.tint : theme.colors.textSecondary}
+                />
+              )}
+            </Pressable>
+          )}
+        </View>
+
+        {/* Elenco tracce */}
+        {loading ? (
+          <ActivityIndicator size="small" color={theme.colors.tint} style={{ marginTop: 24 }} />
+        ) : (
+          <View style={styles.trackList}>
+            {tracks.map((track, i) => (
+              <TrackRow
+                key={track.id}
+                track={track}
+                index={i}
+                showCover={false}
+                onPress={() => playQueue(tracks, i)}
+              />
+            ))}
+          </View>
+        )}
+      </ScrollView>
+    </View>
   );
 };
 
@@ -180,26 +172,32 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  safeArea: {
-    flex: 1,
+  navBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
-  header: {
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: 12,
-    alignItems: 'flex-end',
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  closeBtn: {
-    padding: 6,
+  backLabel: {
+    color: theme.colors.tint,
+    fontSize: 17,
+    fontWeight: '400',
+    marginLeft: 2,
   },
   scroll: {
     flex: 1,
   },
   content: {
-    paddingBottom: 32,
+    paddingBottom: 130,
   },
   topInfo: {
     alignItems: 'center',
     paddingHorizontal: theme.spacing.lg,
+    paddingTop: 8,
   },
   title: {
     fontSize: 22,

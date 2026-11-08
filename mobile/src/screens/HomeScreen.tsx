@@ -137,7 +137,7 @@ export const HomeScreen: React.FC<Props> = ({ onSelectAlbum }) => {
       {data && renderShelf('Riscopri', data.riscopri)}
       {data && renderShelf('Mai ascoltati', data.mai)}
 
-      <View style={{ height: 100 }} />
+      <View style={{ height: 130 }} />
     </ScrollView>
   );
 };

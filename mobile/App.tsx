@@ -45,17 +45,36 @@ function MainApp() {
   }
 
   const handleTabChange = (tab: TabType) => {
-    if (tab === activeTab && tab === 'library') {
-      // Tap su Libreria mentre si è già dentro una sottoschermata torna all'Hub
-      setLibrarySubScreen(null);
+    if (tab !== activeTab) {
+      // Se si cambia scheda, si chiudono i dettagli aperti
+      setSelectedAlbum(null);
+      setSelectedArtist(null);
+      setSelectedPlaylist(null);
+      setActiveTab(tab);
+    } else {
+      // Tap sulla scheda già attiva: torna alla radice della schermata
+      if (selectedAlbum) {
+        setSelectedAlbum(null);
+      } else if (selectedArtist) {
+        setSelectedArtist(null);
+      } else if (selectedPlaylist) {
+        setSelectedPlaylist(null);
+      } else if (tab === 'library') {
+        setLibrarySubScreen(null);
+      }
     }
-    setActiveTab(tab);
   };
 
   const handleLibraryNavigate = (target: LibrarySubScreen) => {
     if (target === 'playlists') {
+      setSelectedAlbum(null);
+      setSelectedArtist(null);
+      setSelectedPlaylist(null);
       setActiveTab('playlists');
     } else if (target === 'favorites') {
+      setSelectedAlbum(null);
+      setSelectedArtist(null);
+      setSelectedPlaylist(null);
       setActiveTab('favorites');
     } else {
       setLibrarySubScreen(target);
@@ -66,81 +85,79 @@ function MainApp() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar style="light" />
 
-      {/* Vista schermata corrente */}
+      {/* Vista schermata corrente con dettagli inline: la barra di riproduzione e navigazione restano SEMPRE in primo piano */}
       <View style={styles.screenContent}>
-        {activeTab === 'home' && <HomeScreen onSelectAlbum={setSelectedAlbum} />}
-
-        {activeTab === 'library' && (
+        {selectedAlbum ? (
+          <AlbumDetailModal
+            album={selectedAlbum}
+            onBack={() => setSelectedAlbum(null)}
+          />
+        ) : selectedArtist ? (
+          <ArtistDetailModal
+            artist={selectedArtist}
+            onBack={() => setSelectedArtist(null)}
+            onSelectAlbum={(alb) => setSelectedAlbum(alb)}
+          />
+        ) : selectedPlaylist ? (
+          <PlaylistDetailModal
+            playlist={selectedPlaylist}
+            onBack={() => setSelectedPlaylist(null)}
+            onPlaylistDeleted={() => setSelectedPlaylist(null)}
+          />
+        ) : (
           <>
-            {librarySubScreen === null && (
-              <LibraryScreen onNavigate={handleLibraryNavigate} />
+            {activeTab === 'home' && <HomeScreen onSelectAlbum={setSelectedAlbum} />}
+
+            {activeTab === 'library' && (
+              <>
+                {librarySubScreen === null && (
+                  <LibraryScreen onNavigate={handleLibraryNavigate} />
+                )}
+                {librarySubScreen === 'artists' && (
+                  <ArtistsScreen
+                    onBack={() => setLibrarySubScreen(null)}
+                    onSelectArtist={setSelectedArtist}
+                  />
+                )}
+                {librarySubScreen === 'songs' && (
+                  <SongsScreen onBack={() => setLibrarySubScreen(null)} />
+                )}
+                {librarySubScreen === 'albums' && (
+                  <AlbumsScreen
+                    onBack={() => setLibrarySubScreen(null)}
+                    onSelectAlbum={setSelectedAlbum}
+                  />
+                )}
+                {librarySubScreen === 'listening' && (
+                  <ListeningScreen onBack={() => setLibrarySubScreen(null)} />
+                )}
+                {librarySubScreen === 'downloads' && (
+                  <DownloadsScreen onBack={() => setLibrarySubScreen(null)} />
+                )}
+                {librarySubScreen === 'settings' && (
+                  <SettingsScreen onBack={() => setLibrarySubScreen(null)} />
+                )}
+              </>
             )}
-            {librarySubScreen === 'artists' && (
-              <ArtistsScreen
-                onBack={() => setLibrarySubScreen(null)}
-                onSelectArtist={setSelectedArtist}
-              />
+
+            {activeTab === 'playlists' && (
+              <PlaylistsScreen onSelectPlaylist={setSelectedPlaylist} />
             )}
-            {librarySubScreen === 'songs' && (
-              <SongsScreen onBack={() => setLibrarySubScreen(null)} />
-            )}
-            {librarySubScreen === 'albums' && (
-              <AlbumsScreen
-                onBack={() => setLibrarySubScreen(null)}
-                onSelectAlbum={setSelectedAlbum}
-              />
-            )}
-            {librarySubScreen === 'listening' && (
-              <ListeningScreen onBack={() => setLibrarySubScreen(null)} />
-            )}
-            {librarySubScreen === 'downloads' && (
-              <DownloadsScreen onBack={() => setLibrarySubScreen(null)} />
-            )}
-            {librarySubScreen === 'settings' && (
-              <SettingsScreen onBack={() => setLibrarySubScreen(null)} />
-            )}
+
+            {activeTab === 'favorites' && <FavoritesScreen />}
+
+            {activeTab === 'search' && <SearchScreen />}
           </>
         )}
-
-        {activeTab === 'playlists' && (
-          <PlaylistsScreen onSelectPlaylist={setSelectedPlaylist} />
-        )}
-
-        {activeTab === 'favorites' && <FavoritesScreen />}
-
-        {activeTab === 'search' && <SearchScreen />}
       </View>
 
-      {/* Mini Player fluttuante sopra la barra */}
+      {/* Mini Player fluttuante - SEMPRE IN PRIMO PIANO */}
       <MiniPlayer onPress={() => setNowPlayingVisible(true)} />
 
-      {/* Barra schede a pillola + ricerca stile Web */}
+      {/* Barra schede a pillola + ricerca stile Web - SEMPRE IN PRIMO PIANO */}
       <MobileTabBar activeTab={activeTab} onTabChange={handleTabChange} />
 
-      {/* Modale Dettaglio Album */}
-      <AlbumDetailModal
-        album={selectedAlbum}
-        visible={selectedAlbum !== null}
-        onClose={() => setSelectedAlbum(null)}
-      />
-
-      {/* Modale Dettaglio Artista */}
-      <ArtistDetailModal
-        artist={selectedArtist}
-        visible={selectedArtist !== null}
-        onClose={() => setSelectedArtist(null)}
-        onSelectAlbum={(alb) => setSelectedAlbum(alb)}
-      />
-
-      {/* Modale Dettaglio Playlist */}
-      <PlaylistDetailModal
-        playlist={selectedPlaylist}
-        visible={selectedPlaylist !== null}
-        onClose={() => setSelectedPlaylist(null)}
-        onPlaylistDeleted={() => setSelectedPlaylist(null)}
-      />
-
-      {/* Modale Schermata In Riproduzione */}
+      {/* Modale a tutto schermo solo per la schermata In Riproduzione (quando espansa) */}
       <NowPlayingModal
         visible={nowPlayingVisible}
         onClose={() => setNowPlayingVisible(false)}

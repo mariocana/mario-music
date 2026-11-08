@@ -160,6 +160,6 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   listContent: {
-    paddingBottom: 100,
+    paddingBottom: 130,
   },
 });
