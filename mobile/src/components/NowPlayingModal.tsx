@@ -15,6 +15,7 @@ import { usePlayer } from '../player/PlayerContext';
 import { theme } from '../theme';
 import { formatTime, type Lyrics } from '../types';
 import { CoverImage } from './CoverImage';
+import { Scrubber } from './Scrubber';
 
 type Props = {
   visible: boolean;
@@ -140,26 +141,12 @@ export const NowPlayingModal: React.FC<Props> = ({ visible, onClose }) => {
                 </Pressable>
               </View>
 
-              {/* Barra di avanzamento interattiva */}
-              <View style={styles.scrubberSection}>
-                <Pressable
-                  style={styles.scrubberTrack}
-                  onPress={(e) => {
-                    const { locationX } = e.nativeEvent;
-                    const totalWidth = SCREEN_WIDTH - 48;
-                    const pct = Math.max(0, Math.min(1, locationX / totalWidth));
-                    seek(pct * duration);
-                  }}
-                >
-                  <View style={[styles.scrubberFill, { width: `${progress * 100}%` }]} />
-                </Pressable>
-                <View style={styles.timeRow}>
-                  <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
-                  <Text style={styles.timeText}>
-                    {duration > currentTime ? `-${formatTime(duration - currentTime)}` : '0:00'}
-                  </Text>
-                </View>
-              </View>
+              {/* Barra di avanzamento con pallino trascinabile stile Web */}
+              <Scrubber
+                currentTime={currentTime}
+                duration={duration}
+                onSeek={seek}
+              />
 
               {/* Controlli di riproduzione */}
               <View style={styles.controlsRow}>
@@ -320,29 +307,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: theme.colors.textSecondary,
     marginTop: 4,
-  },
-  scrubberSection: {
-    marginVertical: 16,
-  },
-  scrubberTrack: {
-    height: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  scrubberFill: {
-    height: '100%',
-    backgroundColor: theme.colors.textPrimary,
-  },
-  timeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  timeText: {
-    fontSize: 12,
-    color: theme.colors.textMuted,
-    fontVariant: ['tabular-nums'],
   },
   controlsRow: {
     flexDirection: 'row',
