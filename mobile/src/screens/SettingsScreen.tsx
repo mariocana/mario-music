@@ -15,7 +15,11 @@ import { getServerUrlSync, setServerUrl } from '../config';
 import { theme } from '../theme';
 import { formatLength, type Stats } from '../types';
 
-export const SettingsScreen: React.FC = () => {
+type Props = {
+  onBack?: () => void;
+};
+
+export const SettingsScreen: React.FC<Props> = ({ onBack }) => {
   const [url, setUrl] = useState(getServerUrlSync());
   const [stats, setStats] = useState<Stats | null>(null);
   const [testing, setTesting] = useState(false);
@@ -54,6 +58,15 @@ export const SettingsScreen: React.FC = () => {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {onBack && (
+        <View style={styles.navBar}>
+          <Pressable style={styles.backBtn} onPress={onBack} hitSlop={10}>
+            <Ionicons name="chevron-back" size={24} color={theme.colors.tint} />
+            <Text style={styles.backLabel}>Libreria</Text>
+          </Pressable>
+        </View>
+      )}
+
       <Text style={styles.pageTitle}>Impostazioni</Text>
 
       {/* Sezione Server */}
@@ -143,6 +156,21 @@ const styles = StyleSheet.create({
   content: {
     padding: theme.spacing.md,
     paddingBottom: 120,
+  },
+  navBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backLabel: {
+    color: theme.colors.tint,
+    fontSize: 17,
+    fontWeight: '400',
+    marginLeft: 2,
   },
   pageTitle: {
     fontSize: 32,

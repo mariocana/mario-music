@@ -53,6 +53,8 @@ export const api = {
   top: (days?: number) => get<Track[]>(`/api/top${days ? `?days=${days}` : ''}`),
   playlists: () => get<PlaylistSummary[]>('/api/playlists'),
   playlist: (id: number) => get<PlaylistDetail>(`/api/playlists/${id}`),
+  createPlaylist: (name: string) => send<PlaylistSummary>('/api/playlists', 'POST', { name }),
+  deletePlaylist: (id: number) => send<void>(`/api/playlists/${id}`, 'DELETE'),
 
   toggleFavorite: (trackId: number, favorite: boolean) =>
     send<{ id: number; favorite: boolean }>(`/api/tracks/${trackId}/favorite`, 'POST', { favorite }),

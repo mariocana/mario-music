@@ -9,6 +9,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { api } from '../api';
 import { CoverImage } from '../components/CoverImage';
 import { theme } from '../theme';
@@ -16,12 +17,13 @@ import type { Album } from '../types';
 
 type Props = {
   onSelectAlbum: (album: Album) => void;
+  onBack?: () => void;
 };
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const ITEM_WIDTH = (SCREEN_WIDTH - 32 - 16) / 2;
 
-export const AlbumsScreen: React.FC<Props> = ({ onSelectAlbum }) => {
+export const AlbumsScreen: React.FC<Props> = ({ onSelectAlbum, onBack }) => {
   const [albums, setAlbums] = useState<Album[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -57,6 +59,15 @@ export const AlbumsScreen: React.FC<Props> = ({ onSelectAlbum }) => {
 
   return (
     <View style={styles.container}>
+      {onBack && (
+        <View style={styles.navBar}>
+          <Pressable style={styles.backBtn} onPress={onBack} hitSlop={10}>
+            <Ionicons name="chevron-back" size={24} color={theme.colors.tint} />
+            <Text style={styles.backLabel}>Libreria</Text>
+          </Pressable>
+        </View>
+      )}
+
       <FlatList
         data={albums}
         keyExtractor={(item) => String(item.id)}
@@ -94,6 +105,22 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  navBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  backBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backLabel: {
+    color: theme.colors.tint,
+    fontSize: 17,
+    fontWeight: '400',
+    marginLeft: 2,
   },
   pageTitle: {
     fontSize: 32,

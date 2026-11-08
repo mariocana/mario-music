@@ -61,6 +61,9 @@ function shuffleArray<T>(items: T[]): T[] {
 
 export function PlayerProvider({ children }: { children: React.ReactNode }) {
   const playerRef = useRef<AudioPlayer | null>(null);
+  const subscriptionRef = useRef<{ remove: () => void } | null>(null);
+  const advancingRef = useRef(false);
+  const nextRef = useRef<() => void>(() => {});
   const originalQueueRef = useRef<Track[]>([]);
   const contatoRef = useRef<number | null>(null);
 
@@ -100,10 +103,70 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     return baseVolume * fattoreVolume(track.loudness);
   }, []);
 
+  const attachListener = useCallback((player: AudioPlayer) => {
+    subscriptionRef.current?.remove();
+    subscriptionRef.current = player.addListener('playbackStatusUpdate', (status: AudioStatus) => {
+      const current = stateRef.current.current;
+
+      setState((s) => ({
+        ...s,
+        isPlaying: status.playing,
+        currentTime: status.currentTime,
+        duration: status.duration > 0 ? status.duration : (current?.duration ?? s.duration),
+        isLoading: status.isBuffering || !status.isLoaded,
+      }));
+
+      // Scrobbling conteggio ascolti
+      if (
+        current &&
+        contatoRef.current !== current.id &&
+        status.currentTime >= sogliaAscolto(status.duration || current.duration)
+      ) {
+        contatoRef.current = current.id;
+        void api.recordPlay(current.id).catch(() => undefined);
+      }
+
+      // Fine brano / passaggio alla traccia successiva
+      const isEnded = status.didJustFinish || status.playbackState === 'ended';
+      if (isEnded && !advancingRef.current) {
+        advancingRef.current = true;
+        if (stateRef.current.repeat === 'one') {
+          void player.seekTo(0).then(() => {
+            player.play();
+            advancingRef.current = false;
+          }).catch(() => {
+            advancingRef.current = false;
+          });
+        } else {
+          nextRef.current();
+        }
+      }
+    });
+  }, []);
+
+  const getOrCreatePlayer = useCallback((url?: string): AudioPlayer => {
+    let player = playerRef.current;
+    if (!player) {
+      player = createAudioPlayer(url ?? null, {
+        keepAudioSessionActive: true,
+        updateInterval: 250,
+      });
+      playerRef.current = player;
+      attachListener(player);
+    } else if (url) {
+      player.replace(url);
+    }
+    return player;
+  }, [attachListener]);
+
   const loadAndPlayTrack = useCallback(async (queue: Track[], index: number) => {
     const track = queue[index];
-    if (!track) return;
+    if (!track) {
+      advancingRef.current = false;
+      return;
+    }
 
+    advancingRef.current = false;
     contatoRef.current = null;
     const url = streamUrl(track.id);
 
@@ -115,19 +178,12 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         current: track,
         currentTime: 0,
         duration: track.duration,
+        isPlaying: true,
         isLoading: true,
         error: null,
       }));
 
-      let player = playerRef.current;
-      if (!player) {
-        player = createAudioPlayer(url, {
-          keepAudioSessionActive: true,
-        });
-        playerRef.current = player;
-      } else {
-        player.replace(url);
-      }
+      const player = getOrCreatePlayer(url);
 
       // Applicazione volume con loudness normalization nativa
       player.volume = calculateVolumeFor(track);
@@ -155,6 +211,7 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
       player.play();
     } catch (err) {
+      advancingRef.current = false;
       setState((s) => ({
         ...s,
         isPlaying: false,
@@ -162,14 +219,18 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
         error: err instanceof Error ? err.message : 'Errore riproduzione',
       }));
     }
-  }, [calculateVolumeFor]);
+  }, [calculateVolumeFor, getOrCreatePlayer]);
 
   const next = useCallback(() => {
     const { queue, index, repeat } = stateRef.current;
-    if (index < 0 || queue.length === 0) return;
+    if (index < 0 || queue.length === 0) {
+      advancingRef.current = false;
+      return;
+    }
 
     const isLast = index >= queue.length - 1;
     if (isLast && repeat !== 'all') {
+      advancingRef.current = false;
       playerRef.current?.pause();
       setState((s) => ({ ...s, isPlaying: false }));
       return;
@@ -178,6 +239,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     const nextIndex = isLast ? 0 : index + 1;
     void loadAndPlayTrack(queue, nextIndex);
   }, [loadAndPlayTrack]);
+
+  nextRef.current = next;
 
   const previous = useCallback(() => {
     const { queue, index, currentTime } = stateRef.current;
@@ -194,47 +257,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
     void loadAndPlayTrack(queue, index - 1);
   }, [loadAndPlayTrack]);
 
-  // Ascolto degli eventi del player audio
+  // Smontaggio pulito delle risorse audio
   useEffect(() => {
-    const player = playerRef.current;
-    if (!player) return;
-
-    const subscription = player.addListener('playbackStatusUpdate', (status: AudioStatus) => {
-      const current = stateRef.current.current;
-
-      setState((s) => ({
-        ...s,
-        isPlaying: status.playing,
-        currentTime: status.currentTime,
-        duration: status.duration > 0 ? status.duration : (current?.duration ?? s.duration),
-        isLoading: status.isBuffering || !status.isLoaded,
-      }));
-
-      // Scrobbling conteggio ascolti
-      if (
-        current &&
-        contatoRef.current !== current.id &&
-        status.currentTime >= sogliaAscolto(status.duration || current.duration)
-      ) {
-        contatoRef.current = current.id;
-        void api.recordPlay(current.id).catch(() => undefined);
-      }
-
-      // Fine brano
-      if (status.didJustFinish) {
-        if (stateRef.current.repeat === 'one') {
-          void player.seekTo(0);
-          player.play();
-        } else {
-          next();
-        }
-      }
-    });
-
     return () => {
-      subscription.remove();
+      subscriptionRef.current?.remove();
+      playerRef.current?.remove();
+      playerRef.current = null;
     };
-  }, [next]);
+  }, []);
 
   const playQueue = useCallback((tracks: Track[], startIndex = 0) => {
     if (tracks.length === 0) return;

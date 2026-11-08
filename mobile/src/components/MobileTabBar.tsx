@@ -10,7 +10,7 @@ import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { theme } from '../theme';
 
-export type TabType = 'home' | 'albums' | 'favorites' | 'search' | 'settings';
+export type TabType = 'home' | 'library' | 'playlists' | 'favorites' | 'search';
 
 type TabItem = {
   id: TabType;
@@ -27,22 +27,22 @@ const PILL_TABS: TabItem[] = [
     inactiveIcon: 'sparkles-outline',
   },
   {
-    id: 'albums',
-    label: 'Album',
-    activeIcon: 'albums',
-    inactiveIcon: 'albums-outline',
+    id: 'library',
+    label: 'Libreria',
+    activeIcon: 'library',
+    inactiveIcon: 'library-outline',
+  },
+  {
+    id: 'playlists',
+    label: 'Playlist',
+    activeIcon: 'list',
+    inactiveIcon: 'list-outline',
   },
   {
     id: 'favorites',
     label: 'Preferiti',
     activeIcon: 'heart',
     inactiveIcon: 'heart-outline',
-  },
-  {
-    id: 'settings',
-    label: 'Server',
-    activeIcon: 'settings',
-    inactiveIcon: 'settings-outline',
   },
 ];
 
