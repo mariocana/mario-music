@@ -10,7 +10,7 @@ type Props = {
 };
 
 export const MiniPlayer: React.FC<Props> = ({ onPress }) => {
-  const { current, isPlaying, toggle, next, currentTime, duration, isLoading } = usePlayer();
+  const { current, isPlaying, toggle, next, currentTime, duration } = usePlayer();
 
   if (!current) return null;
 
@@ -45,7 +45,7 @@ export const MiniPlayer: React.FC<Props> = ({ onPress }) => {
             style={styles.btn}
           >
             <Ionicons
-              name={isLoading ? 'hourglass-outline' : isPlaying ? 'pause' : 'play'}
+              name={isPlaying ? 'pause' : 'play'}
               size={24}
               color={theme.colors.textPrimary}
             />

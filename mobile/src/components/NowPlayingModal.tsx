@@ -28,7 +28,6 @@ export const NowPlayingModal: React.FC<Props> = ({ visible, onClose }) => {
   const {
     current,
     isPlaying,
-    isLoading,
     toggle,
     next,
     previous,
@@ -182,7 +181,7 @@ export const NowPlayingModal: React.FC<Props> = ({ visible, onClose }) => {
                   style={styles.playPauseBtn}
                 >
                   <Ionicons
-                    name={isLoading ? 'hourglass-outline' : isPlaying ? 'pause' : 'play'}
+                    name={isPlaying ? 'pause' : 'play'}
                     size={42}
                     color={theme.colors.textPrimary}
                   />

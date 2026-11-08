@@ -6,8 +6,10 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { Platform } from 'react-native';
 import {
   createAudioPlayer,
+  requestNotificationPermissionsAsync,
   setAudioModeAsync,
   type AudioPlayer,
   type AudioStatus,
@@ -83,9 +85,14 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     void setAudioModeAsync({
       playsInSilentMode: true,
+      shouldPlayInBackground: true,
       interruptionMode: 'doNotMix',
       shouldRouteThroughEarpiece: false,
     }).catch(() => undefined);
+
+    if (Platform.OS === 'android') {
+      void requestNotificationPermissionsAsync().catch(() => undefined);
+    }
   }, []);
 
   const calculateVolumeFor = useCallback((track: Track | null, baseVolume = stateRef.current.volume) => {
@@ -114,7 +121,9 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
       let player = playerRef.current;
       if (!player) {
-        player = createAudioPlayer(url);
+        player = createAudioPlayer(url, {
+          keepAudioSessionActive: true,
+        });
         playerRef.current = player;
       } else {
         player.replace(url);
@@ -125,12 +134,21 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
       // Metadata lockscreen
       try {
-        player.setActiveForLockScreen(true, {
-          title: track.title,
-          artist: track.artist,
-          albumTitle: track.album,
-          artworkUrl: coverUrl(track.albumId, track.coverKey),
-        });
+        player.setActiveForLockScreen(
+          true,
+          {
+            title: track.title,
+            artist: track.artist,
+            albumTitle: track.album,
+            artworkUrl: coverUrl(track.albumId, track.coverKey),
+          },
+          {
+            showNextTrack: true,
+            showPreviousTrack: true,
+            showSeekForward: true,
+            showSeekBackward: true,
+          }
+        );
       } catch {
         // Ignora se non supportato nel runtime corrente
       }
