@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { api } from '../api';
 import { CoverImage } from '../components/CoverImage';
 import { TrackRow } from '../components/TrackRow';
+import { useDownloads } from '../downloads/DownloadsContext';
 import { usePlayer } from '../player/PlayerContext';
 import { theme } from '../theme';
 import { formatLength, type Album, type AlbumDetail } from '../types';
@@ -32,6 +33,8 @@ export const AlbumDetailModal: React.FC<Props> = ({ album, visible, onClose }) =
   const [loading, setLoading] = useState(false);
 
   const { playQueue } = usePlayer();
+  const { downloadTracks, removeTrack, isDownloaded } = useDownloads();
+  const [downloadingAlbum, setDownloadingAlbum] = useState(false);
 
   useEffect(() => {
     if (!album || !visible) {
@@ -58,6 +61,24 @@ export const AlbumDetailModal: React.FC<Props> = ({ album, visible, onClose }) =
 
   const tracks = detail?.tracks ?? [];
   const totalDuration = tracks.reduce((acc, t) => acc + t.duration, 0);
+
+  const downloadedCount = tracks.filter((t) => isDownloaded(t.id)).length;
+  const allDownloaded = tracks.length > 0 && downloadedCount === tracks.length;
+
+  const handleToggleDownloadAlbum = async () => {
+    if (allDownloaded) {
+      for (const t of tracks) {
+        await removeTrack(t.id);
+      }
+    } else {
+      setDownloadingAlbum(true);
+      try {
+        await downloadTracks(tracks);
+      } finally {
+        setDownloadingAlbum(false);
+      }
+    }
+  };
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
@@ -86,7 +107,7 @@ export const AlbumDetailModal: React.FC<Props> = ({ album, visible, onClose }) =
               </Text>
             </View>
 
-            {/* Pulsanti Riproduci / Casuale */}
+            {/* Pulsanti Riproduci / Casuale / Download */}
             <View style={styles.actionButtons}>
               <Pressable
                 style={[styles.btn, styles.primaryBtn]}
@@ -108,6 +129,25 @@ export const AlbumDetailModal: React.FC<Props> = ({ album, visible, onClose }) =
                 <Ionicons name="shuffle" size={20} color={theme.colors.tint} />
                 <Text style={styles.secondaryBtnText}>Casuale</Text>
               </Pressable>
+
+              {tracks.length > 0 && (
+                <Pressable
+                  style={[styles.iconActionBtn, allDownloaded && styles.iconActionBtnActive]}
+                  onPress={() => void handleToggleDownloadAlbum()}
+                  disabled={downloadingAlbum}
+                  hitSlop={8}
+                >
+                  {downloadingAlbum ? (
+                    <ActivityIndicator size="small" color={theme.colors.tint} />
+                  ) : (
+                    <Ionicons
+                      name={allDownloaded ? 'checkmark-circle' : 'cloud-download-outline'}
+                      size={22}
+                      color={allDownloaded ? theme.colors.tint : theme.colors.textSecondary}
+                    />
+                  )}
+                </Pressable>
+              )}
             </View>
 
             {/* Elenco tracce */}
@@ -210,6 +250,17 @@ const styles = StyleSheet.create({
     color: theme.colors.tint,
     fontWeight: '700',
     fontSize: 16,
+  },
+  iconActionBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: theme.radii.md,
+    backgroundColor: theme.colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconActionBtnActive: {
+    backgroundColor: 'rgba(250, 36, 60, 0.15)',
   },
   trackList: {
     marginTop: 8,

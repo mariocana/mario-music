@@ -59,7 +59,13 @@ function shuffleArray<T>(items: T[]): T[] {
   return copy;
 }
 
-export function PlayerProvider({ children }: { children: React.ReactNode }) {
+export function PlayerProvider({
+  children,
+  getOfflineUri,
+}: {
+  children: React.ReactNode;
+  getOfflineUri?: (trackId: number) => string | null;
+}) {
   const playerRef = useRef<AudioPlayer | null>(null);
   const subscriptionRef = useRef<{ remove: () => void } | null>(null);
   const advancingRef = useRef(false);
@@ -168,7 +174,8 @@ export function PlayerProvider({ children }: { children: React.ReactNode }) {
 
     advancingRef.current = false;
     contatoRef.current = null;
-    const url = streamUrl(track.id);
+    const offlineUrl = getOfflineUri?.(track.id);
+    const url = offlineUrl || streamUrl(track.id);
 
     try {
       setState((s) => ({

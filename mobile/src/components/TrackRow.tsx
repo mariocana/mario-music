@@ -1,6 +1,7 @@
 import React from 'react';
-import { ActionSheetIOS, Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActionSheetIOS, ActivityIndicator, Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useDownloads } from '../downloads/DownloadsContext';
 import { usePlayer } from '../player/PlayerContext';
 import { theme } from '../theme';
 import { formatTime, type Track } from '../types';
@@ -20,21 +21,35 @@ export const TrackRow: React.FC<Props> = ({
   onPress,
 }) => {
   const { current, isPlaying, playNext, addToQueue, toggleFavorite } = usePlayer();
+  const { isDownloaded, downloadTrack, removeTrack, progress } = useDownloads();
   const isCurrent = current?.id === track.id;
+  const downloaded = isDownloaded(track.id);
+  const isDownloading = progress.has(track.id);
 
   const showMenu = () => {
-    const options = ['Annulla', 'Riproduci dopo', 'Aggiungi alla coda'];
+    const downloadActionLabel = downloaded ? 'Rimuovi download' : 'Scarica brano';
+    const options = ['Annulla', 'Riproduci dopo', 'Aggiungi alla coda', downloadActionLabel];
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
           options,
           cancelButtonIndex: 0,
+          destructiveButtonIndex: downloaded ? 3 : undefined,
           title: track.title,
           message: track.artist,
         },
         (buttonIndex) => {
           if (buttonIndex === 1) playNext(track);
           if (buttonIndex === 2) addToQueue(track);
+          if (buttonIndex === 3) {
+            if (downloaded) {
+              void removeTrack(track.id);
+            } else {
+              void downloadTrack(track).catch((err) => {
+                Alert.alert('Errore download', err instanceof Error ? err.message : 'Impossibile scaricare');
+              });
+            }
+          }
         }
       );
     } else {
@@ -42,6 +57,17 @@ export const TrackRow: React.FC<Props> = ({
         { text: 'Annulla', style: 'cancel' },
         { text: 'Riproduci dopo', onPress: () => playNext(track) },
         { text: 'Aggiungi alla coda', onPress: () => addToQueue(track) },
+        {
+          text: downloadActionLabel,
+          style: downloaded ? 'destructive' : 'default',
+          onPress: () => {
+            if (downloaded) {
+              void removeTrack(track.id);
+            } else {
+              void downloadTrack(track).catch(() => undefined);
+            }
+          },
+        },
       ]);
     }
   };
@@ -83,7 +109,14 @@ export const TrackRow: React.FC<Props> = ({
           />
         </Pressable>
 
-        <Text style={styles.duration}>{formatTime(track.duration)}</Text>
+        <View style={styles.downloadIndicator}>
+          {isDownloading ? (
+            <ActivityIndicator size="small" color={theme.colors.tint} style={{ marginRight: 6 }} />
+          ) : downloaded ? (
+            <Ionicons name="arrow-down-circle" size={14} color={theme.colors.tint} style={{ marginRight: 6 }} />
+          ) : null}
+          <Text style={styles.duration}>{formatTime(track.duration)}</Text>
+        </View>
 
         <Pressable hitSlop={8} onPress={showMenu} style={styles.actionBtn}>
           <Ionicons name="ellipsis-horizontal" size={18} color={theme.colors.textMuted} />
@@ -144,5 +177,9 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
     minWidth: 38,
     textAlign: 'right',
+  },
+  downloadIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
 });

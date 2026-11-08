@@ -9,6 +9,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { api } from '../api';
+import { useDownloads } from '../downloads/DownloadsContext';
 import { theme } from '../theme';
 import type { Stats } from '../types';
 
@@ -19,6 +20,7 @@ export type LibrarySubScreen =
   | 'playlists'
   | 'favorites'
   | 'listening'
+  | 'downloads'
   | 'settings';
 
 type Props = {
@@ -33,28 +35,9 @@ type HubItem = {
   badge?: string;
 };
 
-const HUB_ITEMS: HubItem[] = [
-  { id: 'artists', label: 'Artisti', icon: 'person-outline' },
-  { id: 'songs', label: 'Brani', icon: 'musical-notes-outline' },
-  { id: 'albums', label: 'Album', icon: 'albums-outline' },
-  { id: 'playlists', label: 'Playlist', icon: 'list-outline' },
-  { id: 'favorites', label: 'Preferiti', icon: 'heart-outline' },
-  {
-    id: 'listening',
-    label: 'Ascolti',
-    icon: 'stats-chart-outline',
-    nota: 'di recente e più ascoltati',
-  },
-  {
-    id: 'settings',
-    label: 'Server e connessione',
-    icon: 'settings-outline',
-    nota: 'indirizzo IP e stato libreria',
-  },
-];
-
 export const LibraryScreen: React.FC<Props> = ({ onNavigate }) => {
   const [stats, setStats] = useState<Stats | null>(null);
+  const { items: downloadedItems } = useDownloads();
 
   useEffect(() => {
     void api.stats().then(setStats).catch(() => undefined);
@@ -65,13 +48,42 @@ export const LibraryScreen: React.FC<Props> = ({ onNavigate }) => {
     onNavigate(target);
   };
 
+  const hubItems: HubItem[] = [
+    { id: 'artists', label: 'Artisti', icon: 'person-outline' },
+    { id: 'songs', label: 'Brani', icon: 'musical-notes-outline' },
+    { id: 'albums', label: 'Album', icon: 'albums-outline' },
+    { id: 'playlists', label: 'Playlist', icon: 'list-outline' },
+    { id: 'favorites', label: 'Preferiti', icon: 'heart-outline' },
+    {
+      id: 'listening',
+      label: 'Ascolti',
+      icon: 'stats-chart-outline',
+      nota: 'di recente e più ascoltati',
+    },
+    {
+      id: 'downloads',
+      label: 'Scaricati',
+      icon: 'cloud-download-outline',
+      nota:
+        downloadedItems.size > 0
+          ? `${downloadedItems.size} ${downloadedItems.size === 1 ? 'brano offline' : 'brani offline'}`
+          : 'ascolto senza connessione',
+    },
+    {
+      id: 'settings',
+      label: 'Server e connessione',
+      icon: 'settings-outline',
+      nota: 'indirizzo IP e stato libreria',
+    },
+  ];
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <Text style={styles.pageTitle}>Libreria</Text>
 
       <View style={styles.hubCard}>
-        {HUB_ITEMS.map((item, index) => {
-          const isLast = index === HUB_ITEMS.length - 1;
+        {hubItems.map((item, index) => {
+          const isLast = index === hubItems.length - 1;
           return (
             <Pressable
               key={item.id}

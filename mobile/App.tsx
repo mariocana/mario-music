@@ -6,11 +6,13 @@ import { MiniPlayer } from './src/components/MiniPlayer';
 import { MobileTabBar, type TabType } from './src/components/MobileTabBar';
 import { NowPlayingModal } from './src/components/NowPlayingModal';
 import { initConfig } from './src/config';
+import { DownloadsProvider, useDownloads } from './src/downloads/DownloadsContext';
 import { PlayerProvider } from './src/player/PlayerContext';
 import { AlbumDetailModal } from './src/screens/AlbumDetailModal';
 import { AlbumsScreen } from './src/screens/AlbumsScreen';
 import { ArtistDetailModal } from './src/screens/ArtistDetailModal';
 import { ArtistsScreen } from './src/screens/ArtistsScreen';
+import { DownloadsScreen } from './src/screens/DownloadsScreen';
 import { FavoritesScreen } from './src/screens/FavoritesScreen';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { LibraryScreen, type LibrarySubScreen } from './src/screens/LibraryScreen';
@@ -91,6 +93,9 @@ function MainApp() {
             {librarySubScreen === 'listening' && (
               <ListeningScreen onBack={() => setLibrarySubScreen(null)} />
             )}
+            {librarySubScreen === 'downloads' && (
+              <DownloadsScreen onBack={() => setLibrarySubScreen(null)} />
+            )}
             {librarySubScreen === 'settings' && (
               <SettingsScreen onBack={() => setLibrarySubScreen(null)} />
             )}
@@ -144,12 +149,21 @@ function MainApp() {
   );
 }
 
+function AppWithDownloads() {
+  const { getLocalUri } = useDownloads();
+  return (
+    <PlayerProvider getOfflineUri={getLocalUri}>
+      <MainApp />
+    </PlayerProvider>
+  );
+}
+
 export default function App() {
   return (
     <SafeAreaProvider>
-      <PlayerProvider>
-        <MainApp />
-      </PlayerProvider>
+      <DownloadsProvider>
+        <AppWithDownloads />
+      </DownloadsProvider>
     </SafeAreaProvider>
   );
 }
