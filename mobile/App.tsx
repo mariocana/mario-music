@@ -1,16 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import {
-  Platform,
-  Pressable,
-  SafeAreaView,
   StyleSheet,
-  Text,
   View,
 } from 'react-native';
-import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MiniPlayer } from './src/components/MiniPlayer';
+import { MobileTabBar, type TabType } from './src/components/MobileTabBar';
 import { NowPlayingModal } from './src/components/NowPlayingModal';
 import { initConfig } from './src/config';
 import { PlayerProvider } from './src/player/PlayerContext';
@@ -23,9 +19,8 @@ import { SettingsScreen } from './src/screens/SettingsScreen';
 import { theme } from './src/theme';
 import type { Album } from './src/types';
 
-type TabType = 'home' | 'albums' | 'favorites' | 'search' | 'settings';
-
 function MainApp() {
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<TabType>('home');
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
   const [nowPlayingVisible, setNowPlayingVisible] = useState(false);
@@ -40,7 +35,7 @@ function MainApp() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar style="light" />
 
       {/* Vista schermata corrente */}
@@ -55,78 +50,8 @@ function MainApp() {
       {/* Mini Player fluttuante sopra la barra */}
       <MiniPlayer onPress={() => setNowPlayingVisible(true)} />
 
-      {/* Tab Bar in basso stile Apple Music */}
-      <View style={styles.tabBar}>
-        <Pressable
-          style={styles.tabItem}
-          onPress={() => setActiveTab('home')}
-        >
-          <Ionicons
-            name={activeTab === 'home' ? 'sparkles' : 'sparkles-outline'}
-            size={22}
-            color={activeTab === 'home' ? theme.colors.tint : theme.colors.textMuted}
-          />
-          <Text style={[styles.tabLabel, activeTab === 'home' && styles.tabLabelActive]}>
-            Per te
-          </Text>
-        </Pressable>
-
-        <Pressable
-          style={styles.tabItem}
-          onPress={() => setActiveTab('albums')}
-        >
-          <Ionicons
-            name={activeTab === 'albums' ? 'albums' : 'albums-outline'}
-            size={22}
-            color={activeTab === 'albums' ? theme.colors.tint : theme.colors.textMuted}
-          />
-          <Text style={[styles.tabLabel, activeTab === 'albums' && styles.tabLabelActive]}>
-            Album
-          </Text>
-        </Pressable>
-
-        <Pressable
-          style={styles.tabItem}
-          onPress={() => setActiveTab('favorites')}
-        >
-          <Ionicons
-            name={activeTab === 'favorites' ? 'heart' : 'heart-outline'}
-            size={22}
-            color={activeTab === 'favorites' ? theme.colors.tint : theme.colors.textMuted}
-          />
-          <Text style={[styles.tabLabel, activeTab === 'favorites' && styles.tabLabelActive]}>
-            Preferiti
-          </Text>
-        </Pressable>
-
-        <Pressable
-          style={styles.tabItem}
-          onPress={() => setActiveTab('search')}
-        >
-          <Ionicons
-            name={activeTab === 'search' ? 'search' : 'search-outline'}
-            size={22}
-            color={activeTab === 'search' ? theme.colors.tint : theme.colors.textMuted}
-          />
-          <Text style={[styles.tabLabel, activeTab === 'search' && styles.tabLabelActive]}>
-            Cerca
-          </Text>
-        </Pressable>
-
-        <Pressable
-          style={styles.tabItem}
-          onPress={() => setActiveTab('settings')}
-        >
-          <Ionicons
-            name={activeTab === 'settings' ? 'settings' : 'settings-outline'}
-            size={22}
-            color={activeTab === 'settings' ? theme.colors.tint : theme.colors.textMuted}
-          />
-          <Text style={[styles.tabLabel, activeTab === 'settings' && styles.tabLabelActive]}>
-            Server
-          </Text>
-        </Pressable>
-      </View>
+      {/* Barra schede a pillola + ricerca stile Web */}
+      <MobileTabBar activeTab={activeTab} onTabChange={setActiveTab} />
 
       {/* Modale Dettaglio Album */}
       <AlbumDetailModal
@@ -140,7 +65,7 @@ function MainApp() {
         visible={nowPlayingVisible}
         onClose={() => setNowPlayingVisible(false)}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -161,29 +86,5 @@ const styles = StyleSheet.create({
   },
   screenContent: {
     flex: 1,
-  },
-  tabBar: {
-    flexDirection: 'row',
-    backgroundColor: theme.colors.tabBar,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
-    paddingTop: 8,
-    paddingBottom: Platform.OS === 'ios' ? 4 : 8,
-  },
-  tabItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 4,
-  },
-  tabLabel: {
-    fontSize: 10,
-    fontWeight: '500',
-    color: theme.colors.textMuted,
-    marginTop: 3,
-  },
-  tabLabelActive: {
-    color: theme.colors.tint,
-    fontWeight: '700',
   },
 });
