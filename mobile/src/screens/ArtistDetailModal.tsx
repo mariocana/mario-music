@@ -156,6 +156,7 @@ export const ArtistDetailModal: React.FC<Props> = ({
                 key={track.id}
                 track={track}
                 index={i}
+                currentArtistId={artist.id}
                 onPress={() => playQueue(detail.topTracks, i)}
               />
             ))}

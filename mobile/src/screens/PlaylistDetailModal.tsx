@@ -77,6 +77,24 @@ export const PlaylistDetailModal: React.FC<Props> = ({
     playQueue(tracks, startIndex);
   };
 
+  const handleRemoveTrack = async (position: number) => {
+    try {
+      await api.removeTrackFromPlaylist(playlist.id, position);
+      loadDetail();
+    } catch (err) {
+      Alert.alert('Errore', err instanceof Error ? err.message : 'Impossibile rimuovere il brano');
+    }
+  };
+
+  const handleMoveTrack = async (from: number, to: number) => {
+    try {
+      await api.moveTrackInPlaylist(playlist.id, from, to);
+      loadDetail();
+    } catch (err) {
+      Alert.alert('Errore', err instanceof Error ? err.message : 'Impossibile spostare il brano');
+    }
+  };
+
   const confirmDelete = () => {
     Alert.alert(
       'Elimina playlist',
@@ -192,6 +210,13 @@ export const PlaylistDetailModal: React.FC<Props> = ({
                 track={track}
                 index={i}
                 onPress={() => playQueue(tracks, i)}
+                playlistContext={{
+                  playlistId: playlist.id,
+                  totalTracks: tracks.length,
+                  onMoveUp: i > 0 ? () => void handleMoveTrack(i, i - 1) : undefined,
+                  onMoveDown: i < tracks.length - 1 ? () => void handleMoveTrack(i, i + 1) : undefined,
+                  onRemove: () => void handleRemoveTrack(i),
+                }}
               />
             ))}
           </View>

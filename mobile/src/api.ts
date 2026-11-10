@@ -55,6 +55,12 @@ export const api = {
   playlist: (id: number) => get<PlaylistDetail>(`/api/playlists/${id}`),
   createPlaylist: (name: string) => send<PlaylistSummary>('/api/playlists', 'POST', { name }),
   deletePlaylist: (id: number) => send<void>(`/api/playlists/${id}`, 'DELETE'),
+  addTracksToPlaylist: (playlistId: number, trackIds: number[]) =>
+    send<{ added: number }>(`/api/playlists/${playlistId}/tracks`, 'POST', { trackIds }),
+  removeTrackFromPlaylist: (playlistId: number, position: number) =>
+    send<void>(`/api/playlists/${playlistId}/tracks/${position}`, 'DELETE'),
+  moveTrackInPlaylist: (playlistId: number, from: number, to: number) =>
+    send<void>(`/api/playlists/${playlistId}/tracks`, 'PATCH', { from, to }),
 
   toggleFavorite: (trackId: number, favorite: boolean) =>
     send<{ id: number; favorite: boolean }>(`/api/tracks/${trackId}/favorite`, 'POST', { favorite }),

@@ -2,11 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AddToPlaylistModal } from './src/components/AddToPlaylistModal';
 import { MiniPlayer } from './src/components/MiniPlayer';
 import { MobileTabBar, type TabType } from './src/components/MobileTabBar';
 import { NowPlayingModal } from './src/components/NowPlayingModal';
 import { initConfig } from './src/config';
 import { DownloadsProvider, useDownloads } from './src/downloads/DownloadsContext';
+import { NavigationProvider, useNavigation } from './src/navigation/NavigationContext';
 import { PlayerProvider } from './src/player/PlayerContext';
 import { AlbumDetailModal } from './src/screens/AlbumDetailModal';
 import { AlbumsScreen } from './src/screens/AlbumsScreen';
@@ -30,9 +32,17 @@ function MainApp() {
   const [activeTab, setActiveTab] = useState<TabType>('home');
   const [librarySubScreen, setLibrarySubScreen] = useState<LibrarySubScreen | null>(null);
 
-  const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
-  const [selectedArtist, setSelectedArtist] = useState<Artist | null>(null);
-  const [selectedPlaylist, setSelectedPlaylist] = useState<PlaylistSummary | null>(null);
+  const {
+    stack,
+    goBack,
+    resetStack,
+    navigateToAlbum,
+    navigateToArtist,
+    navigateToPlaylist,
+    addToPlaylistTracks,
+    closeAddToPlaylist,
+  } = useNavigation();
+
   const [nowPlayingVisible, setNowPlayingVisible] = useState(false);
   const [ready, setReady] = useState(false);
 
@@ -46,19 +56,12 @@ function MainApp() {
 
   const handleTabChange = (tab: TabType) => {
     if (tab !== activeTab) {
-      // Se si cambia scheda, si chiudono i dettagli aperti
-      setSelectedAlbum(null);
-      setSelectedArtist(null);
-      setSelectedPlaylist(null);
+      resetStack();
       setActiveTab(tab);
     } else {
       // Tap sulla scheda già attiva: torna alla radice della schermata
-      if (selectedAlbum) {
-        setSelectedAlbum(null);
-      } else if (selectedArtist) {
-        setSelectedArtist(null);
-      } else if (selectedPlaylist) {
-        setSelectedPlaylist(null);
+      if (stack.length > 0) {
+        resetStack();
       } else if (tab === 'library') {
         setLibrarySubScreen(null);
       }
@@ -67,14 +70,10 @@ function MainApp() {
 
   const handleLibraryNavigate = (target: LibrarySubScreen) => {
     if (target === 'playlists') {
-      setSelectedAlbum(null);
-      setSelectedArtist(null);
-      setSelectedPlaylist(null);
+      resetStack();
       setActiveTab('playlists');
     } else if (target === 'favorites') {
-      setSelectedAlbum(null);
-      setSelectedArtist(null);
-      setSelectedPlaylist(null);
+      resetStack();
       setActiveTab('favorites');
     } else {
       setLibrarySubScreen(target);
@@ -87,28 +86,42 @@ function MainApp() {
 
       {/* Vista schermata corrente con dettagli inline: la barra di riproduzione e navigazione restano SEMPRE in primo piano */}
       <View style={styles.screenContent}>
-        {selectedAlbum ? (
-          <AlbumDetailModal
-            album={selectedAlbum}
-            onBack={() => setSelectedAlbum(null)}
-          />
-        ) : selectedArtist ? (
-          <ArtistDetailModal
-            artist={selectedArtist}
-            onBack={() => setSelectedArtist(null)}
-            onSelectAlbum={(alb) => setSelectedAlbum(alb)}
-          />
-        ) : selectedPlaylist ? (
-          <PlaylistDetailModal
-            playlist={selectedPlaylist}
-            onBack={() => setSelectedPlaylist(null)}
-            onPlaylistDeleted={() => setSelectedPlaylist(null)}
-          />
+        {stack.length > 0 ? (
+          (() => {
+            const currentRoute = stack[stack.length - 1];
+            if (currentRoute.type === 'album') {
+              return (
+                <AlbumDetailModal
+                  album={currentRoute.album}
+                  onBack={goBack}
+                />
+              );
+            }
+            if (currentRoute.type === 'artist') {
+              return (
+                <ArtistDetailModal
+                  artist={currentRoute.artist}
+                  onBack={goBack}
+                  onSelectAlbum={(alb) => navigateToAlbum(alb.id, alb)}
+                />
+              );
+            }
+            if (currentRoute.type === 'playlist') {
+              return (
+                <PlaylistDetailModal
+                  playlist={currentRoute.playlist}
+                  onBack={goBack}
+                  onPlaylistDeleted={goBack}
+                />
+              );
+            }
+            return null;
+          })()
         ) : (
           <>
             {activeTab === 'home' && (
               <HomeScreen
-                onSelectAlbum={setSelectedAlbum}
+                onSelectAlbum={(alb) => navigateToAlbum(alb.id, alb)}
                 onOpenListening={() => {
                   setActiveTab('library');
                   setLibrarySubScreen('listening');
@@ -124,7 +137,7 @@ function MainApp() {
                 {librarySubScreen === 'artists' && (
                   <ArtistsScreen
                     onBack={() => setLibrarySubScreen(null)}
-                    onSelectArtist={setSelectedArtist}
+                    onSelectArtist={(art) => navigateToArtist(art.id, art)}
                   />
                 )}
                 {librarySubScreen === 'songs' && (
@@ -133,7 +146,7 @@ function MainApp() {
                 {librarySubScreen === 'albums' && (
                   <AlbumsScreen
                     onBack={() => setLibrarySubScreen(null)}
-                    onSelectAlbum={setSelectedAlbum}
+                    onSelectAlbum={(alb) => navigateToAlbum(alb.id, alb)}
                   />
                 )}
                 {librarySubScreen === 'listening' && (
@@ -149,7 +162,7 @@ function MainApp() {
             )}
 
             {activeTab === 'playlists' && (
-              <PlaylistsScreen onSelectPlaylist={setSelectedPlaylist} />
+              <PlaylistsScreen onSelectPlaylist={navigateToPlaylist} />
             )}
 
             {activeTab === 'favorites' && <FavoritesScreen />}
@@ -170,6 +183,13 @@ function MainApp() {
         visible={nowPlayingVisible}
         onClose={() => setNowPlayingVisible(false)}
       />
+
+      {/* Modale Aggiungi a Playlist stile Apple Music / Web */}
+      <AddToPlaylistModal
+        visible={!!addToPlaylistTracks}
+        tracks={addToPlaylistTracks}
+        onClose={closeAddToPlaylist}
+      />
     </View>
   );
 }
@@ -178,7 +198,9 @@ function AppWithDownloads() {
   const { getLocalUri } = useDownloads();
   return (
     <PlayerProvider getOfflineUri={getLocalUri}>
-      <MainApp />
+      <NavigationProvider>
+        <MainApp />
+      </NavigationProvider>
     </PlayerProvider>
   );
 }

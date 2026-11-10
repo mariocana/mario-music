@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import {
+  ActionSheetIOS,
+  Alert,
   Dimensions,
   Modal,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -11,6 +14,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../api';
+import { useDownloads } from '../downloads/DownloadsContext';
+import { useNavigation } from '../navigation/NavigationContext';
 import { usePlayer } from '../player/PlayerContext';
 import { theme } from '../theme';
 import { formatTime, type Lyrics } from '../types';
@@ -42,7 +47,105 @@ export const NowPlayingModal: React.FC<Props> = ({ visible, onClose }) => {
     toggleFavorite,
     queue,
     index,
+    playNext,
+    addToQueue,
   } = usePlayer();
+
+  const { isDownloaded, downloadTrack, removeTrack } = useDownloads();
+  const { navigateToAlbum, navigateToArtist, openAddToPlaylist } = useNavigation();
+
+  const downloaded = current ? isDownloaded(current.id) : false;
+
+  const showTrackMenu = () => {
+    if (!current) return;
+    const options: string[] = ['Annulla'];
+    const actions: (() => void)[] = [() => {}];
+    const destructiveIndices: number[] = [];
+
+    // 1. Preferiti
+    const favLabel = current.favorite ? 'Togli dai preferiti' : 'Aggiungi ai preferiti';
+    options.push(favLabel);
+    actions.push(() => void toggleFavorite(current.id));
+
+    // 2. Riproduci dopo
+    options.push('Riproduci dopo');
+    actions.push(() => playNext(current));
+
+    // 3. Aggiungi alla coda
+    options.push('Aggiungi alla coda');
+    actions.push(() => addToQueue(current));
+
+    // 4. Vai all'album
+    if (current.albumId) {
+      options.push("Vai all'album");
+      actions.push(() => {
+        onClose();
+        navigateToAlbum(current.albumId, {
+          title: current.album,
+          artist: current.artist,
+          artistId: current.artistId,
+          coverKey: current.coverKey,
+        });
+      });
+    }
+
+    // 5. Vai all'artista
+    if (current.artistId) {
+      options.push("Vai all'artista");
+      actions.push(() => {
+        onClose();
+        navigateToArtist(current.artistId, {
+          name: current.artist,
+        });
+      });
+    }
+
+    // 6. Aggiungi a playlist…
+    options.push('Aggiungi a playlist…');
+    actions.push(() => openAddToPlaylist([current]));
+
+    // 7. Download
+    const downloadActionLabel = downloaded ? 'Rimuovi download' : 'Scarica brano';
+    if (downloaded) destructiveIndices.push(options.length);
+    options.push(downloadActionLabel);
+    actions.push(() => {
+      if (downloaded) {
+        void removeTrack(current.id);
+      } else {
+        void downloadTrack(current).catch((err) => {
+          Alert.alert('Errore download', err instanceof Error ? err.message : 'Impossibile scaricare');
+        });
+      }
+    });
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options,
+          cancelButtonIndex: 0,
+          destructiveButtonIndex: destructiveIndices.length > 0 ? destructiveIndices[0] : undefined,
+          title: current.title,
+          message: current.artist,
+        },
+        (buttonIndex) => {
+          actions[buttonIndex]?.();
+        }
+      );
+    } else {
+      Alert.alert(current.title, current.artist, [
+        { text: 'Annulla', style: 'cancel' },
+        ...options.slice(1).map((opt, i) => {
+          const idx = i + 1;
+          const isDestructive = destructiveIndices.includes(idx);
+          return {
+            text: opt,
+            style: isDestructive ? ('destructive' as const) : ('default' as const),
+            onPress: actions[idx],
+          };
+        }),
+      ]);
+    }
+  };
 
   const [activeTab, setActiveTab] = useState<'player' | 'lyrics' | 'queue'>('player');
   const [lyrics, setLyrics] = useState<Lyrics | null>(null);
@@ -108,7 +211,9 @@ export const NowPlayingModal: React.FC<Props> = ({ visible, onClose }) => {
               </Pressable>
             </View>
 
-            <View style={{ width: 40 }} />
+            <Pressable hitSlop={12} onPress={showTrackMenu} style={styles.headerBtn}>
+              <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.textSecondary} />
+            </Pressable>
           </View>
 
           {/* VISTA 1: Player Principale */}

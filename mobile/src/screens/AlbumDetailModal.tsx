@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import {
+  ActionSheetIOS,
   ActivityIndicator,
+  Alert,
   Dimensions,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +16,7 @@ import { api } from '../api';
 import { CoverImage } from '../components/CoverImage';
 import { TrackRow } from '../components/TrackRow';
 import { useDownloads } from '../downloads/DownloadsContext';
+import { useNavigation } from '../navigation/NavigationContext';
 import { usePlayer } from '../player/PlayerContext';
 import { theme } from '../theme';
 import { formatLength, type Album, type AlbumDetail } from '../types';
@@ -29,8 +33,9 @@ export const AlbumDetailModal: React.FC<Props> = ({ album, onBack }) => {
   const [detail, setDetail] = useState<AlbumDetail | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const { playQueue } = usePlayer();
+  const { playQueue, playNext, addToQueue } = usePlayer();
   const { downloadTracks, removeTrack, isDownloaded } = useDownloads();
+  const { navigateToArtist, openAddToPlaylist } = useNavigation();
   const [downloadingAlbum, setDownloadingAlbum] = useState(false);
 
   useEffect(() => {
@@ -77,12 +82,77 @@ export const AlbumDetailModal: React.FC<Props> = ({ album, onBack }) => {
     }
   };
 
+  const showAlbumMenu = () => {
+    if (tracks.length === 0) return;
+    const options: string[] = ['Annulla'];
+    const actions: (() => void)[] = [() => {}];
+    const destructiveIndices: number[] = [];
+
+    // 1. Riproduci dopo
+    options.push('Riproduci dopo');
+    actions.push(() => playNext(tracks));
+
+    // 2. Aggiungi alla coda
+    options.push('Aggiungi alla coda');
+    actions.push(() => addToQueue(tracks));
+
+    // 3. Vai all'artista
+    if (album.artistId) {
+      options.push("Vai all'artista");
+      actions.push(() => {
+        navigateToArtist(album.artistId, { name: album.artist });
+      });
+    }
+
+    // 4. Aggiungi a playlist…
+    options.push('Aggiungi a playlist…');
+    actions.push(() => openAddToPlaylist(tracks));
+
+    // 5. Download album
+    const dlLabel = allDownloaded ? 'Rimuovi download album' : 'Scarica album';
+    if (allDownloaded) destructiveIndices.push(options.length);
+    options.push(dlLabel);
+    actions.push(() => void handleToggleDownloadAlbum());
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options,
+          cancelButtonIndex: 0,
+          destructiveButtonIndex: destructiveIndices.length > 0 ? destructiveIndices[0] : undefined,
+          title: album.title,
+          message: album.artist,
+        },
+        (buttonIndex) => {
+          actions[buttonIndex]?.();
+        }
+      );
+    } else {
+      Alert.alert(album.title, album.artist, [
+        { text: 'Annulla', style: 'cancel' },
+        ...options.slice(1).map((opt, i) => {
+          const idx = i + 1;
+          const isDestructive = destructiveIndices.includes(idx);
+          return {
+            text: opt,
+            style: isDestructive ? ('destructive' as const) : ('default' as const),
+            onPress: actions[idx],
+          };
+        }),
+      ]);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.navBar}>
         <Pressable hitSlop={12} onPress={onBack} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color={theme.colors.tint} />
           <Text style={styles.backLabel}>Indietro</Text>
+        </Pressable>
+
+        <Pressable hitSlop={12} onPress={showAlbumMenu} style={styles.iconBtn}>
+          <Ionicons name="ellipsis-horizontal" size={20} color={theme.colors.textSecondary} />
         </Pressable>
       </View>
 
@@ -157,6 +227,7 @@ export const AlbumDetailModal: React.FC<Props> = ({ album, onBack }) => {
                 track={track}
                 index={i}
                 showCover={false}
+                currentAlbumId={album.id}
                 onPress={() => playQueue(tracks, i)}
               />
             ))}
@@ -175,8 +246,12 @@ const styles = StyleSheet.create({
   navBar: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 12,
     paddingVertical: 8,
+  },
+  iconBtn: {
+    padding: 6,
   },
   backBtn: {
     flexDirection: 'row',

@@ -2,16 +2,28 @@ import React from 'react';
 import { ActionSheetIOS, ActivityIndicator, Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useDownloads } from '../downloads/DownloadsContext';
+import { useNavigation } from '../navigation/NavigationContext';
 import { usePlayer } from '../player/PlayerContext';
 import { theme } from '../theme';
 import { formatTime, type Track } from '../types';
 import { CoverImage } from './CoverImage';
+
+export type PlaylistTrackContext = {
+  playlistId: number;
+  totalTracks: number;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  onRemove?: () => void;
+};
 
 type Props = {
   track: Track;
   index?: number;
   showCover?: boolean;
   onPress?: () => void;
+  currentAlbumId?: number;
+  currentArtistId?: number;
+  playlistContext?: PlaylistTrackContext;
 };
 
 export const TrackRow: React.FC<Props> = ({
@@ -19,55 +31,117 @@ export const TrackRow: React.FC<Props> = ({
   index,
   showCover = true,
   onPress,
+  currentAlbumId,
+  currentArtistId,
+  playlistContext,
 }) => {
   const { current, isPlaying, playNext, addToQueue, toggleFavorite } = usePlayer();
   const { isDownloaded, downloadTrack, removeTrack, progress } = useDownloads();
+  const { navigateToAlbum, navigateToArtist, openAddToPlaylist } = useNavigation();
+
   const isCurrent = current?.id === track.id;
   const downloaded = isDownloaded(track.id);
   const isDownloading = progress.has(track.id);
 
   const showMenu = () => {
+    const options: string[] = ['Annulla'];
+    const actions: (() => void)[] = [() => {}];
+    const destructiveIndices: number[] = [];
+
+    // 1. Preferiti
+    const favLabel = track.favorite ? 'Togli dai preferiti' : 'Aggiungi ai preferiti';
+    options.push(favLabel);
+    actions.push(() => void toggleFavorite(track.id));
+
+    // 2. Riproduci dopo
+    options.push('Riproduci dopo');
+    actions.push(() => playNext(track));
+
+    // 3. Aggiungi alla coda
+    options.push('Aggiungi alla coda');
+    actions.push(() => addToQueue(track));
+
+    // 4. Vai all'album
+    if (track.albumId && track.albumId !== currentAlbumId) {
+      options.push("Vai all'album");
+      actions.push(() => {
+        navigateToAlbum(track.albumId, {
+          title: track.album,
+          artist: track.artist,
+          artistId: track.artistId,
+          coverKey: track.coverKey,
+        });
+      });
+    }
+
+    // 5. Vai all'artista
+    if (track.artistId && track.artistId !== currentArtistId) {
+      options.push("Vai all'artista");
+      actions.push(() => {
+        navigateToArtist(track.artistId, {
+          name: track.artist,
+        });
+      });
+    }
+
+    // 6. Aggiungi a playlist…
+    options.push('Aggiungi a playlist…');
+    actions.push(() => openAddToPlaylist([track]));
+
+    // 7. Voci contestuali per playlist (Sposta su, Sposta giù, Togli dalla playlist)
+    if (playlistContext?.onMoveUp) {
+      options.push('Sposta su');
+      actions.push(playlistContext.onMoveUp);
+    }
+    if (playlistContext?.onMoveDown) {
+      options.push('Sposta giù');
+      actions.push(playlistContext.onMoveDown);
+    }
+    if (playlistContext?.onRemove) {
+      destructiveIndices.push(options.length);
+      options.push('Togli dalla playlist');
+      actions.push(playlistContext.onRemove);
+    }
+
+    // 8. Download
     const downloadActionLabel = downloaded ? 'Rimuovi download' : 'Scarica brano';
-    const options = ['Annulla', 'Riproduci dopo', 'Aggiungi alla coda', downloadActionLabel];
+    if (downloaded) destructiveIndices.push(options.length);
+    options.push(downloadActionLabel);
+    actions.push(() => {
+      if (downloaded) {
+        void removeTrack(track.id);
+      } else {
+        void downloadTrack(track).catch((err) => {
+          Alert.alert('Errore download', err instanceof Error ? err.message : 'Impossibile scaricare');
+        });
+      }
+    });
+
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
           options,
           cancelButtonIndex: 0,
-          destructiveButtonIndex: downloaded ? 3 : undefined,
+          destructiveButtonIndex: destructiveIndices.length > 0 ? destructiveIndices[0] : undefined,
           title: track.title,
           message: track.artist,
         },
         (buttonIndex) => {
-          if (buttonIndex === 1) playNext(track);
-          if (buttonIndex === 2) addToQueue(track);
-          if (buttonIndex === 3) {
-            if (downloaded) {
-              void removeTrack(track.id);
-            } else {
-              void downloadTrack(track).catch((err) => {
-                Alert.alert('Errore download', err instanceof Error ? err.message : 'Impossibile scaricare');
-              });
-            }
-          }
+          actions[buttonIndex]?.();
         }
       );
     } else {
       Alert.alert(track.title, track.artist, [
         { text: 'Annulla', style: 'cancel' },
-        { text: 'Riproduci dopo', onPress: () => playNext(track) },
-        { text: 'Aggiungi alla coda', onPress: () => addToQueue(track) },
-        {
-          text: downloadActionLabel,
-          style: downloaded ? 'destructive' : 'default',
-          onPress: () => {
-            if (downloaded) {
-              void removeTrack(track.id);
-            } else {
-              void downloadTrack(track).catch(() => undefined);
-            }
-          },
-        },
+        ...options.slice(1).map((opt, i) => {
+          const idx = i + 1;
+          const isDestructive = destructiveIndices.includes(idx);
+          return {
+            text: opt,
+            style: isDestructive ? ('destructive' as const) : ('default' as const),
+            onPress: actions[idx],
+          };
+        }),
       ]);
     }
   };
