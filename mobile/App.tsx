@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useServerOnline } from './src/api';
 import { AddToPlaylistModal } from './src/components/AddToPlaylistModal';
 import { MiniPlayer } from './src/components/MiniPlayer';
 import { MobileTabBar, type TabType } from './src/components/MobileTabBar';
@@ -25,20 +27,23 @@ import { SearchScreen } from './src/screens/SearchScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SongsScreen } from './src/screens/SongsScreen';
 import { theme } from './src/theme';
-import type { Album, Artist, PlaylistSummary } from './src/types';
 
 function MainApp() {
   const insets = useSafeAreaInsets();
-  const [activeTab, setActiveTab] = useState<TabType>('home');
-  const [librarySubScreen, setLibrarySubScreen] = useState<LibrarySubScreen | null>(null);
+  const isServerOnline = useServerOnline();
 
   const {
     stack,
+    activeTab,
+    setActiveTab,
+    librarySubScreen,
+    setLibrarySubScreen,
     goBack,
     resetStack,
     navigateToAlbum,
     navigateToArtist,
     navigateToPlaylist,
+    navigateToSettings,
     addToPlaylistTracks,
     closeAddToPlaylist,
   } = useNavigation();
@@ -58,6 +63,9 @@ function MainApp() {
     if (tab !== activeTab) {
       resetStack();
       setActiveTab(tab);
+      if (tab === 'library') {
+        setLibrarySubScreen(null);
+      }
     } else {
       // Tap sulla scheda già attiva: torna alla radice della schermata
       if (stack.length > 0) {
@@ -83,6 +91,21 @@ function MainApp() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar style="light" />
+
+      {/* Banner discreto di modalità offline / server non raggiungibile */}
+      {!isServerOnline && (
+        <Pressable
+          style={styles.offlineBanner}
+          onPress={navigateToSettings}
+          hitSlop={6}
+        >
+          <Ionicons name="cloud-offline" size={15} color="#fbbf24" style={styles.offlineIcon} />
+          <Text style={styles.offlineBannerText} numberOfLines={1}>
+            Modalità non in linea · Server non raggiungibile
+          </Text>
+          <Ionicons name="chevron-forward" size={14} color="#fbbf24" />
+        </Pressable>
+      )}
 
       {/* Vista schermata corrente con dettagli inline: la barra di riproduzione e navigazione restano SEMPRE in primo piano */}
       <View style={styles.screenContent}>
@@ -222,5 +245,23 @@ const styles = StyleSheet.create({
   },
   screenContent: {
     flex: 1,
+  },
+  offlineBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  offlineIcon: {
+    marginRight: 8,
+  },
+  offlineBannerText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#fbbf24',
   },
 });

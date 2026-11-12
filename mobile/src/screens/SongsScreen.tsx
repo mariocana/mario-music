@@ -10,8 +10,9 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { api } from '../api';
+import { api, useServerOnline } from '../api';
 import { TrackRow } from '../components/TrackRow';
+import { useDownloads } from '../downloads/DownloadsContext';
 import { usePlayer } from '../player/PlayerContext';
 import { theme } from '../theme';
 import type { Track } from '../types';
@@ -26,14 +27,24 @@ export const SongsScreen: React.FC<Props> = ({ onBack }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
+  const isServerOnline = useServerOnline();
+  const { items: downloadedItems } = useDownloads();
   const { playQueue, toggleShuffle, shuffle } = usePlayer();
+
+  const downloadedTracks = useMemo(
+    () => Array.from(downloadedItems.values()).map((d) => d.track),
+    [downloadedItems]
+  );
+
+  const effectiveTracks = tracks.length > 0 ? tracks : downloadedTracks;
+  const isOfflineFallback = tracks.length === 0 && downloadedTracks.length > 0;
 
   const loadTracks = async () => {
     try {
       const res = await api.tracks();
       setTracks(res);
     } catch {
-      // ignore
+      // ignore, cadrà nel fallback offline
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -46,14 +57,14 @@ export const SongsScreen: React.FC<Props> = ({ onBack }) => {
 
   const filteredTracks = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return tracks;
-    return tracks.filter(
+    if (!q) return effectiveTracks;
+    return effectiveTracks.filter(
       (t) =>
         t.title.toLowerCase().includes(q) ||
         t.artist.toLowerCase().includes(q) ||
         t.album.toLowerCase().includes(q)
     );
-  }, [tracks, searchQuery]);
+  }, [effectiveTracks, searchQuery]);
 
   const handlePlayAll = (casuale: boolean) => {
     if (filteredTracks.length === 0) return;
@@ -63,7 +74,7 @@ export const SongsScreen: React.FC<Props> = ({ onBack }) => {
     playQueue(filteredTracks, startIndex);
   };
 
-  if (loading) {
+  if (loading && effectiveTracks.length === 0) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color={theme.colors.tint} />
@@ -103,7 +114,9 @@ export const SongsScreen: React.FC<Props> = ({ onBack }) => {
           <View style={styles.header}>
             <Text style={styles.pageTitle}>Brani</Text>
             <Text style={styles.subtext}>
-              {tracks.length} {tracks.length === 1 ? 'brano' : 'brani'} indicizzati
+              {isOfflineFallback
+                ? `${effectiveTracks.length} ${effectiveTracks.length === 1 ? 'brano offline' : 'brani offline'}`
+                : `${effectiveTracks.length} ${effectiveTracks.length === 1 ? 'brano' : 'brani'} indicizzati`}
             </Text>
 
             {/* Quick action buttons */}
@@ -131,7 +144,7 @@ export const SongsScreen: React.FC<Props> = ({ onBack }) => {
               <Ionicons name="search" size={16} color={theme.colors.textMuted} />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Cerca nei brani..."
+                placeholder={isOfflineFallback ? 'Cerca nei brani scaricati...' : 'Cerca nei brani...'}
                 placeholderTextColor={theme.colors.textMuted}
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -143,9 +156,17 @@ export const SongsScreen: React.FC<Props> = ({ onBack }) => {
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Ionicons name="musical-notes-outline" size={48} color={theme.colors.textMuted} />
+            <Ionicons
+              name={isOfflineFallback || !isServerOnline ? 'cloud-offline-outline' : 'musical-notes-outline'}
+              size={48}
+              color={theme.colors.textMuted}
+            />
             <Text style={styles.emptyText}>
-              {searchQuery ? 'Nessun brano corrisponde alla ricerca' : 'Nessun brano presente'}
+              {searchQuery
+                ? 'Nessun brano corrisponde alla ricerca'
+                : !isServerOnline
+                ? 'Server non raggiungibile e nessun brano scaricato'
+                : 'Nessun brano presente'}
             </Text>
           </View>
         }
@@ -173,93 +194,97 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   navBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 4,
   },
   backBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'flex-start',
   },
   backLabel: {
+    fontSize: 16,
     color: theme.colors.tint,
-    fontSize: 17,
-    fontWeight: '400',
-    marginLeft: 2,
-  },
-  listContent: {
-    paddingBottom: 120,
+    marginLeft: 4,
   },
   header: {
-    paddingHorizontal: theme.spacing.md,
-    marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 12,
   },
   pageTitle: {
-    fontSize: 34,
+    fontSize: 32,
     fontWeight: '800',
     color: theme.colors.textPrimary,
-    letterSpacing: -0.5,
   },
   subtext: {
     fontSize: 14,
-    color: theme.colors.textMuted,
-    marginTop: 2,
+    color: theme.colors.textSecondary,
+    marginTop: 4,
     marginBottom: 16,
   },
   actionButtons: {
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 14,
+    marginBottom: 16,
   },
   btn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: theme.radii.md,
-    gap: 6,
+    paddingVertical: 12,
+    borderRadius: theme.radii.full,
+    gap: 8,
   },
   primaryBtn: {
     backgroundColor: theme.colors.tint,
   },
-  primaryBtnText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 15,
-  },
   secondaryBtn: {
     backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.separator,
+  },
+  primaryBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
   },
   secondaryBtnText: {
     color: theme.colors.tint,
-    fontWeight: '700',
     fontSize: 15,
+    fontWeight: '700',
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 10,
-    paddingHorizontal: 10,
+    backgroundColor: theme.colors.card,
+    borderRadius: theme.radii.md,
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    gap: 8,
+    borderWidth: 1,
+    borderColor: theme.colors.separator,
   },
   searchInput: {
     flex: 1,
+    marginLeft: 8,
     fontSize: 15,
     color: theme.colors.textPrimary,
-    padding: 0,
+  },
+  listContent: {
+    paddingBottom: 130,
   },
   emptyContainer: {
-    paddingTop: 80,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
+    paddingVertical: 64,
+    paddingHorizontal: 32,
   },
   emptyText: {
     fontSize: 16,
     color: theme.colors.textMuted,
+    textAlign: 'center',
+    marginTop: 12,
   },
 });

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -9,9 +9,11 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { api } from '../api';
+import { api, useServerOnline } from '../api';
 import { CoverImage } from '../components/CoverImage';
 import { TrackRow } from '../components/TrackRow';
+import { useDownloads } from '../downloads/DownloadsContext';
+import { useNavigation } from '../navigation/NavigationContext';
 import { usePlayer } from '../player/PlayerContext';
 import { theme } from '../theme';
 import type { Album, Home, Track } from '../types';
@@ -27,7 +29,15 @@ export const HomeScreen: React.FC<Props> = ({ onSelectAlbum, onOpenListening }) 
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { playQueue } = usePlayer();
+  const isServerOnline = useServerOnline();
+  const { items: downloadedItems } = useDownloads();
+  const { navigateToDownloads, navigateToSettings } = useNavigation();
+  const { playQueue, toggleShuffle, shuffle } = usePlayer();
+
+  const downloadedTracks = useMemo(
+    () => Array.from(downloadedItems.values()).map((d) => d.track),
+    [downloadedItems]
+  );
 
   const loadData = async () => {
     try {
@@ -51,6 +61,14 @@ export const HomeScreen: React.FC<Props> = ({ onSelectAlbum, onOpenListening }) 
     void loadData();
   };
 
+  const handlePlayDownloaded = (casuale: boolean) => {
+    if (downloadedTracks.length === 0) return;
+    if (casuale && !shuffle) toggleShuffle();
+    if (!casuale && shuffle) toggleShuffle();
+    const startIndex = casuale ? Math.floor(Math.random() * downloadedTracks.length) : 0;
+    playQueue(downloadedTracks, startIndex);
+  };
+
   const handleResume = async (track: Track) => {
     try {
       const album = await api.album(track.albumId).catch(() => null);
@@ -62,7 +80,8 @@ export const HomeScreen: React.FC<Props> = ({ onSelectAlbum, onOpenListening }) 
     }
   };
 
-  if (loading) {
+  // Spinner solo durante il primissimo caricamento
+  if (loading && !data) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color={theme.colors.tint} />
@@ -70,16 +89,131 @@ export const HomeScreen: React.FC<Props> = ({ onSelectAlbum, onOpenListening }) 
     );
   }
 
-  if (error) {
+  // Se non ci sono dati remoti a causa di server offline o errore di rete
+  if (!data && (error || !isServerOnline)) {
+    // Caso 1: ci sono brani scaricati -> Offre l'esperienza offline immediata
+    if (downloadedTracks.length > 0) {
+      return (
+        <ScrollView
+          style={styles.container}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={theme.colors.tint}
+            />
+          }
+        >
+          <Text style={styles.pageTitle}>Per te</Text>
+
+          {/* Scheda avviso modalità non in linea */}
+          <View style={styles.offlineNoticeCard}>
+            <View style={styles.offlineNoticeHeader}>
+              <Ionicons name="cloud-offline" size={20} color="#fbbf24" />
+              <Text style={styles.offlineNoticeTitle}>Modalità non in linea</Text>
+            </View>
+            <Text style={styles.offlineNoticeDesc}>
+              Il server non risponde. Puoi riprodurre liberamente tutta la musica scaricata su questo dispositivo.
+            </Text>
+            <View style={styles.offlineNoticeActions}>
+              <Pressable
+                style={styles.offlineActionBtn}
+                onPress={onRefresh}
+                hitSlop={6}
+              >
+                <Ionicons name="refresh" size={14} color={theme.colors.tint} />
+                <Text style={styles.offlineActionBtnText}>Riprova connessione</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.offlineActionBtn, styles.offlineActionBtnSecondary]}
+                onPress={navigateToSettings}
+                hitSlop={6}
+              >
+                <Ionicons name="settings-outline" size={14} color={theme.colors.textSecondary} />
+                <Text style={styles.offlineActionBtnSecondaryText}>Impostazioni</Text>
+              </Pressable>
+            </View>
+          </View>
+
+          {/* Sezione musica scaricata con riproduzione immediata */}
+          <View style={styles.offlineShelf}>
+            <View style={styles.offlineShelfHeader}>
+              <Text style={styles.shelfTitle}>
+                Musica scaricata ({downloadedTracks.length})
+              </Text>
+            </View>
+
+            <View style={styles.playButtonsRow}>
+              <Pressable
+                style={[styles.btn, styles.primaryBtn]}
+                onPress={() => handlePlayDownloaded(false)}
+              >
+                <Ionicons name="play" size={18} color="#fff" />
+                <Text style={styles.primaryBtnText}>Riproduci tutti</Text>
+              </Pressable>
+
+              <Pressable
+                style={[styles.btn, styles.secondaryBtn]}
+                onPress={() => handlePlayDownloaded(true)}
+              >
+                <Ionicons name="shuffle" size={18} color={theme.colors.tint} />
+                <Text style={styles.secondaryBtnText}>Casuale</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.topTracksList}>
+              {downloadedTracks.slice(0, 25).map((track, i) => (
+                <TrackRow
+                  key={track.id}
+                  track={track}
+                  index={i}
+                  showCover
+                  onPress={() => playQueue(downloadedTracks, i)}
+                />
+              ))}
+            </View>
+
+            <Pressable style={styles.listeningLink} onPress={navigateToDownloads}>
+              <Text style={styles.listeningLinkText}>
+                Tutti i download ({downloadedTracks.length}) →
+              </Text>
+            </Pressable>
+          </View>
+
+          <View style={{ height: 130 }} />
+        </ScrollView>
+      );
+    }
+
+    // Caso 2: nessun brano scaricato offline
     return (
-      <View style={styles.center}>
-        <Ionicons name="alert-circle-outline" size={48} color={theme.colors.error} />
-        <Text style={styles.errorText}>Impossibile connettersi al server</Text>
-        <Text style={styles.errorSubtext}>{error}</Text>
-        <Pressable style={styles.retryBtn} onPress={loadData}>
-          <Text style={styles.retryBtnText}>Riprova</Text>
-        </Pressable>
-      </View>
+      <ScrollView
+        contentContainerStyle={styles.center}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={theme.colors.tint}
+          />
+        }
+      >
+        <Ionicons name="cloud-offline-outline" size={56} color="#fbbf24" />
+        <Text style={styles.errorText}>Server non raggiungibile</Text>
+        <Text style={styles.errorSubtext}>
+          {error ?? 'Impossibile connettersi al server musicale.'}
+          {'\n'}Non hai ancora scaricato alcun brano per l'ascolto offline.
+        </Text>
+        <View style={styles.offlineEmptyActions}>
+          <Pressable style={styles.primaryActionBtn} onPress={navigateToSettings}>
+            <Ionicons name="settings-outline" size={18} color="#fff" />
+            <Text style={styles.primaryActionBtnText}>Impostazioni server</Text>
+          </Pressable>
+          <Pressable style={styles.secondaryActionBtn} onPress={loadData}>
+            <Ionicons name="refresh" size={18} color={theme.colors.tint} />
+            <Text style={styles.secondaryActionBtnText}>Riprova</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
     );
   }
 
@@ -279,18 +413,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: theme.colors.textMuted,
     textAlign: 'center',
-    marginTop: 4,
-    marginBottom: 16,
-  },
-  retryBtn: {
-    backgroundColor: theme.colors.tint,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: theme.radii.full,
-  },
-  retryBtnText: {
-    color: '#fff',
-    fontWeight: '600',
+    marginTop: 6,
+    marginBottom: 20,
+    lineHeight: 18,
   },
   listeningLink: {
     paddingVertical: 18,
@@ -300,6 +425,136 @@ const styles = StyleSheet.create({
   },
   listeningLinkText: {
     color: theme.colors.tint,
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  // Elementi per modalità Offline
+  offlineNoticeCard: {
+    marginHorizontal: theme.spacing.md,
+    marginTop: 8,
+    marginBottom: 16,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+    borderWidth: 1,
+    borderRadius: theme.radii.md,
+    padding: 14,
+  },
+  offlineNoticeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+    gap: 8,
+  },
+  offlineNoticeTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#fbbf24',
+  },
+  offlineNoticeDesc: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  offlineNoticeActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  offlineActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: theme.radii.full,
+  },
+  offlineActionBtnSecondary: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: theme.colors.separator,
+  },
+  offlineActionBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.tint,
+  },
+  offlineActionBtnSecondaryText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: theme.colors.textSecondary,
+  },
+  offlineShelf: {
+    marginTop: 10,
+  },
+  offlineShelfHeader: {
+    marginBottom: 4,
+  },
+  playButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: theme.spacing.md,
+    marginBottom: 16,
+  },
+  btn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 11,
+    borderRadius: theme.radii.full,
+    gap: 8,
+  },
+  primaryBtn: {
+    backgroundColor: theme.colors.tint,
+  },
+  secondaryBtn: {
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.separator,
+  },
+  primaryBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  secondaryBtnText: {
+    color: theme.colors.tint,
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  offlineEmptyActions: {
+    gap: 12,
+    width: '100%',
+    maxWidth: 280,
+  },
+  primaryActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: theme.colors.tint,
+    paddingVertical: 12,
+    borderRadius: theme.radii.full,
+  },
+  primaryActionBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  secondaryActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.separator,
+    paddingVertical: 12,
+    borderRadius: theme.radii.full,
+  },
+  secondaryActionBtnText: {
+    color: theme.colors.textPrimary,
     fontSize: 15,
     fontWeight: '600',
   },

@@ -13,8 +13,10 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { api } from '../api';
+import { api, useServerOnline } from '../api';
 import { PlaylistCover } from '../components/PlaylistCover';
+import { useDownloads } from '../downloads/DownloadsContext';
+import { useNavigation } from '../navigation/NavigationContext';
 import { theme } from '../theme';
 import { formatLength, type PlaylistSummary } from '../types';
 
@@ -33,6 +35,10 @@ export const PlaylistsScreen: React.FC<Props> = ({ onBack, onSelectPlaylist }) =
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [creating, setCreating] = useState(false);
+
+  const isServerOnline = useServerOnline();
+  const { items: downloadedItems } = useDownloads();
+  const { navigateToDownloads } = useNavigation();
 
   const loadPlaylists = async () => {
     try {
@@ -119,14 +125,31 @@ export const PlaylistsScreen: React.FC<Props> = ({ onBack, onSelectPlaylist }) =
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Ionicons name="list-outline" size={48} color={theme.colors.textMuted} />
-            <Text style={styles.emptyText}>Nessuna playlist creata.</Text>
-            <Pressable
-              style={styles.createFirstBtn}
-              onPress={() => setCreateModalVisible(true)}
-            >
-              <Text style={styles.createFirstBtnText}>Crea una playlist</Text>
-            </Pressable>
+            <Ionicons
+              name={!isServerOnline ? 'cloud-offline-outline' : 'list-outline'}
+              size={48}
+              color={theme.colors.textMuted}
+            />
+            <Text style={styles.emptyText}>
+              {!isServerOnline ? 'Server non raggiungibile' : 'Nessuna playlist creata.'}
+            </Text>
+            {!isServerOnline ? (
+              downloadedItems.size > 0 && (
+                <Pressable style={styles.offlineBtn} onPress={navigateToDownloads}>
+                  <Ionicons name="cloud-download-outline" size={16} color="#fff" />
+                  <Text style={styles.offlineBtnText}>
+                    Vai ai brani scaricati ({downloadedItems.size})
+                  </Text>
+                </Pressable>
+              )
+            ) : (
+              <Pressable
+                style={styles.createFirstBtn}
+                onPress={() => setCreateModalVisible(true)}
+              >
+                <Text style={styles.createFirstBtnText}>Crea una playlist</Text>
+              </Pressable>
+            )}
           </View>
         }
         renderItem={({ item }) => (
@@ -356,5 +379,20 @@ const styles = StyleSheet.create({
   },
   disabledBtn: {
     opacity: 0.5,
+  },
+  offlineBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: theme.colors.tint,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: theme.radii.full,
+    marginTop: 18,
+  },
+  offlineBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

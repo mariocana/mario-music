@@ -1,4 +1,6 @@
 import React, { createContext, useCallback, useContext, useState } from 'react';
+import type { TabType } from '../components/MobileTabBar';
+import type { LibrarySubScreen } from '../screens/LibraryScreen';
 import type { Album, Artist, PlaylistSummary, Track } from '../types';
 
 export type NavRoute =
@@ -8,6 +10,13 @@ export type NavRoute =
 
 export type NavigationContextType = {
   stack: NavRoute[];
+  activeTab: TabType;
+  setActiveTab: (tab: TabType) => void;
+  librarySubScreen: LibrarySubScreen | null;
+  setLibrarySubScreen: (screen: LibrarySubScreen | null) => void;
+  navigateToTab: (tab: TabType) => void;
+  navigateToDownloads: () => void;
+  navigateToSettings: () => void;
   navigateToAlbum: (albumId: number, fallback?: Partial<Album>) => void;
   navigateToArtist: (artistId: number, fallback?: Partial<Artist>) => void;
   navigateToPlaylist: (playlist: PlaylistSummary) => void;
@@ -21,8 +30,34 @@ export type NavigationContextType = {
 const NavigationContext = createContext<NavigationContextType | null>(null);
 
 export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [activeTab, setActiveTab] = useState<TabType>('home');
+  const [librarySubScreen, setLibrarySubScreen] = useState<LibrarySubScreen | null>(null);
   const [stack, setStack] = useState<NavRoute[]>([]);
   const [addToPlaylistTracks, setAddToPlaylistTracks] = useState<Track[] | null>(null);
+
+  const resetStack = useCallback(() => {
+    setStack([]);
+  }, []);
+
+  const navigateToTab = useCallback((tab: TabType) => {
+    setStack([]);
+    setActiveTab(tab);
+    if (tab === 'library') {
+      setLibrarySubScreen(null);
+    }
+  }, []);
+
+  const navigateToDownloads = useCallback(() => {
+    setStack([]);
+    setActiveTab('library');
+    setLibrarySubScreen('downloads');
+  }, []);
+
+  const navigateToSettings = useCallback(() => {
+    setStack([]);
+    setActiveTab('library');
+    setLibrarySubScreen('settings');
+  }, []);
 
   const navigateToAlbum = useCallback((albumId: number, fallback?: Partial<Album>) => {
     const album: Album = {
@@ -58,10 +93,6 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     setStack((s) => (s.length > 0 ? s.slice(0, -1) : s));
   }, []);
 
-  const resetStack = useCallback(() => {
-    setStack([]);
-  }, []);
-
   const openAddToPlaylist = useCallback((tracks: Track[]) => {
     if (tracks.length > 0) {
       setAddToPlaylistTracks(tracks);
@@ -76,6 +107,13 @@ export const NavigationProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     <NavigationContext.Provider
       value={{
         stack,
+        activeTab,
+        setActiveTab,
+        librarySubScreen,
+        setLibrarySubScreen,
+        navigateToTab,
+        navigateToDownloads,
+        navigateToSettings,
         navigateToAlbum,
         navigateToArtist,
         navigateToPlaylist,

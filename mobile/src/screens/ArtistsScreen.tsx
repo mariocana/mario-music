@@ -10,7 +10,9 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { api } from '../api';
+import { api, useServerOnline } from '../api';
+import { useDownloads } from '../downloads/DownloadsContext';
+import { useNavigation } from '../navigation/NavigationContext';
 import { theme } from '../theme';
 import type { Artist } from '../types';
 
@@ -24,6 +26,10 @@ export const ArtistsScreen: React.FC<Props> = ({ onBack, onSelectArtist }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const isServerOnline = useServerOnline();
+  const { items: downloadedItems } = useDownloads();
+  const { navigateToDownloads } = useNavigation();
 
   const loadArtists = async () => {
     try {
@@ -100,10 +106,31 @@ export const ArtistsScreen: React.FC<Props> = ({ onBack, onSelectArtist }) => {
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Ionicons name="person-outline" size={48} color={theme.colors.textMuted} />
+            <Ionicons
+              name={!isServerOnline ? 'cloud-offline-outline' : 'person-outline'}
+              size={48}
+              color={theme.colors.textMuted}
+            />
             <Text style={styles.emptyText}>
-              {searchQuery ? 'Nessun artista trovato' : 'Nessun artista presente'}
+              {searchQuery
+                ? 'Nessun artista trovato'
+                : !isServerOnline
+                ? 'Server non raggiungibile'
+                : 'Nessun artista presente'}
             </Text>
+            {!isServerOnline && (
+              <Text style={styles.emptySubtext}>
+                Gli artisti remoti sono disponibili quando il server è collegato.
+              </Text>
+            )}
+            {!isServerOnline && downloadedItems.size > 0 && (
+              <Pressable style={styles.offlineBtn} onPress={navigateToDownloads}>
+                <Ionicons name="cloud-download-outline" size={16} color="#fff" />
+                <Text style={styles.offlineBtnText}>
+                  Vai ai brani scaricati ({downloadedItems.size})
+                </Text>
+              </Pressable>
+            )}
           </View>
         }
         renderItem={({ item }) => (
@@ -238,5 +265,27 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     color: theme.colors.textMuted,
+    textAlign: 'center',
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: theme.colors.textMuted,
+    textAlign: 'center',
+    paddingHorizontal: 24,
+  },
+  offlineBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: theme.colors.tint,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: theme.radii.full,
+    marginTop: 8,
+  },
+  offlineBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

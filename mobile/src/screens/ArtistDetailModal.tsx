@@ -13,9 +13,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { api, coverUrl } from '../api';
 import { CoverImage } from '../components/CoverImage';
 import { TrackRow } from '../components/TrackRow';
+import { useDownloads } from '../downloads/DownloadsContext';
 import { usePlayer } from '../player/PlayerContext';
 import { theme } from '../theme';
-import type { Album, Artist, ArtistDetail } from '../types';
+import type { Album, Artist, ArtistDetail, Track } from '../types';
 
 type Props = {
   artist: Artist | { id: number; name: string } | null;
@@ -36,6 +37,15 @@ export const ArtistDetailModal: React.FC<Props> = ({
   const [playingAll, setPlayingAll] = useState(false);
 
   const { playQueue, toggleShuffle, shuffle } = usePlayer();
+  const { items: downloadedItems } = useDownloads();
+
+  const downloadedArtistTracks = React.useMemo(
+    () =>
+      Array.from(downloadedItems.values())
+        .map((d) => d.track)
+        .filter((t) => t.artistId === artist?.id),
+    [downloadedItems, artist?.id]
+  );
 
   useEffect(() => {
     if (!artist) {
@@ -68,7 +78,12 @@ export const ArtistDetailModal: React.FC<Props> = ({
     if (playingAll || !artist) return;
     setPlayingAll(true);
     try {
-      const tracks = await api.artistTracks(artist.id);
+      let tracks: Track[] = [];
+      try {
+        tracks = await api.artistTracks(artist.id);
+      } catch {
+        tracks = downloadedArtistTracks;
+      }
       if (tracks.length === 0) return;
       if (casuale && !shuffle) toggleShuffle();
       if (!casuale && shuffle) toggleShuffle();
@@ -221,6 +236,28 @@ export const ArtistDetailModal: React.FC<Props> = ({
             </View>
           </View>
         )}
+        {/* Fallback offline quando il server non è raggiungibile */}
+        {!loading && !detail && (
+          downloadedArtistTracks.length > 0 ? (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Brani scaricati dell'artista</Text>
+              {downloadedArtistTracks.map((track, i) => (
+                <TrackRow
+                  key={track.id}
+                  track={track}
+                  index={i}
+                  currentArtistId={artist.id}
+                  onPress={() => playQueue(downloadedArtistTracks, i)}
+                />
+              ))}
+            </View>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="cloud-offline-outline" size={36} color={theme.colors.textMuted} />
+              <Text style={styles.emptyText}>Dettagli artista non disponibili offline</Text>
+            </View>
+          )
+        )}
       </ScrollView>
     </View>
   );
@@ -354,5 +391,15 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: theme.colors.textMuted,
     marginTop: 2,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+    gap: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: theme.colors.textMuted,
   },
 });

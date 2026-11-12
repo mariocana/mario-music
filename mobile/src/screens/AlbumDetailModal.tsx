@@ -34,7 +34,7 @@ export const AlbumDetailModal: React.FC<Props> = ({ album, onBack }) => {
   const [loading, setLoading] = useState(false);
 
   const { playQueue, playNext, addToQueue } = usePlayer();
-  const { downloadTracks, removeTrack, isDownloaded } = useDownloads();
+  const { downloadTracks, removeTrack, isDownloaded, items: downloadedItems } = useDownloads();
   const { navigateToArtist, openAddToPlaylist } = useNavigation();
   const [downloadingAlbum, setDownloadingAlbum] = useState(false);
 
@@ -61,7 +61,15 @@ export const AlbumDetailModal: React.FC<Props> = ({ album, onBack }) => {
 
   if (!album) return null;
 
-  const tracks = detail?.tracks ?? [];
+  const downloadedAlbumTracks = React.useMemo(
+    () =>
+      Array.from(downloadedItems.values())
+        .map((d) => d.track)
+        .filter((t) => t.albumId === album?.id),
+    [downloadedItems, album?.id]
+  );
+
+  const tracks = detail?.tracks ?? downloadedAlbumTracks;
   const totalDuration = tracks.reduce((acc, t) => acc + t.duration, 0);
 
   const downloadedCount = tracks.filter((t) => isDownloaded(t.id)).length;
@@ -219,6 +227,11 @@ export const AlbumDetailModal: React.FC<Props> = ({ album, onBack }) => {
         {/* Elenco tracce */}
         {loading ? (
           <ActivityIndicator size="small" color={theme.colors.tint} style={{ marginTop: 24 }} />
+        ) : tracks.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Ionicons name="cloud-offline-outline" size={36} color={theme.colors.textMuted} />
+            <Text style={styles.emptyText}>Tracce non disponibili offline</Text>
+          </View>
         ) : (
           <View style={styles.trackList}>
             {tracks.map((track, i) => (
@@ -337,5 +350,15 @@ const styles = StyleSheet.create({
   },
   trackList: {
     marginTop: 8,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+    gap: 8,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: theme.colors.textMuted,
   },
 });

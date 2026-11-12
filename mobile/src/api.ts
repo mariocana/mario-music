@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { getServerUrlSync } from './config';
 import type {
   Album,
@@ -12,29 +13,119 @@ import type {
   Track,
 } from './types';
 
-async function get<T>(path: string): Promise<T> {
+export const DEFAULT_TIMEOUT_MS = 4000;
+
+export class TimeoutError extends Error {
+  constructor(message = 'Timeout di connessione verso il server') {
+    super(message);
+    this.name = 'TimeoutError';
+  }
+}
+
+// Stato di connettività del server condiviso
+let isServerOnline = true;
+const onlineListeners = new Set<(online: boolean) => void>();
+
+export function setServerOnline(online: boolean) {
+  if (isServerOnline !== online) {
+    isServerOnline = online;
+    onlineListeners.forEach((cb) => cb(online));
+  }
+}
+
+export function isServerOnlineSync(): boolean {
+  return isServerOnline;
+}
+
+export function subscribeServerOnline(cb: (online: boolean) => void): () => void {
+  onlineListeners.add(cb);
+  return () => onlineListeners.delete(cb);
+}
+
+export function useServerOnline(): boolean {
+  const [online, setOnline] = useState<boolean>(isServerOnline);
+  useEffect(() => {
+    return subscribeServerOnline(setOnline);
+  }, []);
+  return online;
+}
+
+export async function fetchWithTimeout(
+  url: string,
+  init?: RequestInit,
+  timeoutMs = DEFAULT_TIMEOUT_MS
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+
+  try {
+    const res = await fetch(url, {
+      ...init,
+      signal: controller.signal,
+    });
+    // Il server ha risposto (anche se con codice HTTP 4xx o 5xx, la macchina è raggiungibile)
+    setServerOnline(true);
+    return res;
+  } catch (err: unknown) {
+    const isAbort = (err as { name?: string })?.name === 'AbortError';
+    // Fallimento di rete o timeout: server non raggiungibile
+    setServerOnline(false);
+    if (isAbort) {
+      throw new TimeoutError(`Timeout (${Math.round(timeoutMs / 1000)}s): impossibile raggiungere il server`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function get<T>(path: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
   const base = getServerUrlSync();
   const url = `${base}${path.startsWith('/') ? path : `/${path}`}`;
-  const res = await fetch(url);
+  const res = await fetchWithTimeout(url, undefined, timeoutMs);
   if (!res.ok) {
     throw new Error(`HTTP ${res.status} su ${path}`);
   }
   return res.json() as Promise<T>;
 }
 
-async function send<T>(path: string, method: 'POST' | 'PATCH' | 'DELETE', body?: unknown): Promise<T> {
+async function send<T>(
+  path: string,
+  method: 'POST' | 'PATCH' | 'DELETE',
+  body?: unknown,
+  timeoutMs = DEFAULT_TIMEOUT_MS
+): Promise<T> {
   const base = getServerUrlSync();
   const url = `${base}${path.startsWith('/') ? path : `/${path}`}`;
-  const res = await fetch(url, {
-    method,
-    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  const res = await fetchWithTimeout(
+    url,
+    {
+      method,
+      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    },
+    timeoutMs
+  );
   if (!res.ok) {
     const dettaglio = (await res.json().catch(() => null)) as { error?: string } | null;
     throw new Error(dettaglio?.error ?? `HTTP ${res.status} su ${path}`);
   }
   return res.json() as Promise<T>;
+}
+
+export async function checkServerReachable(timeoutMs = 2500): Promise<boolean> {
+  try {
+    const base = getServerUrlSync();
+    const res = await fetchWithTimeout(`${base}/api/stats`, undefined, timeoutMs);
+    const ok = res.ok;
+    setServerOnline(ok);
+    return ok;
+  } catch {
+    setServerOnline(false);
+    return false;
+  }
 }
 
 export const api = {
