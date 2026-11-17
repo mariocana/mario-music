@@ -16,6 +16,10 @@
     "loudness": "node scripts/loudness.ts",
     "backup": "node scripts/backup.ts",
     "restore": "node scripts/restore.ts",
+    "service:start": "launchctl load ~/Library/LaunchAgents/com.mariocanalella.mariomusic-server.plist",
+    "service:stop": "launchctl unload ~/Library/LaunchAgents/com.mariocanalella.mariomusic-server.plist",
+    "service:status": "launchctl list | grep mariomusic",
+    "service:logs": "tail -f data/server.log",
     "typecheck": "tsc --noEmit && cd mobile && npm run typecheck",
     "test": "node --test test/*.test.ts"
   },
