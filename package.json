@@ -4,34 +4,24 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "npm run dev:server & npm run dev:web",
+    "dev": "npm run dev:server & npm run dev:mobile",
     "start": "npm run scan && node server/index.ts",
     "stop": "lsof -ti :4000 | xargs -r kill || true",
     "restart": "npm run stop && npm start",
     "dev:server": "tsx watch server/index.ts",
-    "dev:web": "vite",
     "dev:mobile": "cd mobile && npx expo start",
-    "build": "vite build",
     "build:ios:local": "bash scripts/build-ios-local.sh",
     "seed": "node scripts/seed.ts",
     "scan": "node scripts/scan.ts",
     "loudness": "node scripts/loudness.ts",
     "backup": "node scripts/backup.ts",
     "restore": "node scripts/restore.ts",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && cd mobile && npm run typecheck",
     "test": "node --test test/*.test.ts"
   },
   "devDependencies": {
     "@types/node": "^26.4.0",
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.5",
-    "@vitejs/plugin-react": "^6.1.1",
     "tsx": "^4.23.13",
-    "typescript": "^7.0.2",
-    "vite": "^8.2.2"
-  },
-  "dependencies": {
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "typescript": "^7.0.2"
   }
 }

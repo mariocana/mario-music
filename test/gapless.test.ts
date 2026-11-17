@@ -10,7 +10,7 @@ import test from 'node:test';
 import {
   durataEffettiva, istanteTransizione, deveIniziare, devePrecaricare,
   guadagni, volumeControllabile, ANTICIPO_CARICAMENTO,
-} from '../web/src/gapless.ts';
+} from '../mobile/src/gapless.ts';
 
 test('senza dissolvenza il passaggio è alla fine esatta: è questo il gapless', () => {
   assert.equal(istanteTransizione(180, 0), 180);

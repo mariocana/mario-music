@@ -6,7 +6,7 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { sogliaAscolto } from '../web/src/soglia.ts';
+import { sogliaAscolto } from '../mobile/src/soglia.ts';
 
 test('brano corto: conta a metà', () => {
   assert.equal(sogliaAscolto(180), 90);

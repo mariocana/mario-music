@@ -17,7 +17,7 @@
  * caratteri, e si prende la più breve delle due: la riga finisce di
  * riempirsi quando è ragionevolmente finita, e poi aspetta la prossima.
  */
-import type { LyricLine } from './api.ts';
+import type { LyricLine } from './types.ts';
 
 /** Caratteri al secondo: andatura media del canto. */
 const VELOCITA = 12;

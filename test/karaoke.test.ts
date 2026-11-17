@@ -7,8 +7,8 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { durataRiga, avanzamentoRiga, finestra, parole } from '../web/src/karaoke.ts';
-import type { LyricLine } from '../web/src/api.ts';
+import { durataRiga, avanzamentoRiga, finestra, parole } from '../mobile/src/karaoke.ts';
+import type { LyricLine } from '../mobile/src/types.ts';
 
 const righe: LyricLine[] = [
   { t: 0, text: 'Nel blu dipinto di blu' },      // 22 caratteri

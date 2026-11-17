@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { parseLrc } from '../server/lyrics.ts';
-import { indiceAttivo } from '../web/src/lyricsSync.ts';
+import { indiceAttivo } from '../mobile/src/lyricsSync.ts';
 
 const LRC = [
   '[ti:Esempio]',

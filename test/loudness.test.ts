@@ -14,7 +14,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { leggiMisura, misuraFile } from '../server/loudness.ts';
-import { guadagnoDb, fattoreVolume, RIFERIMENTO } from '../web/src/loudness.ts';
+import { guadagnoDb, fattoreVolume, RIFERIMENTO } from '../mobile/src/loudness.ts';
 
 const RIASSUNTO = `
 [Parsed_ebur128_0 @ 0x7f8] Summary:

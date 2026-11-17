@@ -14,7 +14,7 @@ import {
   transcodedFile, giaPronto, vaTranscodificato, percorsoTranscodificato,
   iniziaConversione, leggiMentreCresce,
 } from '../server/transcode.ts';
-import { urlBrano, leggibile } from '../web/src/sorgente.ts';
+import { urlBrano, leggibile } from '../mobile/src/sorgente.ts';
 
 function cartella() {
   const dir = mkdtempSync(path.join(tmpdir(), 'mario-music-transcode-'));

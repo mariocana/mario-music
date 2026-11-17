@@ -31,10 +31,8 @@ playlist e ascolti.
 
 **L'immagine non ha un `node_modules`.** Il server usa `node:http` e
 `node:sqlite`, che stanno dentro Node, e Node 25 esegue i `.ts` togliendo i
-tipi al volo: React e Vite servono solo a compilare l'interfaccia, in un primo
-stadio che poi viene buttato. Nell'immagine finale restano i sorgenti del
-server, la cartella `dist/` e ffmpeg — che invece serve davvero, per leggere i
-tag, estrarre le copertine e convertire in AAC.
+tipi al volo. Nell'immagine finale restano solo i sorgenti del server e ffmpeg
+— che serve per leggere i tag, estrarre le copertine e convertire in AAC.
 
 **Non gira da root** e si controlla da solo: l'`HEALTHCHECK` interroga
 `/api/stats`, perché un processo vivo che non risponde più è comunque un
@@ -61,16 +59,16 @@ musica, `DATA_DIR` dove vanno i dati. Sul Mac, senza impostarle, restano
 npm install
 npm run seed     # genera 18 brani finti in media/library/ (opzionale)
 npm run scan     # indicizza i file in data/library.db
-npm run dev      # server su :4000, interfaccia su http://localhost:5173
-npm test         # test delle regole HTTP Range, server e service worker
+npm run dev      # avvia sia il server (:4000) sia il client mobile (Expo)
+npm test         # suite di test
 ```
 
 Serve **ffmpeg** nel PATH (`brew install ffmpeg`).
 
-Per la versione compilata, che gira su un'unica porta:
-
+Per avviare singolarmente i componenti:
 ```bash
-npm run build && npm run dev:server   # tutto su http://localhost:4000
+npm run dev:server   # server API su http://localhost:4000
+npm run dev:mobile   # avvia Expo per iOS / Android / macOS
 ```
 
 ## Come aggiungere la tua musica

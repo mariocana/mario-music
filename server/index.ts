@@ -579,6 +579,16 @@ const server = createServer(async (req, res) => {
     console.log(`${req.method} ${url.pathname} → ${res.statusCode} ${ms.toFixed(1)}ms${range}`);
   });
 
+  // CORS headers per consentire connessioni da qualsiasi client (mobile, expo web, etc.)
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, POST, PATCH, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', '*');
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204);
+    res.end();
+    return;
+  }
+
   try {
     for (const route of routes) {
       if (route.method !== req.method) continue;
@@ -620,6 +630,14 @@ const server = createServer(async (req, res) => {
           cacheControl: immutable ? 'public, max-age=31536000, immutable' : 'no-cache',
         });
       }
+    }
+
+    if (url.pathname === '/') {
+      return json(res, 200, {
+        name: 'Mario Music Server',
+        status: 'ok',
+        version: '0.1.0',
+      });
     }
 
     json(res, 404, { error: 'Non trovato' });

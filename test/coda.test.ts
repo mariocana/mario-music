@@ -7,15 +7,15 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { accoda, inserisciDopo } from '../web/src/coda.ts';
-import type { Track } from '../web/src/api.ts';
+import { accoda, inserisciDopo } from '../mobile/src/coda.ts';
+import type { Track } from '../mobile/src/types.ts';
 
 /** Una traccia finta: dei suoi campi qui interessa solo l'id. */
 const brano = (id: number): Track => ({
   id, title: `Brano ${id}`, trackNo: id, discNo: 1, duration: 180,
   codec: 'mp3', bitrate: 320, sampleRate: 44100, channels: 2, size: 1000,
   albumId: 1, album: 'Album', coverKey: null, artistId: 1, artist: 'Tizio',
-  favorite: 0, playCount: 0,
+  loudness: null, peak: null, favorite: 0, playCount: 0,
 });
 
 const ids = (c: { queue: Track[] }) => c.queue.map((t) => t.id);

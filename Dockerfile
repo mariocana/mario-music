@@ -1,23 +1,9 @@
 # mario-music in un container.
 #
-# Due stadi. Il primo compila l'interfaccia con Vite, e per farlo gli servono
-# React e le dipendenze di sviluppo. Il secondo prende solo quello che esce da
-# quella compilazione e i file del server.
-#
 # IL SERVER NON HA DIPENDENZE: usa node:http e node:sqlite, che stanno dentro
 # Node, e Node 25 esegue i .ts togliendo i tipi al volo. Quindi nell'immagine
-# finale non c'è nessun node_modules — solo i sorgenti del server, la
-# cartella dist/ e ffmpeg. È il motivo per cui questa immagine pesa poco.
-
-FROM node:25-alpine AS costruttore
-WORKDIR /app
-# Prima i manifest, poi il resto: se le dipendenze non cambiano, Docker
-# riusa questo strato e salta l'installazione a ogni ricostruzione.
-COPY package.json package-lock.json* ./
-RUN npm ci
-COPY . .
-RUN npm run build
-
+# finale non c'è nessun node_modules — solo i sorgenti del server e ffmpeg.
+# È il motivo per cui questa immagine pesa poco ed è rapidissima da costruire.
 
 FROM node:25-alpine
 # ffmpeg e ffprobe servono a leggere i tag, estrarre le copertine e
@@ -28,7 +14,6 @@ WORKDIR /app
 COPY package.json ./
 COPY server ./server
 COPY scripts ./scripts
-COPY --from=costruttore /app/dist ./dist
 
 # I due percorsi che si montano da fuori. Dentro all'immagine non c'è niente
 # di tuo: la musica e i dati vivono nei volumi, così ricostruire l'immagine
