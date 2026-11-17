@@ -7,3 +7,9 @@ dist/
 media/
 data/
 .cache/
+
+# Local builds
+builds/
+*.ipa
+*.apk
+*.aab

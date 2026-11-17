@@ -46,6 +46,8 @@ jobs:
   deploy-mobile:
     name: Deploy Mobile (TestFlight & Android APK)
     needs: [server-web, mobile]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Momentaneamente disattivato per non consumare crediti EAS Cloud.
+    # Per riattivare, ripristinare: if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: false
     uses: ./.github/workflows/deploy-mobile.yml
     secrets: inherit
