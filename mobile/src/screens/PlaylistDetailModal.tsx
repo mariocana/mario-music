@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { api, uploadPlaylistCover } from '../api';
+import { useDownloads } from '../downloads/DownloadsContext';
 import { NomeDialog } from '../components/NomeDialog';
 import { PlaylistCover } from '../components/PlaylistCover';
 import { TrackRow } from '../components/TrackRow';
@@ -45,6 +46,9 @@ export const PlaylistDetailModal: React.FC<Props> = ({
   const nome = rinominata && rinominata.id === playlist?.id ? rinominata.name : (playlist?.name ?? '');
   const [rinomina, setRinomina] = useState(false);
   const [caricoCopertina, setCaricoCopertina] = useState(false);
+  const { downloadTrack, removeTrack, isDownloaded } = useDownloads();
+  /** download in corso: quanti brani fatti su quanti */
+  const [scarico, setScarico] = useState<{ fatti: number; totale: number } | null>(null);
 
   const { playQueue, toggleShuffle, shuffle } = usePlayer();
 
@@ -85,6 +89,62 @@ export const PlaylistDetailModal: React.FC<Props> = ({
     if (!casuale && shuffle) toggleShuffle();
     const startIndex = casuale ? Math.floor(Math.random() * tracks.length) : 0;
     playQueue(tracks, startIndex);
+  };
+
+  // Una playlist può contenere lo stesso brano più volte: si scarica una volta sola.
+  const braniUnici = Array.from(new Map(tracks.map((t) => [t.id, t])).values());
+  const scaricati = braniUnici.filter((t) => isDownloaded(t.id)).length;
+  const tuttiScaricati = braniUnici.length > 0 && scaricati === braniUnici.length;
+
+  /**
+   * Scarica i brani che mancano, uno alla volta, contando i fatti per la
+   * scritta "Scarico 3 di 12". Un brano che fallisce non ferma gli altri, ma
+   * alla fine lo si dice: altrimenti offline mancherebbe senza spiegazione.
+   */
+  const scaricaPlaylist = async () => {
+    const mancanti = braniUnici.filter((t) => !isDownloaded(t.id));
+    if (mancanti.length === 0 || scarico) return;
+    let falliti = 0;
+    setScarico({ fatti: 0, totale: mancanti.length });
+    for (let k = 0; k < mancanti.length; k++) {
+      try {
+        await downloadTrack(mancanti[k]);
+      } catch {
+        falliti++;
+      }
+      setScarico({ fatti: k + 1, totale: mancanti.length });
+    }
+    setScarico(null);
+    if (falliti > 0) {
+      Alert.alert(
+        'Download incompleto',
+        falliti === mancanti.length
+          ? 'Nessun brano è stato scaricato. Controlla la connessione al server.'
+          : `${falliti} ${falliti === 1 ? 'brano non è stato scaricato' : 'brani non sono stati scaricati'}. Riprova: verranno scaricati solo quelli che mancano.`,
+      );
+    }
+  };
+
+  const confermaRimuoviDownload = () => {
+    Alert.alert(
+      'Rimuovi download',
+      `I ${braniUnici.length} brani di "${nome}" verranno tolti dal telefono, anche se li avevi scaricati per un album o un'altra playlist. Restano ascoltabili in streaming.`,
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Rimuovi',
+          style: 'destructive',
+          onPress: async () => {
+            for (const t of braniUnici) await removeTrack(t.id);
+          },
+        },
+      ],
+    );
+  };
+
+  const toggleDownloadPlaylist = () => {
+    if (tuttiScaricati) confermaRimuoviDownload();
+    else void scaricaPlaylist();
   };
 
   const handleRemoveTrack = async (position: number) => {
@@ -171,8 +231,15 @@ export const PlaylistDetailModal: React.FC<Props> = ({
     const haImmagine = Boolean(detail?.coverKey);
     const voci: Array<{ testo: string; azione: () => void; distruttiva?: boolean }> = [
       { testo: 'Rinomina', azione: () => setRinomina(true) },
-      { testo: haImmagine ? 'Cambia immagine' : 'Scegli immagine', azione: () => void scegliCopertina() },
     ];
+    if (braniUnici.length > 0 && !scarico) {
+      voci.push(tuttiScaricati
+        ? { testo: 'Rimuovi download', azione: confermaRimuoviDownload, distruttiva: true }
+        : { testo: scaricati > 0 ? 'Scarica i brani mancanti' : 'Scarica playlist', azione: () => void scaricaPlaylist() });
+    }
+    voci.push(
+      { testo: haImmagine ? 'Cambia immagine' : 'Scegli immagine', azione: () => void scegliCopertina() },
+    );
     if (haImmagine) voci.push({ testo: 'Rimuovi immagine', azione: () => void rimuoviCopertina() });
     voci.push({ testo: 'Elimina playlist', azione: confirmDelete, distruttiva: true });
 
@@ -181,7 +248,8 @@ export const PlaylistDetailModal: React.FC<Props> = ({
       ActionSheetIOS.showActionSheetWithOptions(
         {
           options,
-          destructiveButtonIndex: voci.findIndex((v) => v.distruttiva) + 1,
+          // Le voci distruttive possono essere due (rimuovi download, elimina): iOS ne colora quante gliene si danno.
+          destructiveButtonIndex: voci.flatMap((v, k) => (v.distruttiva ? [k + 1] : [])),
           cancelButtonIndex: 0,
           title: nome,
         },
@@ -239,6 +307,13 @@ export const PlaylistDetailModal: React.FC<Props> = ({
             {tracks.length} {tracks.length === 1 ? 'brano' : 'brani'}
             {tracks.length > 0 ? ` · ${formatLength(totalDuration)}` : ''}
           </Text>
+          {scarico ? (
+            <Text style={styles.metaDownload}>Scarico {scarico.fatti + 1 > scarico.totale ? scarico.totale : scarico.fatti + 1} di {scarico.totale}…</Text>
+          ) : scaricati > 0 ? (
+            <Text style={styles.metaDownload}>
+              {tuttiScaricati ? 'Scaricata: si ascolta anche offline' : `${scaricati} di ${braniUnici.length} brani scaricati`}
+            </Text>
+          ) : null}
         </View>
 
         {/* Pulsanti Riproduci / Casuale */}
@@ -258,6 +333,25 @@ export const PlaylistDetailModal: React.FC<Props> = ({
             >
               <Ionicons name="shuffle" size={20} color={theme.colors.tint} />
               <Text style={styles.secondaryBtnText}>Casuale</Text>
+            </Pressable>
+
+            <Pressable
+              style={[styles.iconActionBtn, tuttiScaricati && styles.iconActionBtnActive]}
+              onPress={toggleDownloadPlaylist}
+              disabled={scarico !== null}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel={tuttiScaricati ? 'Rimuovi download della playlist' : 'Scarica la playlist'}
+            >
+              {scarico ? (
+                <ActivityIndicator size="small" color={theme.colors.tint} />
+              ) : (
+                <Ionicons
+                  name={tuttiScaricati ? 'checkmark-circle' : 'cloud-download-outline'}
+                  size={22}
+                  color={tuttiScaricati ? theme.colors.tint : theme.colors.textSecondary}
+                />
+              )}
             </Pressable>
           </View>
         )}
@@ -371,6 +465,23 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
     marginTop: 6,
     textAlign: 'center',
+  },
+  metaDownload: {
+    fontSize: 13,
+    color: theme.colors.tint,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  iconActionBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: theme.radii.md,
+    backgroundColor: theme.colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconActionBtnActive: {
+    backgroundColor: 'rgba(250, 36, 60, 0.15)',
   },
   actionButtons: {
     flexDirection: 'row',

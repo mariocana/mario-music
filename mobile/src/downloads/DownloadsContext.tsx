@@ -143,6 +143,12 @@ export const DownloadsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       );
 
       const result = await downloadResumable.downloadAsync();
+      // downloadAsync non fallisce su un 404 o un 410: scrive la risposta
+      // d'errore nel file e basta. Senza questo controllo un brano sparito dal
+      // server finirebbe tra i "scaricati", e poi non suonerebbe.
+      if (result && (result.status < 200 || result.status >= 300)) {
+        throw new Error(`Il server ha risposto ${result.status}`);
+      }
       const info = await FileSystem.getInfoAsync(localUri);
       const size = (info as { size?: number }).size ?? track.size ?? 0;
 
