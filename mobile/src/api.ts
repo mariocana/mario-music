@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import * as FileSystem from 'expo-file-system/legacy';
 import { getServerUrlSync } from './config';
 import type {
   Album,
@@ -149,6 +150,8 @@ export const api = {
   createPlaylist: (name: string) => send<PlaylistSummary>('/api/playlists', 'POST', { name }),
   renamePlaylist: (id: number, name: string) =>
     send<{ id: number; name: string }>(`/api/playlists/${id}`, 'PATCH', { name }),
+  /** Toglie l'immagine scelta: la playlist torna al mosaico degli album. */
+  removePlaylistCover: (id: number) => send<{ ok: true }>(`/api/playlists/${id}/cover`, 'DELETE'),
   deletePlaylist: (id: number) => send<void>(`/api/playlists/${id}`, 'DELETE'),
   addTracksToPlaylist: (playlistId: number, trackIds: number[]) =>
     send<{ added: number }>(`/api/playlists/${playlistId}/tracks`, 'POST', { trackIds }),
@@ -181,3 +184,35 @@ export const streamUrl = (trackId: number, query = ''): string => {
   const base = getServerUrlSync();
   return `${base}/api/tracks/${trackId}/stream${query}`;
 };
+
+/**
+ * Manda al server l'immagine scelta come copertina di una playlist.
+ *
+ * Il server vuole i byte nudi nel corpo della richiesta (niente multipart) e
+ * li converte lui in un JPEG quadrato 640×640; risponde con la nuova
+ * impronta, che va nell'URL (vedi playlistCoverUrl).
+ *
+ * uploadAsync non fallisce da solo su un 4xx/5xx: lo stato si controlla qui,
+ * e il motivo che il server scrive in `error` diventa il messaggio.
+ */
+export async function uploadPlaylistCover(id: number, fileUri: string, mimeType?: string | null): Promise<string> {
+  const url = `${getServerUrlSync()}/api/playlists/${id}/cover`;
+  const res = await FileSystem.uploadAsync(url, fileUri, {
+    httpMethod: 'POST',
+    uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+    // In primo piano: si aspetta la risposta con il riquadro aperto, non serve
+    // che sopravviva all'app chiusa (e la sessione in background è più lenta a partire).
+    sessionType: FileSystem.FileSystemSessionType.FOREGROUND,
+    headers: { 'Content-Type': mimeType || 'application/octet-stream' },
+  });
+  let corpo: { coverKey?: string; error?: string } | null = null;
+  try {
+    corpo = JSON.parse(res.body) as { coverKey?: string; error?: string };
+  } catch {
+    corpo = null;
+  }
+  if (res.status < 200 || res.status >= 300 || !corpo?.coverKey) {
+    throw new Error(corpo?.error ?? `${res.status} sul caricamento della copertina`);
+  }
+  return corpo.coverKey;
+}

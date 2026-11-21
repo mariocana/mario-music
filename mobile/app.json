@@ -48,7 +48,15 @@
           "enableBackgroundPlayback": true
         }
       ],
-      "expo-image"
+      "expo-image",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Mario Music usa le tue foto solo quando scegli l'immagine di copertina di una playlist.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ]
     ],
     "extra": {
       "eas": {

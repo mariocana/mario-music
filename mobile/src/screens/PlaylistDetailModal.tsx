@@ -12,7 +12,8 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { api } from '../api';
+import * as ImagePicker from 'expo-image-picker';
+import { api, uploadPlaylistCover } from '../api';
 import { NomeDialog } from '../components/NomeDialog';
 import { PlaylistCover } from '../components/PlaylistCover';
 import { TrackRow } from '../components/TrackRow';
@@ -38,10 +39,12 @@ export const PlaylistDetailModal: React.FC<Props> = ({
 }) => {
   const [detail, setDetail] = useState<PlaylistDetail | null>(null);
   const [loading, setLoading] = useState(false);
-  // Il nome mostrato: parte da quello con cui si è aperta la schermata, e
-  // cambia subito dopo una rinomina (la lista sotto si ricarica da sola al ritorno).
-  const [nome, setNome] = useState(playlist?.name ?? '');
+  // Il nome mostrato: quello con cui si è aperta la schermata, finché una
+  // rinomina non lo cambia (la lista sotto si ricarica da sola al ritorno).
+  const [rinominata, setRinominata] = useState<{ id: number; name: string } | null>(null);
+  const nome = rinominata && rinominata.id === playlist?.id ? rinominata.name : (playlist?.name ?? '');
   const [rinomina, setRinomina] = useState(false);
+  const [caricoCopertina, setCaricoCopertina] = useState(false);
 
   const { playQueue, toggleShuffle, shuffle } = usePlayer();
 
@@ -68,7 +71,6 @@ export const PlaylistDetailModal: React.FC<Props> = ({
       setDetail(null);
       return;
     }
-    setNome(playlist.name);
     return loadDetail();
   }, [playlist]);
 
@@ -106,8 +108,40 @@ export const PlaylistDetailModal: React.FC<Props> = ({
   const handleRename = async (nuovo: string) => {
     // Un errore (nome vuoto, playlist sparita) lo mostra il riquadro, che resta aperto.
     const res = await api.renamePlaylist(playlist.id, nuovo);
-    setNome(res.name);
+    setRinominata({ id: playlist.id, name: res.name });
     setRinomina(false);
+  };
+
+  const scegliCopertina = async () => {
+    const scelta = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      // Il ritaglio quadrato è quello che il server farebbe comunque: meglio
+      // che lo scelga chi guarda. Su iOS dà anche un JPEG al posto dell'HEIC
+      // delle foto dell'iPhone, che ffmpeg sul server potrebbe non leggere.
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.85,
+    });
+    if (scelta.canceled || !scelta.assets?.[0]) return;
+    const foto = scelta.assets[0];
+    setCaricoCopertina(true);
+    try {
+      const coverKey = await uploadPlaylistCover(playlist.id, foto.uri, foto.mimeType);
+      setDetail((d) => (d ? { ...d, coverKey } : d));
+    } catch (err) {
+      Alert.alert('Immagine non caricata', err instanceof Error ? err.message : 'Caricamento non riuscito');
+    } finally {
+      setCaricoCopertina(false);
+    }
+  };
+
+  const rimuoviCopertina = async () => {
+    try {
+      await api.removePlaylistCover(playlist.id);
+      setDetail((d) => (d ? { ...d, coverKey: null } : d));
+    } catch (err) {
+      Alert.alert('Errore', err instanceof Error ? err.message : "Impossibile rimuovere l'immagine");
+    }
   };
 
   const confirmDelete = () => {
@@ -134,24 +168,34 @@ export const PlaylistDetailModal: React.FC<Props> = ({
   };
 
   const showMoreMenu = () => {
-    const options = ['Annulla', 'Rinomina', 'Elimina playlist'];
-    const actions = [() => {}, () => setRinomina(true), confirmDelete];
+    const haImmagine = Boolean(detail?.coverKey);
+    const voci: Array<{ testo: string; azione: () => void; distruttiva?: boolean }> = [
+      { testo: 'Rinomina', azione: () => setRinomina(true) },
+      { testo: haImmagine ? 'Cambia immagine' : 'Scegli immagine', azione: () => void scegliCopertina() },
+    ];
+    if (haImmagine) voci.push({ testo: 'Rimuovi immagine', azione: () => void rimuoviCopertina() });
+    voci.push({ testo: 'Elimina playlist', azione: confirmDelete, distruttiva: true });
+
     if (Platform.OS === 'ios') {
+      const options = ['Annulla', ...voci.map((v) => v.testo)];
       ActionSheetIOS.showActionSheetWithOptions(
         {
           options,
-          destructiveButtonIndex: 2,
+          destructiveButtonIndex: voci.findIndex((v) => v.distruttiva) + 1,
           cancelButtonIndex: 0,
           title: nome,
         },
-        (buttonIndex) => actions[buttonIndex]?.(),
+        (buttonIndex) => voci[buttonIndex - 1]?.azione(),
       );
     } else {
-      // Prima qui si andava dritti alla conferma di eliminazione: con due voci serve un menu.
+      // Prima qui si andava dritti alla conferma di eliminazione: con più voci serve un menu.
       Alert.alert(nome, undefined, [
         { text: 'Annulla', style: 'cancel' },
-        { text: 'Rinomina', onPress: actions[1] },
-        { text: 'Elimina playlist', style: 'destructive', onPress: actions[2] },
+        ...voci.map((v) => ({
+          text: v.testo,
+          style: v.distruttiva ? ('destructive' as const) : ('default' as const),
+          onPress: v.azione,
+        })),
       ]);
     }
   };
@@ -171,16 +215,25 @@ export const PlaylistDetailModal: React.FC<Props> = ({
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         <View style={styles.topInfo}>
-          <PlaylistCover
-            playlist={{
-              id: playlist.id,
-              name: nome,
-              coverKey: detail?.coverKey ?? null,
-              covers: [],
-            }}
-            size={COVER_SIZE}
-            borderRadius={theme.radii.lg}
-          />
+          <View>
+            <PlaylistCover
+              playlist={{
+                id: playlist.id,
+                name: nome,
+                coverKey: detail?.coverKey ?? null,
+                // Senza immagine scelta, lo stesso mosaico della lista: gli album
+                // dei primi quattro brani (come la query sul server).
+                covers: tracks.slice(0, 4).map((t) => ({ albumId: t.albumId, coverKey: t.coverKey })),
+              }}
+              size={COVER_SIZE}
+              borderRadius={theme.radii.lg}
+            />
+            {caricoCopertina && (
+              <View style={[styles.coverOverlay, { borderRadius: theme.radii.lg }]}>
+                <ActivityIndicator size="large" color="#fff" />
+              </View>
+            )}
+          </View>
           <Text style={styles.title}>{nome}</Text>
           <Text style={styles.meta}>
             {tracks.length} {tracks.length === 1 ? 'brano' : 'brani'}
@@ -255,6 +308,16 @@ export const PlaylistDetailModal: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
+  coverOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
