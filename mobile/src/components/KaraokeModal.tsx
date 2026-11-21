@@ -32,18 +32,18 @@ export const KaraokeModal: React.FC<Props> = ({ visible, onClose }) => {
   const { current, isPlaying, toggle, next, previous, seek, getTime, duration } = usePlayer();
   const trackId = current?.id ?? null;
 
-  const [righe, setRighe] = useState<LyricLine[] | null>(null);
-  const [loading, setLoading] = useState(false);
+  // Il testo si ricorda per quale brano è arrivato: a brano cambiato, quello
+  // vecchio non si mostra più mentre arriva il nuovo.
+  const [arrivato, setArrivato] = useState<{ trackId: number; righe: LyricLine[] | null } | null>(null);
+  const loading = trackId !== null && arrivato?.trackId !== trackId;
+  const righe = !loading && arrivato ? arrivato.righe : null;
 
   useEffect(() => {
     if (!visible || trackId === null) return;
     let vivo = true;
-    setLoading(true);
-    setRighe(null);
     void api.lyrics(trackId)
-      .then((l) => { if (vivo) setRighe(l.synced && l.synced.length > 0 ? l.synced : null); })
-      .catch(() => { if (vivo) setRighe(null); })
-      .finally(() => { if (vivo) setLoading(false); });
+      .then((l) => { if (vivo) setArrivato({ trackId, righe: l.synced && l.synced.length > 0 ? l.synced : null }); })
+      .catch(() => { if (vivo) setArrivato({ trackId, righe: null }); });
     return () => { vivo = false; };
   }, [visible, trackId]);
 
@@ -106,7 +106,7 @@ export const KaraokeModal: React.FC<Props> = ({ visible, onClose }) => {
             {loading && <Text style={styles.avviso}>Cerco il testo…</Text>}
             {!loading && !righe && (
               <View>
-                <Text style={styles.avviso}>Per questo brano non c'è un testo sincronizzato.</Text>
+                <Text style={styles.avviso}>{"Per questo brano non c'è un testo sincronizzato."}</Text>
                 <Text style={styles.nota}>
                   Il karaoke ha bisogno dei tempi di ogni verso: LRCLIB non li ha per tutti i brani.
                 </Text>

@@ -66,21 +66,23 @@ function Tessera({ numero, sotto }: { numero: string; sotto: string }) {
 
 export const ReplayView: React.FC = () => {
   const [giorni, setGiorni] = useState<number | null>(null);
-  const [data, setData] = useState<Replay | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  // La risposta si ricorda per quale periodo è arrivata: cambiato periodo, si
+  // mostra il caricamento invece dei numeri del periodo precedente.
+  const [arrivato, setArrivato] = useState<{ giorni: number | null; data: Replay | null; error: string | null } | null>(null);
+  const loading = arrivato?.giorni !== giorni;
+  const data = loading ? null : arrivato.data;
+  const error = loading ? null : arrivato.error;
 
   const { playQueue } = usePlayer();
   const { navigateToAlbum, navigateToArtist } = useNavigation();
 
   useEffect(() => {
     let vivo = true;
-    setLoading(true);
-    setError(null);
     void api.replay(giorni)
-      .then((r) => { if (vivo) setData(r); })
-      .catch((err) => { if (vivo) setError(err instanceof Error ? err.message : 'Riepilogo non disponibile'); })
-      .finally(() => { if (vivo) setLoading(false); });
+      .then((r) => { if (vivo) setArrivato({ giorni, data: r, error: null }); })
+      .catch((err) => {
+        if (vivo) setArrivato({ giorni, data: null, error: err instanceof Error ? err.message : 'Riepilogo non disponibile' });
+      });
     return () => { vivo = false; };
   }, [giorni]);
 

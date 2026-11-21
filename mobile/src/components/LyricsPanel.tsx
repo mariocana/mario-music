@@ -11,7 +11,7 @@
  * stato cambia solo quando cambia il verso: un render per riga, non sessanta
  * al secondo.
  */
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../api';
@@ -31,29 +31,36 @@ type Props = {
 export const LyricsPanel: React.FC<Props> = ({ trackId, onKaraoke }) => {
   const { getTime, seek } = usePlayer();
 
-  const [lyrics, setLyrics] = useState<Lyrics | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Il testo è del brano: si ricorda per quale brano è arrivato. Cambiato
+  // brano, quello vecchio non vale più subito, invece di restare evidenziato
+  // a tempo sbagliato finché arriva il nuovo.
+  const [arrivato, setArrivato] = useState<{ trackId: number; lyrics: Lyrics | null } | null>(null);
+  const loading = arrivato?.trackId !== trackId;
+  const lyrics = loading ? null : arrivato.lyrics;
 
-  // Il testo è del brano: cambiato brano, quello vecchio sparisce subito,
-  // invece di restare evidenziato a tempo sbagliato finché arriva il nuovo.
   useEffect(() => {
     let vivo = true;
-    setLyrics(null);
-    setLoading(true);
     void api.lyrics(trackId)
-      .then((l) => { if (vivo) setLyrics(l); })
-      .catch(() => { if (vivo) setLyrics(null); })
-      .finally(() => { if (vivo) setLoading(false); });
+      .then((l) => { if (vivo) setArrivato({ trackId, lyrics: l }); })
+      .catch(() => { if (vivo) setArrivato({ trackId, lyrics: null }); });
     return () => { vivo = false; };
   }, [trackId]);
 
-  const righe = lyrics?.synced && lyrics.synced.length > 0 ? lyrics.synced : null;
+  const righe = useMemo(
+    () => (lyrics?.synced && lyrics.synced.length > 0 ? lyrics.synced : null),
+    [lyrics],
+  );
 
-  const [attiva, setAttiva] = useState(-1);
+  // Il verso in corso, legato al testo a cui si riferisce: con un testo nuovo
+  // vale -1 finché il ciclo qui sotto non ha letto il tempo.
+  const [stato, setStato] = useState<{ righe: typeof righe; i: number }>({ righe: null, i: -1 });
+  const attiva = stato.righe === righe ? stato.i : -1;
   const attivaRef = useRef(attiva);
-  attivaRef.current = attiva;
   useEffect(() => {
-    setAttiva(-1);
+    attivaRef.current = attiva;
+  }, [attiva]);
+
+  useEffect(() => {
     if (!righe) return;
     let frame = 0;
     let ultima = -2;
@@ -61,7 +68,7 @@ export const LyricsPanel: React.FC<Props> = ({ trackId, onKaraoke }) => {
       const i = indiceAttivo(righe, getTime());
       if (i !== ultima) {
         ultima = i;
-        setAttiva(i);
+        setStato({ righe, i });
       }
       frame = requestAnimationFrame(tick);
     };

@@ -5,7 +5,7 @@
  * playlist" di PlaylistsScreen. Se il salvataggio fallisce il riquadro resta
  * aperto con il motivo, così il nome scritto non va perso.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { theme } from '../theme';
 
@@ -18,18 +18,17 @@ type Props = {
   onAnnulla: () => void;
 };
 
-export const NomeDialog: React.FC<Props> = ({ visible, titolo, iniziale, conferma, onConferma, onAnnulla }) => {
+export const NomeDialog: React.FC<Props> = ({ visible, onAnnulla, ...resto }) => (
+  <Modal visible={visible} transparent animationType="fade" onRequestClose={onAnnulla}>
+    {/* Montato solo da aperto: a ogni apertura si riparte dal nome attuale, senza errori vecchi. */}
+    {visible && <Contenuto onAnnulla={onAnnulla} {...resto} />}
+  </Modal>
+);
+
+function Contenuto({ titolo, iniziale, conferma, onConferma, onAnnulla }: Omit<Props, 'visible'>) {
   const [nome, setNome] = useState(iniziale);
   const [salvo, setSalvo] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
-
-  // A ogni apertura si riparte dal nome attuale.
-  useEffect(() => {
-    if (!visible) return;
-    setNome(iniziale);
-    setErrore(null);
-    setSalvo(false);
-  }, [visible, iniziale]);
 
   const pulito = nome.trim();
   // Lo stesso nome di prima non è un cambiamento: niente richiesta inutile.
@@ -49,44 +48,42 @@ export const NomeDialog: React.FC<Props> = ({ visible, titolo, iniziale, conferm
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onAnnulla}>
-      <View style={styles.overlay}>
-        <View style={styles.dialog}>
-          <Text style={styles.titolo}>{titolo}</Text>
-          <TextInput
-            style={styles.input}
-            value={nome}
-            onChangeText={setNome}
-            placeholder="Nome della playlist"
-            placeholderTextColor={theme.colors.textMuted}
-            autoFocus
-            selectTextOnFocus
-            returnKeyType="done"
-            onSubmitEditing={() => void salva()}
-            accessibilityLabel="Nome della playlist"
-          />
-          {errore && <Text style={styles.errore}>{errore}</Text>}
-          <View style={styles.azioni}>
-            <Pressable style={[styles.btn, styles.btnAnnulla]} onPress={onAnnulla}>
-              <Text style={styles.btnAnnullaTesto}>Annulla</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.btn, styles.btnConferma, !valido && styles.disattivo]}
-              onPress={() => void salva()}
-              disabled={!valido || salvo}
-            >
-              {salvo ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.btnConfermaTesto}>{conferma}</Text>
-              )}
-            </Pressable>
-          </View>
+    <View style={styles.overlay}>
+      <View style={styles.dialog}>
+        <Text style={styles.titolo}>{titolo}</Text>
+        <TextInput
+          style={styles.input}
+          value={nome}
+          onChangeText={setNome}
+          placeholder="Nome della playlist"
+          placeholderTextColor={theme.colors.textMuted}
+          autoFocus
+          selectTextOnFocus
+          returnKeyType="done"
+          onSubmitEditing={() => void salva()}
+          accessibilityLabel="Nome della playlist"
+        />
+        {errore && <Text style={styles.errore}>{errore}</Text>}
+        <View style={styles.azioni}>
+          <Pressable style={[styles.btn, styles.btnAnnulla]} onPress={onAnnulla}>
+            <Text style={styles.btnAnnullaTesto}>Annulla</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.btn, styles.btnConferma, !valido && styles.disattivo]}
+            onPress={() => void salva()}
+            disabled={!valido || salvo}
+          >
+            {salvo ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.btnConfermaTesto}>{conferma}</Text>
+            )}
+          </Pressable>
         </View>
       </View>
-    </Modal>
+    </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   overlay: {
