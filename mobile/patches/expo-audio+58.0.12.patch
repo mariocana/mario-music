@@ -1,0 +1,63 @@
+diff --git a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioPlayer.kt b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioPlayer.kt
+index fb2d0b5..03e0bfc 100644
+--- a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioPlayer.kt
++++ b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioPlayer.kt
+@@ -23,6 +23,7 @@ import java.lang.ref.WeakReference
+ 
+ private const val PLAYBACK_STATUS_UPDATE = "playbackStatusUpdate"
+ private const val AUDIO_SAMPLE_UPDATE = "audioSampleUpdate"
++private const val REMOTE_COMMAND = "remoteCommand"
+ private const val SEEK_JUMP_INTERVAL_MS: Long = 10_000
+ 
+ @UnstableApi
+@@ -69,6 +70,20 @@ class AudioPlayer(
+   override var mediaSession: MediaSession = buildBasicMediaSession(context, ref) { requestPlay() }
+   override val serviceConnection = AudioPlaybackServiceConnection(WeakReference(this), appContext)
+ 
++  // mario-music: avanti e indietro dalla notifica e dalla lock screen. Di serie
++  // expo-audio li abilita solo per AudioPlaylist; qui la coda sta in JS, quindi
++  // il comando diventa un evento e decide il player JS.
++  override val supportsNextTrack = true
++  override val supportsPreviousTrack = true
++
++  override fun nextTrack() {
++    emit(REMOTE_COMMAND, mapOf("command" to "nextTrack"))
++  }
++
++  override fun previousTrack() {
++    emit(REMOTE_COMMAND, mapOf("command" to "previousTrack"))
++  }
++
+   override val isLive: Boolean
+     get() = ref.isCurrentMediaItemLive
+ 
+diff --git a/node_modules/expo-audio/ios/AudioPlayer.swift b/node_modules/expo-audio/ios/AudioPlayer.swift
+index 0f68a52..2ead309 100644
+--- a/node_modules/expo-audio/ios/AudioPlayer.swift
++++ b/node_modules/expo-audio/ios/AudioPlayer.swift
+@@ -8,6 +8,25 @@ private enum AudioConstants {
+ 
+ public class AudioPlayer: SharedRef<AVPlayer>, Playable, LockScreenPlayable {
+   let id = UUID().uuidString
++
++  // mario-music: avanti e indietro dalla lock screen. Di serie expo-audio li
++  // abilita solo per AudioPlaylist, che gestisce la coda in nativo; qui la coda
++  // sta in JS, quindi il comando diventa un evento e decide il player JS.
++  var supportsNextTrack: Bool {
++    true
++  }
++
++  var supportsPreviousTrack: Bool {
++    true
++  }
++
++  func nextTrack() {
++    self.emit(event: "remoteCommand", payload: ["command": "nextTrack"])
++  }
++
++  func previousTrack() {
++    self.emit(event: "remoteCommand", payload: ["command": "previousTrack"])
++  }
+   var shouldCorrectPitch = true
+   var pitchCorrectionQuality: AVAudioTimePitchAlgorithm = .timeDomain
+   var isActiveForLockScreen = false

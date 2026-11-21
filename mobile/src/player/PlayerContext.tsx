@@ -123,6 +123,7 @@ export function PlayerProvider({
   const subscriptionsRef = useRef<Array<{ remove: () => void }>>([]);
   const advancingRef = useRef(false);
   const nextRef = useRef<() => void>(() => {});
+  const previousRef = useRef<() => void>(() => {});
   const statusRef = useRef<(player: AudioPlayer, status: AudioStatus) => void>(() => {});
   const originalQueueRef = useRef<Track[]>([]);
   const contatoRef = useRef<number | null>(null);
@@ -326,6 +327,19 @@ export function PlayerProvider({
         });
         subscriptionsRef.current.push(
           player.addListener('playbackStatusUpdate', (status: AudioStatus) => statusRef.current(player, status)),
+        );
+        // Avanti e indietro dalla lock screen, dal Centro di Controllo e dalle
+        // cuffie: l'evento non esiste in expo-audio di serie, lo aggiunge la
+        // patch in patches/expo-audio+*.patch. Lo manda solo il player attivo
+        // sulla lock screen, cioè quello che sta suonando.
+        const conEventi = player as unknown as {
+          addListener(evento: 'remoteCommand', cb: (e: { command: string }) => void): { remove: () => void };
+        };
+        subscriptionsRef.current.push(
+          conEventi.addListener('remoteCommand', ({ command }) => {
+            if (command === 'nextTrack') nextRef.current();
+            else if (command === 'previousTrack') previousRef.current();
+          }),
         );
         return player;
       };
@@ -675,6 +689,8 @@ export function PlayerProvider({
 
     void loadAndPlayTrack(queue, index - 1);
   }, [loadAndPlayTrack, attivo, concludiTransizione]);
+
+  previousRef.current = previous;
 
   // Smontaggio pulito delle risorse audio
   useEffect(() => {
