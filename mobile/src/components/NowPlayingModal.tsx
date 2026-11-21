@@ -3,6 +3,7 @@ import {
   ActionSheetIOS,
   Alert,
   Dimensions,
+  FlatList,
   Modal,
   Platform,
   Pressable,
@@ -29,6 +30,8 @@ type Props = {
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const ARTWORK_SIZE = Math.min(SCREEN_WIDTH - 64, 340);
+/** altezza fissa delle righe della coda: serve a getItemLayout per aprire la lista sul brano in ascolto */
+const QUEUE_ROW_HEIGHT = 56;
 
 export const NowPlayingModal: React.FC<Props> = ({ visible, onClose }) => {
   const {
@@ -49,12 +52,63 @@ export const NowPlayingModal: React.FC<Props> = ({ visible, onClose }) => {
     index,
     playNext,
     addToQueue,
+    playAt,
+    removeAt,
+    move,
   } = usePlayer();
 
   const { isDownloaded, downloadTrack, removeTrack } = useDownloads();
   const { navigateToAlbum, navigateToArtist, openAddToPlaylist } = useNavigation();
 
   const downloaded = current ? isDownloaded(current.id) : false;
+
+  /** Il menu di una riga della coda: le stesse azioni del pannello del web. */
+  const showQueueMenu = (i: number) => {
+    const t = queue[i];
+    if (!t) return;
+    const options: string[] = ['Annulla'];
+    const actions: (() => void)[] = [() => {}];
+
+    if (i !== index) {
+      options.push('Riproduci adesso');
+      actions.push(() => playAt(i));
+    }
+    // "Dopo questo" = subito dopo il brano in ascolto. Da prima di lui basta
+    // portarlo al suo indice: lui scala indietro di uno, e il brano gli finisce dietro.
+    if (i !== index && i !== index + 1) {
+      options.push('Riproduci dopo questo');
+      actions.push(() => move(i, i < index ? index : index + 1));
+    }
+    if (i > 0) {
+      options.push('Sposta su');
+      actions.push(() => move(i, i - 1));
+    }
+    if (i < queue.length - 1) {
+      options.push('Sposta giù');
+      actions.push(() => move(i, i + 1));
+    }
+    const destructive = options.length;
+    options.push('Togli dalla coda');
+    actions.push(() => removeAt(i));
+
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options, cancelButtonIndex: 0, destructiveButtonIndex: destructive, title: t.title, message: t.artist },
+        (buttonIndex) => actions[buttonIndex]?.(),
+      );
+    } else {
+      Alert.alert(t.title, t.artist, [
+        { text: 'Annulla', style: 'cancel' },
+        ...options.slice(1).map((opt, k) => ({
+          text: opt,
+          style: k + 1 === destructive ? ('destructive' as const) : ('default' as const),
+          onPress: actions[k + 1],
+        })),
+      ]);
+    }
+  };
+
+  const rimanenti = queue.length - index - 1;
 
   const showTrackMenu = () => {
     if (!current) return;
@@ -320,12 +374,36 @@ export const NowPlayingModal: React.FC<Props> = ({ visible, onClose }) => {
 
           {/* VISTA 3: Coda di riproduzione */}
           {activeTab === 'queue' && (
-            <ScrollView style={styles.queueScroll} contentContainerStyle={styles.queueContent}>
-              <Text style={styles.queueHeader}>In coda ({queue.length} brani)</Text>
-              {queue.map((t, i) => {
+            <FlatList
+              style={styles.queueScroll}
+              contentContainerStyle={styles.queueContent}
+              data={queue}
+              keyExtractor={(t, i) => `${t.id}-${i}`}
+              // Si apre sul brano in ascolto, non in cima a una coda di mille brani.
+              initialScrollIndex={index > 2 ? index - 2 : 0}
+              getItemLayout={(_, i) => ({ length: QUEUE_ROW_HEIGHT, offset: QUEUE_ROW_HEIGHT * i, index: i })}
+              ListHeaderComponent={
+                <Text style={styles.queueHeader}>
+                  {queue.length} brani · {rimanenti > 0 ? `${rimanenti} dopo questo` : 'ultimo brano'}
+                </Text>
+              }
+              ListEmptyComponent={<Text style={styles.noLyrics}>Scegli un album per riempire la coda.</Text>}
+              renderItem={({ item: t, index: i }) => {
                 const isCurrent = i === index;
                 return (
-                  <View key={`${t.id}-${i}`} style={[styles.queueRow, isCurrent && styles.queueRowActive]}>
+                  <Pressable
+                    onPress={() => playAt(i)}
+                    onLongPress={() => showQueueMenu(i)}
+                    style={({ pressed }) => [
+                      styles.queueRow,
+                      isCurrent && styles.queueRowActive,
+                      i < index && styles.queueRowPast,
+                      pressed && styles.queueRowPressed,
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t.title}, ${t.artist}${isCurrent ? ', in riproduzione' : ''}`}
+                    accessibilityHint="Tocca per riprodurre, tieni premuto per le altre azioni"
+                  >
                     <CoverImage albumId={t.albumId} coverKey={t.coverKey} size={36} borderRadius={4} />
                     <View style={styles.queueRowText}>
                       <Text style={[styles.queueTitle, isCurrent && styles.queueTitleActive]} numberOfLines={1}>
@@ -335,11 +413,24 @@ export const NowPlayingModal: React.FC<Props> = ({ visible, onClose }) => {
                         {t.artist}
                       </Text>
                     </View>
-                    <Text style={styles.queueDuration}>{formatTime(t.duration)}</Text>
-                  </View>
+                    {isCurrent ? (
+                      <Ionicons name={isPlaying ? 'volume-high' : 'pause'} size={16} color={theme.colors.tint} />
+                    ) : (
+                      <Text style={styles.queueDuration}>{formatTime(t.duration)}</Text>
+                    )}
+                    <Pressable
+                      onPress={() => showQueueMenu(i)}
+                      hitSlop={10}
+                      style={styles.queueMenuBtn}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Altre azioni per ${t.title}`}
+                    >
+                      <Ionicons name="ellipsis-horizontal" size={18} color={theme.colors.textMuted} />
+                    </Pressable>
+                  </Pressable>
                 );
-              })}
-            </ScrollView>
+              }}
+            />
           )}
         </SafeAreaView>
       </View>
@@ -475,7 +566,7 @@ const styles = StyleSheet.create({
   queueRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 8,
+    height: QUEUE_ROW_HEIGHT,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: theme.colors.separator,
   },
@@ -483,6 +574,16 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.tintSubtle,
     borderRadius: theme.radii.sm,
     paddingHorizontal: 6,
+  },
+  queueRowPast: {
+    opacity: 0.45,
+  },
+  queueRowPressed: {
+    backgroundColor: theme.colors.cardLight,
+  },
+  queueMenuBtn: {
+    paddingLeft: 12,
+    paddingVertical: 8,
   },
   queueRowText: {
     flex: 1,

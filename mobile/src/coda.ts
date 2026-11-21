@@ -24,3 +24,36 @@ export function inserisciDopo(coda: Coda, tracks: Track[]): Coda {
   q.splice(at + 1, 0, ...tracks);
   return { queue: q, index: at };
 }
+
+/**
+ * Toglie il brano in posizione `i`. L'indice continua a puntare al brano in
+ * ascolto; se si toglie proprio quello, `index` è chi prende il suo posto
+ * (il successivo, o l'ultimo se era in fondo) e `cambiato` lo segnala: il
+ * player deve caricarlo. Coda vuota → index -1.
+ */
+export function togli(coda: Coda, i: number): Coda & { cambiato: boolean } {
+  if (i < 0 || i >= coda.queue.length) return { ...coda, cambiato: false };
+  const queue = coda.queue.filter((_, k) => k !== i);
+  if (queue.length === 0) return { queue, index: -1, cambiato: true };
+  if (i < coda.index) return { queue, index: coda.index - 1, cambiato: false };
+  if (i > coda.index) return { queue, index: coda.index, cambiato: false };
+  return { queue, index: Math.min(i, queue.length - 1), cambiato: true };
+}
+
+/**
+ * Sposta il brano da `from` a `to`. Il brano in ascolto resta quello: cambia
+ * solo la sua posizione, se il riordino gli passa sopra.
+ */
+export function sposta(coda: Coda, from: number, to: number): Coda {
+  const n = coda.queue.length;
+  if (from === to || from < 0 || to < 0 || from >= n || to >= n) return coda;
+  const queue = [...coda.queue];
+  const [mosso] = queue.splice(from, 1);
+  queue.splice(to, 0, mosso);
+
+  let index = coda.index;
+  if (from === coda.index) index = to;
+  else if (from < coda.index && to >= coda.index) index = coda.index - 1;
+  else if (from > coda.index && to <= coda.index) index = coda.index + 1;
+  return { queue, index };
+}

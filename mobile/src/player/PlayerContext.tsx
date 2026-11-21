@@ -16,7 +16,7 @@ import {
 } from 'expo-audio';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api, coverUrl, streamUrl } from '../api';
-import { accoda, inserisciDopo } from '../coda';
+import { accoda, inserisciDopo, sposta, togli } from '../coda';
 import {
   CHIAVE_CROSSFADE,
   DURATE_CROSSFADE,
@@ -56,6 +56,12 @@ type PlayerState = {
 type PlayerContextApi = PlayerState & {
   playQueue: (tracks: Track[], startIndex?: number) => void;
   playNext: (tracks: Track | Track[]) => void;
+  /** salta al brano in quella posizione della coda */
+  playAt: (index: number) => void;
+  /** toglie dalla coda; se è il brano in ascolto, al suo posto va il successivo */
+  removeAt: (index: number) => void;
+  /** riordina la coda: il brano in ascolto continua a suonare */
+  move: (from: number, to: number) => void;
   addToQueue: (tracks: Track | Track[]) => void;
   toggle: () => void;
   next: () => void;
@@ -389,6 +395,19 @@ export function PlayerProvider({
     if (!usaConversione(track.codec, qualitaRef.current)) return;
     void api.prepare(track.id).catch(() => undefined);
   }, [indiceProssimo, getOfflineUri]);
+
+  /**
+   * Dopo un cambio di coda il brano già caricato nel player in attesa può
+   * essere ancora "il prossimo", ma a un indice diverso: lo si riallinea
+   * invece di ricaricarlo dalla rete. Se non è più il prossimo lo si
+   * dimentica, e precarica() caricherà quello giusto.
+   */
+  const riallineaPrecaricato = useCallback((queue: Track[], index: number) => {
+    const p = precaricatoRef.current;
+    if (!p) return;
+    const i = indiceProssimo({ ...stateRef.current, queue, index });
+    precaricatoRef.current = i >= 0 && queue[i]?.id === p.id ? { index: i, id: p.id } : null;
+  }, [indiceProssimo]);
 
   /** Mette il brano successivo nel player fermo e lo lascia caricare. */
   const precarica = useCallback(() => {
@@ -768,6 +787,108 @@ export function PlayerProvider({
     setState((s) => ({ ...s, currentTime: seconds }));
   }, [attivo, concludiTransizione]);
 
+  const playAt = useCallback((i: number) => {
+    const s = stateRef.current;
+    if (i < 0 || i >= s.queue.length) return;
+    // Il brano già in corso: un tocco lo fa ripartire se era in pausa, e basta.
+    if (i === s.index) {
+      if (!s.isPlaying) toggle();
+      return;
+    }
+    void loadAndPlayTrack(s.queue, i);
+  }, [loadAndPlayTrack, toggle]);
+
+  /** Coda vuota: si ferma tutto, e non resta niente da riprendere alla prossima apertura. */
+  const svuota = useCallback(() => {
+    concludiTransizione();
+    playersRef.current?.forEach((p) => p.pause());
+    try {
+      attivo()?.clearLockScreenControls();
+    } catch {
+      // Ignora se non supportato nel runtime corrente
+    }
+    sorgentePendenteRef.current = false;
+    seekPendenteRef.current = null;
+    precaricatoRef.current = null;
+    originalQueueRef.current = [];
+    setState((s) => ({
+      ...s,
+      queue: [],
+      index: -1,
+      current: null,
+      isPlaying: false,
+      isLoading: false,
+      currentTime: 0,
+      duration: 0,
+      error: null,
+    }));
+    void AsyncStorage.multiRemove([CHIAVE_CODA, CHIAVE_POSIZIONE]).catch(() => undefined);
+  }, [concludiTransizione, attivo]);
+
+  const removeAt = useCallback((i: number) => {
+    const s = stateRef.current;
+    const r = togli({ queue: s.queue, index: s.index }, i);
+    if (r.queue === s.queue) return;
+
+    // L'ordine originale (quello a cui torna lo shuffle spento) perde lo
+    // stesso brano: altrimenti spegnendo lo shuffle ricomparirebbe.
+    if (s.shuffle) {
+      const orig = [...originalQueueRef.current];
+      const k = orig.indexOf(s.queue[i]);
+      if (k >= 0) orig.splice(k, 1);
+      originalQueueRef.current = orig;
+    } else {
+      originalQueueRef.current = r.queue;
+    }
+
+    if (r.index < 0) {
+      svuota();
+      return;
+    }
+    if (!r.cambiato) {
+      riallineaPrecaricato(r.queue, r.index);
+      setState((prev) => ({ ...prev, queue: r.queue, index: r.index }));
+      return;
+    }
+
+    // Tolto il brano in ascolto. Se suonava, parte chi prende il suo posto.
+    if (s.isPlaying) {
+      void loadAndPlayTrack(r.queue, r.index);
+      return;
+    }
+    // Se era in pausa, il nuovo resta in pausa: come per la ripresa, il file
+    // si carica solo quando si preme play.
+    concludiTransizione();
+    attivo()?.pause();
+    precaricatoRef.current = null;
+    seekPendenteRef.current = null;
+    sorgentePendenteRef.current = true;
+    contatoRef.current = null;
+    const track = r.queue[r.index];
+    setState((prev) => ({
+      ...prev,
+      queue: r.queue,
+      index: r.index,
+      current: track,
+      currentTime: 0,
+      duration: track.duration,
+      isPlaying: false,
+      isLoading: false,
+      error: null,
+    }));
+  }, [svuota, riallineaPrecaricato, loadAndPlayTrack, concludiTransizione, attivo]);
+
+  const move = useCallback((from: number, to: number) => {
+    const s = stateRef.current;
+    const r = sposta({ queue: s.queue, index: s.index }, from, to);
+    if (r.queue === s.queue) return;
+    // Con lo shuffle spento la coda È l'ordine originale; con lo shuffle
+    // acceso il riordino vale per questo giro, e spegnendolo si torna all'ordine di partenza.
+    if (!s.shuffle) originalQueueRef.current = r.queue;
+    riallineaPrecaricato(r.queue, r.index);
+    setState((prev) => ({ ...prev, queue: r.queue, index: r.index }));
+  }, [riallineaPrecaricato]);
+
   const setVolume = useCallback((v: number) => {
     const clamped = Math.max(0, Math.min(1, v));
     // Durante una dissolvenza ci pensa la rampa, al prossimo giro, a usare il volume nuovo.
@@ -845,6 +966,9 @@ export function PlayerProvider({
     ...state,
     playQueue,
     playNext,
+    playAt,
+    removeAt,
+    move,
     addToQueue,
     toggle,
     next,
