@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../api';
+import { NomeDialog } from '../components/NomeDialog';
 import { PlaylistCover } from '../components/PlaylistCover';
 import { TrackRow } from '../components/TrackRow';
 import { usePlayer } from '../player/PlayerContext';
@@ -21,7 +22,9 @@ import { formatLength, type PlaylistDetail, type PlaylistSummary } from '../type
 
 type Props = {
   playlist: PlaylistSummary | { id: number; name: string } | null;
+  /** torna alla schermata precedente: anche dopo l'eliminazione, una volta sola */
   onBack: () => void;
+  /** per aggiornare altro dopo l'eliminazione, NON per navigare: a quello pensa già onBack */
   onPlaylistDeleted?: (id: number) => void;
 };
 
@@ -35,6 +38,10 @@ export const PlaylistDetailModal: React.FC<Props> = ({
 }) => {
   const [detail, setDetail] = useState<PlaylistDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  // Il nome mostrato: parte da quello con cui si è aperta la schermata, e
+  // cambia subito dopo una rinomina (la lista sotto si ricarica da sola al ritorno).
+  const [nome, setNome] = useState(playlist?.name ?? '');
+  const [rinomina, setRinomina] = useState(false);
 
   const { playQueue, toggleShuffle, shuffle } = usePlayer();
 
@@ -61,6 +68,7 @@ export const PlaylistDetailModal: React.FC<Props> = ({
       setDetail(null);
       return;
     }
+    setNome(playlist.name);
     return loadDetail();
   }, [playlist]);
 
@@ -95,10 +103,17 @@ export const PlaylistDetailModal: React.FC<Props> = ({
     }
   };
 
+  const handleRename = async (nuovo: string) => {
+    // Un errore (nome vuoto, playlist sparita) lo mostra il riquadro, che resta aperto.
+    const res = await api.renamePlaylist(playlist.id, nuovo);
+    setNome(res.name);
+    setRinomina(false);
+  };
+
   const confirmDelete = () => {
     Alert.alert(
       'Elimina playlist',
-      `Sei sicuro di voler eliminare la playlist "${playlist.name}"? I brani non verranno cancellati dalla libreria.`,
+      `Sei sicuro di voler eliminare la playlist "${nome}"? I brani non verranno cancellati dalla libreria.`,
       [
         { text: 'Annulla', style: 'cancel' },
         {
@@ -119,21 +134,25 @@ export const PlaylistDetailModal: React.FC<Props> = ({
   };
 
   const showMoreMenu = () => {
-    const options = ['Annulla', 'Elimina playlist'];
+    const options = ['Annulla', 'Rinomina', 'Elimina playlist'];
+    const actions = [() => {}, () => setRinomina(true), confirmDelete];
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         {
           options,
-          destructiveButtonIndex: 1,
+          destructiveButtonIndex: 2,
           cancelButtonIndex: 0,
-          title: playlist.name,
+          title: nome,
         },
-        (buttonIndex) => {
-          if (buttonIndex === 1) confirmDelete();
-        }
+        (buttonIndex) => actions[buttonIndex]?.(),
       );
     } else {
-      confirmDelete();
+      // Prima qui si andava dritti alla conferma di eliminazione: con due voci serve un menu.
+      Alert.alert(nome, undefined, [
+        { text: 'Annulla', style: 'cancel' },
+        { text: 'Rinomina', onPress: actions[1] },
+        { text: 'Elimina playlist', style: 'destructive', onPress: actions[2] },
+      ]);
     }
   };
 
@@ -155,14 +174,14 @@ export const PlaylistDetailModal: React.FC<Props> = ({
           <PlaylistCover
             playlist={{
               id: playlist.id,
-              name: playlist.name,
+              name: nome,
               coverKey: detail?.coverKey ?? null,
               covers: [],
             }}
             size={COVER_SIZE}
             borderRadius={theme.radii.lg}
           />
-          <Text style={styles.title}>{playlist.name}</Text>
+          <Text style={styles.title}>{nome}</Text>
           <Text style={styles.meta}>
             {tracks.length} {tracks.length === 1 ? 'brano' : 'brani'}
             {tracks.length > 0 ? ` · ${formatLength(totalDuration)}` : ''}
@@ -222,6 +241,15 @@ export const PlaylistDetailModal: React.FC<Props> = ({
           </View>
         )}
       </ScrollView>
+
+      <NomeDialog
+        visible={rinomina}
+        titolo="Rinomina playlist"
+        iniziale={nome}
+        conferma="Salva"
+        onConferma={handleRename}
+        onAnnulla={() => setRinomina(false)}
+      />
     </View>
   );
 };

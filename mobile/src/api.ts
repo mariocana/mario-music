@@ -147,6 +147,8 @@ export const api = {
   playlists: () => get<PlaylistSummary[]>('/api/playlists'),
   playlist: (id: number) => get<PlaylistDetail>(`/api/playlists/${id}`),
   createPlaylist: (name: string) => send<PlaylistSummary>('/api/playlists', 'POST', { name }),
+  renamePlaylist: (id: number, name: string) =>
+    send<{ id: number; name: string }>(`/api/playlists/${id}`, 'PATCH', { name }),
   deletePlaylist: (id: number) => send<void>(`/api/playlists/${id}`, 'DELETE'),
   addTracksToPlaylist: (playlistId: number, trackIds: number[]) =>
     send<{ added: number }>(`/api/playlists/${playlistId}/tracks`, 'POST', { trackIds }),

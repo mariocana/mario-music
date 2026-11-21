@@ -134,7 +134,6 @@ function MainApp() {
                 <PlaylistDetailModal
                   playlist={currentRoute.playlist}
                   onBack={goBack}
-                  onPlaylistDeleted={goBack}
                 />
               );
             }
