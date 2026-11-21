@@ -56,7 +56,10 @@
           "cameraPermission": false,
           "microphonePermission": false
         }
-      ]
+      ],
+      "expo-font",
+      "expo-asset",
+      "expo-status-bar"
     ],
     "extra": {
       "eas": {
