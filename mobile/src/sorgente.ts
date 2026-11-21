@@ -5,14 +5,17 @@
  * un FLAC di quattro minuti passa da ~26 MB a ~7. MP3 e AAC restano come sono,
  * perché riconvertirli peggiorerebbe la qualità senza alleggerirli davvero.
  *
- * SEMPRE `full=1`. Un brano non ancora convertito il server lo manderebbe
- * mentre lo sta scrivendo, senza lunghezza e senza salti (`Accept-Ranges:
- * none`). Il browser lo digeriva; AVPlayer vuole le richieste a intervalli di
- * byte, e un errore a metà caricamento con expo-audio non si intercetta in modo
- * affidabile per ripiegare. Con `full=1` il server aspetta la fine della
- * conversione (~3 s la prima volta) e risponde come per un file qualunque. Per
- * non farla aspettare quasi mai, il player chiede di convertire il brano
- * successivo appena parte quello in corso (POST /prepare).
+ * La versione convertita arriva in HLS: una playlist di pezzi da sei secondi
+ * (vedi server/hls.ts). Prima si chiedeva il file AAC intero con `full=1`,
+ * perché AVPlayer vuole conoscere la lunghezza di ciò che suona e un file
+ * ancora in conversione non ce l'ha: il server aspettava la fine (~4 s) e il
+ * brano partiva dopo cinque secondi buoni. Con HLS ogni pezzo è un file
+ * completo e la playlist si scrive prima di convertire: si parte in meno di
+ * un secondo. Il brano successivo si prepara comunque in anticipo
+ * (POST /prepare?format=hls), così di solito i pezzi ci sono già tutti.
+ *
+ * I download non passano di qui: scaricano il file originale (vedi
+ * DownloadsContext), perché una copia offline è un file, non una playlist.
  */
 
 /** La scelta nelle Impostazioni. */
@@ -55,7 +58,10 @@ export function usaConversione(codec: string | null | undefined, qualita: Qualit
   return codec != null && !LEGGIBILI.has(codec);
 }
 
-/** Il pezzo di URL da aggiungere a /api/tracks/:id/stream. */
-export function queryStream(codec: string | null | undefined, qualita: QualitaEffettiva): string {
-  return usaConversione(codec, qualita) ? '?format=aac&full=1' : '';
+/**
+ * Il percorso da aggiungere a /api/tracks/:id/ per ascoltare in streaming:
+ * il file originale, o la playlist HLS della versione convertita.
+ */
+export function percorsoAscolto(codec: string | null | undefined, qualita: QualitaEffettiva): string {
+  return usaConversione(codec, qualita) ? 'hls/index.m3u8' : 'stream';
 }

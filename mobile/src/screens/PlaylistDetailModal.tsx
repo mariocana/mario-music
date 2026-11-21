@@ -3,7 +3,6 @@ import {
   ActionSheetIOS,
   ActivityIndicator,
   Alert,
-  Dimensions,
   Platform,
   Pressable,
   ScrollView,
@@ -20,6 +19,7 @@ import { PlaylistCover } from '../components/PlaylistCover';
 import { TrackRow } from '../components/TrackRow';
 import { usePlayer } from '../player/PlayerContext';
 import { theme } from '../theme';
+import { useLarghezzaContenuto } from '../useGriglia';
 import { formatLength, type PlaylistDetail, type PlaylistSummary } from '../types';
 
 type Props = {
@@ -30,14 +30,13 @@ type Props = {
   onPlaylistDeleted?: (id: number) => void;
 };
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const COVER_SIZE = Math.min(SCREEN_WIDTH * 0.55, 220);
 
 export const PlaylistDetailModal: React.FC<Props> = ({
   playlist,
   onBack,
   onPlaylistDeleted,
 }) => {
+  const coverSize = Math.min(useLarghezzaContenuto() * 0.55, 220);
   // Il dettaglio si ricorda per quale playlist è arrivato: aprendone un altro si
   // vede il caricamento, non quello di prima (e senza azzerare lo stato
   // dentro l'effect, che costerebbe un render in più).
@@ -328,7 +327,7 @@ export const PlaylistDetailModal: React.FC<Props> = ({
                 // dei primi quattro brani (come la query sul server).
                 covers: tracks.slice(0, 4).map((t) => ({ albumId: t.albumId, coverKey: t.coverKey })),
               }}
-              size={COVER_SIZE}
+              size={coverSize}
               borderRadius={theme.radii.lg}
             />
             {caricoCopertina && (

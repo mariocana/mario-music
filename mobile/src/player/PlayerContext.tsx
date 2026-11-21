@@ -15,7 +15,7 @@ import {
   type AudioStatus,
 } from 'expo-audio';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api, checkServerReachable, coverUrl, isServerOnlineSync, streamUrl } from '../api';
+import { api, ascoltoUrl, checkServerReachable, coverUrl, isServerOnlineSync } from '../api';
 import { accoda, inserisciDopo, soloAscoltabili, sposta, togli } from '../coda';
 import {
   CHIAVE_CROSSFADE,
@@ -41,7 +41,7 @@ import {
   CHIAVE_QUALITA,
   QUALITA,
   qualitaEffettiva,
-  queryStream,
+  percorsoAscolto,
   usaConversione,
   type Qualita,
   type QualitaEffettiva,
@@ -355,7 +355,7 @@ export function PlayerProvider({
 
   // La copia scaricata vince sempre: non costa rete, qualunque sia la qualità.
   const urlDi = useCallback(
-    (track: Track) => getOfflineUri?.(track.id) || streamUrl(track.id, queryStream(track.codec, qualitaAttivaAdesso())),
+    (track: Track) => getOfflineUri?.(track.id) || ascoltoUrl(track.id, percorsoAscolto(track.codec, qualitaAttivaAdesso())),
     [getOfflineUri, qualitaAttivaAdesso],
   );
 

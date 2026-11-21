@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Dimensions,
   FlatList,
   Pressable,
   RefreshControl,
@@ -15,6 +14,7 @@ import { CoverImage } from '../components/CoverImage';
 import { useDownloads } from '../downloads/DownloadsContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { theme } from '../theme';
+import { useGriglia } from '../useGriglia';
 import type { Album } from '../types';
 
 type Props = {
@@ -22,15 +22,13 @@ type Props = {
   onBack?: () => void;
 };
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const ITEM_WIDTH = (SCREEN_WIDTH - 32 - 16) / 2;
-
 export const AlbumsScreen: React.FC<Props> = ({ onSelectAlbum, onBack }) => {
   const [albums, setAlbums] = useState<Album[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const isServerOnline = useServerOnline();
+  const { colonne, larghezzaCella } = useGriglia();
   const { items: downloadedItems } = useDownloads();
   const { navigateToDownloads } = useNavigation();
 
@@ -77,7 +75,9 @@ export const AlbumsScreen: React.FC<Props> = ({ onSelectAlbum, onBack }) => {
       <FlatList
         data={albums}
         keyExtractor={(item) => String(item.id)}
-        numColumns={2}
+        // Cambiare numColumns al volo non è permesso: la key nuova rimonta la lista.
+        key={`griglia-${colonne}`}
+        numColumns={colonne}
         contentContainerStyle={styles.listContent}
         columnWrapperStyle={albums.length > 0 ? styles.columnWrapper : undefined}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.tint} />}
@@ -109,10 +109,10 @@ export const AlbumsScreen: React.FC<Props> = ({ onSelectAlbum, onBack }) => {
         }
         renderItem={({ item }) => (
           <Pressable
-            style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+            style={({ pressed }) => [{ width: larghezzaCella }, pressed && styles.cardPressed]}
             onPress={() => onSelectAlbum(item)}
           >
-            <CoverImage albumId={item.id} coverKey={item.coverKey} size={ITEM_WIDTH} borderRadius={theme.radii.md} />
+            <CoverImage albumId={item.id} coverKey={item.coverKey} size={larghezzaCella} borderRadius={theme.radii.md} />
             <Text style={styles.title} numberOfLines={1}>
               {item.title}
             </Text>
@@ -163,12 +163,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 130,
   },
+  // gap invece di space-between: l'ultima riga, se incompleta, resta
+  // allineata a sinistra invece di spargere le copertine.
   columnWrapper: {
-    justifyContent: 'space-between',
+    gap: 16,
     marginBottom: 16,
-  },
-  card: {
-    width: ITEM_WIDTH,
   },
   cardPressed: {
     opacity: 0.75,

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   ActionSheetIOS,
   Alert,
-  Dimensions,
   FlatList,
   Modal,
   Platform,
@@ -11,6 +10,7 @@ import {
   StyleSheet,
   Text,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useDownloads } from '../downloads/DownloadsContext';
@@ -28,12 +28,20 @@ type Props = {
   onClose: () => void;
 };
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const ARTWORK_SIZE = Math.min(SCREEN_WIDTH - 64, 340);
+// Il player resta in una colonna da telefono anche su iPad e Mac: a tutta
+// larghezza titolo e controlli finirebbero ai due capi della finestra.
+const LARGHEZZA_MASSIMA_PLAYER = 560;
 /** altezza fissa delle righe della coda: serve a getItemLayout per aprire la lista sul brano in ascolto */
 const QUEUE_ROW_HEIGHT = 56;
 
 export const NowPlayingModal: React.FC<Props> = ({ visible, onClose }) => {
+  const finestra = useWindowDimensions();
+  // La copertina segue la finestra, ma lascia spazio in altezza a titolo,
+  // barra e controlli quando la finestra del Mac è bassa e larga.
+  const artworkSize = Math.max(
+    160,
+    Math.min(Math.min(finestra.width, LARGHEZZA_MASSIMA_PLAYER) - 64, finestra.height * 0.45, 420),
+  );
   const {
     current,
     isPlaying,
@@ -262,7 +270,7 @@ export const NowPlayingModal: React.FC<Props> = ({ visible, onClose }) => {
                 <CoverImage
                   albumId={current.albumId}
                   coverKey={current.coverKey}
-                  size={ARTWORK_SIZE}
+                  size={artworkSize}
                   borderRadius={theme.radii.lg}
                 />
               </View>
@@ -412,6 +420,9 @@ const styles = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
+    width: '100%',
+    maxWidth: LARGHEZZA_MASSIMA_PLAYER,
+    alignSelf: 'center',
   },
   header: {
     flexDirection: 'row',

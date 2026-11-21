@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
-  Dimensions,
   Image,
   Pressable,
   ScrollView,
@@ -16,6 +15,7 @@ import { TrackRow } from '../components/TrackRow';
 import { useDownloads } from '../downloads/DownloadsContext';
 import { usePlayer } from '../player/PlayerContext';
 import { theme } from '../theme';
+import { useGriglia } from '../useGriglia';
 import type { Album, Artist, ArtistDetail, Track } from '../types';
 
 type Props = {
@@ -24,14 +24,12 @@ type Props = {
   onSelectAlbum: (album: Album) => void;
 };
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const ALBUM_CARD_WIDTH = Math.floor((SCREEN_WIDTH - 48) / 2);
-
 export const ArtistDetailModal: React.FC<Props> = ({
   artist,
   onBack,
   onSelectAlbum,
 }) => {
+  const { larghezzaCella } = useGriglia();
   // Il dettaglio si ricorda per quale artist è arrivato: aprendone un altro si
   // vede il caricamento, non quello di prima (e senza azzerare lo stato
   // dentro l'effect, che costerebbe un render in più).
@@ -186,13 +184,13 @@ export const ArtistDetailModal: React.FC<Props> = ({
               {albums.map((alb) => (
                 <Pressable
                   key={alb.id}
-                  style={styles.albumCard}
+                  style={{ width: larghezzaCella }}
                   onPress={() => onSelectAlbum(alb)}
                 >
                   <CoverImage
                     albumId={alb.id}
                     coverKey={alb.coverKey}
-                    size={ALBUM_CARD_WIDTH}
+                    size={larghezzaCella}
                     borderRadius={theme.radii.md}
                   />
                   <Text style={styles.albumTitle} numberOfLines={1}>
@@ -216,13 +214,13 @@ export const ArtistDetailModal: React.FC<Props> = ({
               {singles.map((alb) => (
                 <Pressable
                   key={alb.id}
-                  style={styles.albumCard}
+                  style={{ width: larghezzaCella }}
                   onPress={() => onSelectAlbum(alb)}
                 >
                   <CoverImage
                     albumId={alb.id}
                     coverKey={alb.coverKey}
-                    size={ALBUM_CARD_WIDTH}
+                    size={larghezzaCella}
                     borderRadius={theme.radii.md}
                   />
                   <Text style={styles.albumTitle} numberOfLines={1}>
@@ -377,9 +375,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 16,
-  },
-  albumCard: {
-    width: ALBUM_CARD_WIDTH,
   },
   albumTitle: {
     fontSize: 14,

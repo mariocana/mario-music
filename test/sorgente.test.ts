@@ -3,22 +3,22 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { convertibile, qualitaEffettiva, queryStream, usaConversione } from '../mobile/src/sorgente.ts';
+import { convertibile, percorsoAscolto, qualitaEffettiva, usaConversione } from '../mobile/src/sorgente.ts';
 
 test('in qualità originale un FLAC arriva così com\'è', () => {
-  assert.equal(queryStream('flac', 'originale'), '');
+  assert.equal(percorsoAscolto('flac', 'originale'), 'stream');
 });
 
-test('in risparmio un FLAC si chiede convertito, e completo', () => {
-  assert.equal(queryStream('flac', 'risparmio'), '?format=aac&full=1');
-  assert.equal(queryStream('alac', 'risparmio'), '?format=aac&full=1');
+test('in risparmio un FLAC si ascolta convertito, a pezzi HLS', () => {
+  assert.equal(percorsoAscolto('flac', 'risparmio'), 'hls/index.m3u8');
+  assert.equal(percorsoAscolto('alac', 'risparmio'), 'hls/index.m3u8');
 });
 
 test('MP3 e AAC non si riconvertono mai', () => {
   for (const codec of ['mp3', 'aac']) {
     assert.equal(convertibile(codec), false);
-    assert.equal(queryStream(codec, 'risparmio'), '');
-    assert.equal(queryStream(codec, 'originale'), '');
+    assert.equal(percorsoAscolto(codec, 'risparmio'), 'stream');
+    assert.equal(percorsoAscolto(codec, 'originale'), 'stream');
   }
 });
 

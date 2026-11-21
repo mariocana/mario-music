@@ -304,6 +304,44 @@ sempre "quello dopo".
   chiedono lo stesso brano insieme, la seconda aspetta la prima invece di
   lanciare un altro ffmpeg. Al massimo due conversioni in parallelo.
 
+### HLS: l'app ascolta a pezzi
+
+Il trucco qui sopra funziona nel browser, non sull'iPhone. AVPlayer vuole
+sapere quanto è lungo il file prima di suonarlo, e un file che sta ancora
+crescendo una lunghezza non ce l'ha. L'app chiedeva quindi `?full=1` e
+aspettava la fine della conversione: sul 5G un FLAC mai ascoltato partiva
+dopo circa 5 secondi.
+
+La soluzione è quella di Apple Music (e di Jellyfin e Plex per lo stesso
+problema): **HLS**. Il brano non è più un file ma una playlist di pezzi da
+sei secondi (`server/hls.ts`):
+
+    GET /api/tracks/:id/hls/index.m3u8   la playlist
+    GET /api/tracks/:id/hls/init.mp4     l'intestazione (codec, frequenza)
+    GET /api/tracks/:id/hls/<n>.m4s      il pezzo n
+
+Ogni pezzo è un file piccolo e completo, con la sua lunghezza. La playlist si
+scrive **prima** di convertire, perché la durata è nel database e quindi si
+sa già quanti pezzi ci saranno. Il player la legge, chiede il primo pezzo, e
+ffmpeg l'ha pronto in tre decimi di secondo. Misurato con AVPlayer su FLAC
+mai convertiti: **suona dopo 0,5–0,6 s** invece di 4–5, e il salto a metà
+brano risponde in 1–2 s.
+
+- **Quanti pezzi annunciare:** `ceil(durata / 6)`. ffmpeg ne scrive almeno
+  tanti, a volte uno in più, perché l'encoder AAC aggiunge qualche
+  millisecondo di riempimento (12 s → 3 pezzi). Annunciarne uno in meno costa
+  quei millisecondi in coda; uno in più sarebbe un pezzo che non arriva mai.
+  A conversione finita si serve la playlist scritta da ffmpeg, con le durate
+  esatte.
+- **Un pezzo chiesto prima che esista** non riceve un 404: la richiesta
+  aspetta che ffmpeg lo scriva (`-hls_flags temp_file`: un pezzo compare
+  solo quando è completo).
+- **Cache in `data/hls/<impronta>/`**, come per i `.m4a`. `completo.m3u8`
+  esiste solo a lavoro riuscito: una cartella senza è un lavoro interrotto e
+  si rifà. `HLS_DIR=/altrove` la sposta.
+- I **download** restano file originali interi: una copia offline è un file,
+  non una playlist.
+
 ## Riepilogo degli ascolti
 
 In **Ascolti → Riepilogo**, sul modello di Apple Music Replay: minuti

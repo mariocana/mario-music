@@ -69,7 +69,9 @@ export type TranscodeOptions = {
  */
 let attive = 0;
 const inAttesa: Array<{ urgente: boolean; via: () => void }> = [];
-function acquisisci(urgente = false): Promise<void> {
+// Esportati perché anche hls.ts converte con ffmpeg: le conversioni HLS e
+// quelle a file intero devono stare nello stesso limite, non due limiti da due.
+export function acquisisci(urgente = false): Promise<void> {
   if (attive < MAX_PARALLELE) { attive++; return Promise.resolve(); }
   return new Promise((resolve) => {
     const voce = { urgente, via: () => { attive++; resolve(); } };
@@ -80,7 +82,7 @@ function acquisisci(urgente = false): Promise<void> {
     else inAttesa.push(voce);
   });
 }
-function rilascia() {
+export function rilascia() {
   attive--;
   inAttesa.shift()?.via();
 }

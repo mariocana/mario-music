@@ -26,6 +26,7 @@ import { PlaylistsScreen } from './src/screens/PlaylistsScreen';
 import { SearchScreen } from './src/screens/SearchScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SongsScreen } from './src/screens/SongsScreen';
+import { LARGHEZZA_MASSIMA_CONTENUTO } from './src/griglia';
 import { scaldaCatalogo } from './src/scaldaCatalogo';
 import { theme } from './src/theme';
 
@@ -258,8 +259,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  // Su iPad e sul Mac il contenuto resta in una colonna centrata: a tutta
+  // larghezza le righe dei brani diventano lunghe e vuote.
   screenContent: {
     flex: 1,
+    width: '100%',
+    maxWidth: LARGHEZZA_MASSIMA_CONTENUTO,
+    alignSelf: 'center',
   },
   offlineBanner: {
     flexDirection: 'row',

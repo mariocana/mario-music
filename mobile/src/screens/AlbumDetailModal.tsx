@@ -3,7 +3,6 @@ import {
   ActionSheetIOS,
   ActivityIndicator,
   Alert,
-  Dimensions,
   Platform,
   Pressable,
   ScrollView,
@@ -19,6 +18,7 @@ import { useDownloads } from '../downloads/DownloadsContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { usePlayer } from '../player/PlayerContext';
 import { theme } from '../theme';
+import { useLarghezzaContenuto } from '../useGriglia';
 import { formatLength, type Album, type AlbumDetail } from '../types';
 
 type Props = {
@@ -26,10 +26,9 @@ type Props = {
   onBack: () => void;
 };
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const COVER_SIZE = Math.min(SCREEN_WIDTH * 0.55, 220);
 
 export const AlbumDetailModal: React.FC<Props> = ({ album, onBack }) => {
+  const coverSize = Math.min(useLarghezzaContenuto() * 0.55, 220);
   // Il dettaglio si ricorda per quale album è arrivato: aprendone un altro si
   // vede il caricamento, non quello di prima (e senza azzerare lo stato
   // dentro l'effect, che costerebbe un render in più).
@@ -172,7 +171,7 @@ export const AlbumDetailModal: React.FC<Props> = ({ album, onBack }) => {
           <CoverImage
             albumId={album.id}
             coverKey={album.coverKey}
-            size={COVER_SIZE}
+            size={coverSize}
             borderRadius={theme.radii.lg}
           />
           <Text style={styles.title}>{album.title}</Text>

@@ -21,6 +21,7 @@ import {
   transcodedFile, giaPronto, vaTranscodificato, iniziaConversione, leggiMentreCresce, TRANSCODE_MIME,
 } from './transcode.ts';
 import type { Conversione } from './transcode.ts';
+import { avviaHls, attendiFile, hlsPronto, NOME_FILE, playlistPer, PLAYLIST_MIME, SEGMENTO_MIME } from './hls.ts';
 import { scanLibrary, LibraryMissingError } from './scanner.ts';
 import { getLyrics } from './lyrics.ts';
 import { searchTracks, rebuildSearchIndex, indexIsStale } from './search.ts';
@@ -94,7 +95,7 @@ const q = {
     JOIN artists ar ON ar.id = t.artist_id
     ORDER BY ar.name COLLATE NOCASE, al.year, t.disc_no, t.track_no
   `),
-  trackFile: db.prepare('SELECT path, mime, title, codec, size, fingerprint FROM tracks WHERE id = ?'),
+  trackFile: db.prepare('SELECT path, mime, title, codec, size, fingerprint, duration FROM tracks WHERE id = ?'),
   coverFile: db.prepare('SELECT cover_path AS coverPath FROM albums WHERE id = ?'),
   stats: db.prepare(`
     SELECT (SELECT COUNT(*) FROM artists) AS artists,
@@ -436,7 +437,7 @@ get(/^\/api\/tracks\/(\d+)\/lyrics$/, async (_req, res, [id]) => {
   json(res, 200, result);
 });
 
-type TrackFile = { path: string; mime: string; title: string; codec: string | null; size: number; fingerprint: string | null };
+type TrackFile = { path: string; mime: string; title: string; codec: string | null; size: number; fingerprint: string | null; duration: number };
 
 /**
  * Manda un file che sta ancora crescendo.
@@ -548,13 +549,84 @@ get(/^\/api\/tracks\/(\d+)\/stream$/, async (req, res, [id], url) => {
   });
 });
 
+/*
+ * HLS: il brano convertito a pezzi da sei secondi (vedi hls.ts).
+ *
+ *   GET /api/tracks/:id/hls/index.m3u8   la playlist, subito, anche prima
+ *                                        che esista un solo pezzo
+ *   GET /api/tracks/:id/hls/init.mp4     l'intestazione comune
+ *   GET /api/tracks/:id/hls/<n>.m4s      il pezzo n, aspettando ffmpeg se serve
+ *
+ * I nomi nella playlist sono relativi, quindi il player li risolve da solo
+ * accanto a index.m3u8. Ogni richiesta avvia la conversione se non è partita:
+ * il primo ad arrivare (di solito la playlist) la fa partire, gli altri si
+ * agganciano.
+ */
+get(/^\/api\/tracks\/(\d+)\/hls\/([^/]+)$/, async (req, res, [id, nome]) => {
+  const row = q.trackFile.get(Number(id)) as TrackFile | undefined;
+  if (!row) return json(res, 404, { error: 'Traccia non trovata' });
+  if (nome !== 'index.m3u8' && !NOME_FILE.test(nome)) return json(res, 404, { error: 'File non previsto' });
+  try {
+    await stat(row.path);
+  } catch {
+    return json(res, 410, { error: 'File non più presente sul disco. Rilancia: npm run scan' });
+  }
+
+  let lavoro;
+  try {
+    lavoro = await avviaHls(row, { urgente: true });
+  } catch (err) {
+    console.error(`hls fallito: ${row.title}`, err);
+    return json(res, 500, { error: 'Conversione fallita: ffmpeg è installato?' });
+  }
+
+  if (nome === 'index.m3u8') {
+    const pl = await playlistPer(lavoro, row.duration);
+    if ('file' in pl) {
+      return sendFile(req, res, pl.file, await stat(pl.file), { contentType: PLAYLIST_MIME, cacheControl: 'no-cache' });
+    }
+    console.log(`hls: ${row.title}`);
+    res.writeHead(200, { 'Content-Type': PLAYLIST_MIME, 'Cache-Control': 'no-cache' });
+    res.end(pl.testo);
+    return;
+  }
+
+  let file: string | null;
+  try {
+    file = await attendiFile(lavoro, nome);
+  } catch (err) {
+    console.error(`hls fallito: ${row.title} (${nome})`, err);
+    return json(res, 500, { error: 'Conversione fallita' });
+  }
+  if (!file) return json(res, 404, { error: 'Pezzo oltre la fine del brano' });
+  // no-cache, non max-age: l'URL porta l'id del brano, non l'impronta del
+  // contenuto. Se il file viene ritaggato i pezzi cambiano e l'URL no; così il
+  // player ricontrolla ogni volta e l'ETag risponde 304 se non è cambiato niente.
+  sendFile(req, res, file, await stat(file), {
+    contentType: SEGMENTO_MIME,
+    cacheControl: 'no-cache',
+  });
+});
+
 // Il player la chiama per il brano successivo appena parte quello corrente:
 // quando toccherà a lui, il file convertito c'è già. Risponde subito e
 // converte in sottofondo; { pronto: true } se non c'era niente da fare.
-post(/^\/api\/tracks\/(\d+)\/prepare$/, async (_req, res, [id]) => {
+// Con ?format=hls prepara i pezzi HLS invece del file intero.
+post(/^\/api\/tracks\/(\d+)\/prepare$/, async (_req, res, [id], url) => {
   const row = q.trackFile.get(Number(id)) as TrackFile | undefined;
   if (!row) return json(res, 404, { error: 'Traccia non trovata' });
   if (!vaTranscodificato(row.codec)) return json(res, 200, { pronto: true });
+  if (url.searchParams.get('format') === 'hls') {
+    const pronto = await hlsPronto(row);
+    if (!pronto) {
+      const t0 = Date.now();
+      avviaHls(row)
+        .then((l) => l.fine)
+        .then(() => console.log(`hls (in anticipo): ${row.title} in ${((Date.now() - t0) / 1000).toFixed(1)}s`))
+        .catch((err) => console.error(`hls fallito: ${row.title}`, err));
+    }
+    return json(res, 200, { pronto });
+  }
   const pronto = await giaPronto(row);
   if (!pronto) {
     const t0 = Date.now();

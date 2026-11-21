@@ -1,6 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LARGHEZZA_MASSIMA_MINI_PLAYER } from '../griglia';
 import { usePlayer } from '../player/PlayerContext';
 import { theme } from '../theme';
 import { CoverImage } from './CoverImage';
@@ -74,6 +75,9 @@ export const MiniPlayer: React.FC<Props> = ({ onPress }) => {
 
 const styles = StyleSheet.create({
   wrapper: {
+    width: '100%',
+    maxWidth: LARGHEZZA_MASSIMA_MINI_PLAYER,
+    alignSelf: 'center',
     paddingHorizontal: 8,
     paddingBottom: 4,
   },

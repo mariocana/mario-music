@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Dimensions,
   FlatList,
   Modal,
   Pressable,
@@ -18,6 +17,7 @@ import { PlaylistCover } from '../components/PlaylistCover';
 import { useDownloads } from '../downloads/DownloadsContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { theme } from '../theme';
+import { useGriglia } from '../useGriglia';
 import { formatLength, type PlaylistSummary } from '../types';
 
 type Props = {
@@ -25,13 +25,12 @@ type Props = {
   onSelectPlaylist: (playlist: PlaylistSummary) => void;
 };
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const CARD_WIDTH = Math.floor((SCREEN_WIDTH - 48) / 2);
 
 export const PlaylistsScreen: React.FC<Props> = ({ onBack, onSelectPlaylist }) => {
   const [playlists, setPlaylists] = useState<PlaylistSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const { colonne, larghezzaCella } = useGriglia();
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [creating, setCreating] = useState(false);
@@ -94,7 +93,9 @@ export const PlaylistsScreen: React.FC<Props> = ({ onBack, onSelectPlaylist }) =
       <FlatList
         data={playlists}
         keyExtractor={(item) => String(item.id)}
-        numColumns={2}
+        // Cambiare numColumns al volo non è permesso: la key nuova rimonta la lista.
+        key={`griglia-${colonne}`}
+        numColumns={colonne}
         contentContainerStyle={styles.listContent}
         columnWrapperStyle={styles.columnWrapper}
         refreshControl={
@@ -153,10 +154,10 @@ export const PlaylistsScreen: React.FC<Props> = ({ onBack, onSelectPlaylist }) =
         }
         renderItem={({ item }) => (
           <Pressable
-            style={({ pressed }) => [styles.card, pressed && styles.cardPressed]}
+            style={({ pressed }) => [{ width: larghezzaCella }, pressed && styles.cardPressed]}
             onPress={() => onSelectPlaylist(item)}
           >
-            <PlaylistCover playlist={item} size={CARD_WIDTH} borderRadius={theme.radii.md} />
+            <PlaylistCover playlist={item} size={larghezzaCella} borderRadius={theme.radii.md} />
             <Text style={styles.playlistName} numberOfLines={1}>
               {item.name}
             </Text>
@@ -247,8 +248,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     paddingBottom: 120,
   },
+  // gap invece di space-between: l'ultima riga incompleta resta a sinistra.
   columnWrapper: {
-    justifyContent: 'space-between',
+    gap: 16,
     marginBottom: 16,
   },
   header: {
@@ -278,9 +280,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: theme.colors.tint,
-  },
-  card: {
-    width: CARD_WIDTH,
   },
   cardPressed: {
     opacity: 0.8,

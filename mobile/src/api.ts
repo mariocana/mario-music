@@ -221,7 +221,8 @@ export const api = {
   recordPlay: (trackId: number) =>
     send<{ id: number; playCount: number }>(`/api/tracks/${trackId}/play`, 'POST'),
   /** fa convertire in anticipo un brano: risponde subito, la conversione va in sottofondo */
-  prepare: (trackId: number) => send<{ pronto: boolean }>(`/api/tracks/${trackId}/prepare`, 'POST'),
+  /** Fa preparare al server i pezzi HLS del brano che verrà dopo. */
+  prepare: (trackId: number) => send<{ pronto: boolean }>(`/api/tracks/${trackId}/prepare?format=hls`, 'POST'),
 };
 
 export const coverUrl = (albumId: number, coverKey?: string | null): string => {
@@ -234,10 +235,16 @@ export const playlistCoverUrl = (playlistId: number, coverKey?: string | null): 
   return `${base}/api/playlists/${playlistId}/cover${coverKey ? `?v=${coverKey}` : ''}`;
 };
 
-/** `query` sceglie la versione: vuota per l'originale, vedi queryStream() in sorgente.ts. */
+/** Il file intero: l'originale, o con `query` la versione convertita (per i download). */
 export const streamUrl = (trackId: number, query = ''): string => {
   const base = getServerUrlSync();
   return `${base}/api/tracks/${trackId}/stream${query}`;
+};
+
+/** Per ascoltare: `percorso` viene da percorsoAscolto() in sorgente.ts. */
+export const ascoltoUrl = (trackId: number, percorso: string): string => {
+  const base = getServerUrlSync();
+  return `${base}/api/tracks/${trackId}/${percorso}`;
 };
 
 /**
