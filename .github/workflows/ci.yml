@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 jobs:
-  server-web:
-    name: Server & Web (typecheck, test, build)
+  server:
+    name: Server (typecheck, test)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -22,9 +22,12 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
-      - run: npm run typecheck
+      # Solo il server (e i test): `npm run typecheck` controllerebbe anche
+      # l'app, ma qui le sue dipendenze non sono installate. L'app ha il suo
+      # job qui sotto. Il passo `npm run build` non c'è più: compilava il web,
+      # che è stato rimosso; il server gira direttamente con Node.
+      - run: npx tsc --noEmit
       - run: npm test
-      - run: npm run build
 
   mobile:
     name: Mobile App (typecheck)
@@ -45,7 +48,7 @@ jobs:
   # Su ogni push a main, se i test passano, compila APK e rilascia su TestFlight
   deploy-mobile:
     name: Deploy Mobile (TestFlight & Android APK)
-    needs: [server-web, mobile]
+    needs: [server, mobile]
     # Momentaneamente disattivato per non consumare crediti EAS Cloud.
     # Per riattivare, ripristinare: if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     if: false
