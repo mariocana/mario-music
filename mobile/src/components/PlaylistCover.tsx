@@ -1,5 +1,6 @@
 import React from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { playlistCoverUrl } from '../api';
 import { theme } from '../theme';
@@ -24,7 +25,9 @@ export const PlaylistCover: React.FC<Props> = ({
       <Image
         source={{ uri: playlistCoverUrl(id, coverKey) }}
         style={{ width: size, height: size, borderRadius }}
-        resizeMode="cover"
+        // expo-image e non l'Image di React Native: tiene la copertina su
+        // disco, quindi si vede anche offline (vedi scaldaCatalogo.ts).
+        contentFit="cover"
       />
     );
   }

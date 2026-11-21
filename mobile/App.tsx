@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useServerOnline } from './src/api';
+import { checkServerReachable, useServerOnline } from './src/api';
 import { AddToPlaylistModal } from './src/components/AddToPlaylistModal';
 import { MiniPlayer } from './src/components/MiniPlayer';
 import { MobileTabBar, type TabType } from './src/components/MobileTabBar';
@@ -26,6 +26,7 @@ import { PlaylistsScreen } from './src/screens/PlaylistsScreen';
 import { SearchScreen } from './src/screens/SearchScreen';
 import { SettingsScreen } from './src/screens/SettingsScreen';
 import { SongsScreen } from './src/screens/SongsScreen';
+import { scaldaCatalogo } from './src/scaldaCatalogo';
 import { theme } from './src/theme';
 
 function MainApp() {
@@ -53,6 +54,21 @@ function MainApp() {
 
   useEffect(() => {
     void initConfig().finally(() => setReady(true));
+  }, []);
+
+  // Appena il server risponde, si salva in sottofondo quello che serve a
+  // sfogliare la libreria offline (una volta per avvio).
+  useEffect(() => {
+    if (ready && isServerOnline) void scaldaCatalogo();
+  }, [ready, isServerOnline]);
+
+  // Tornando all'app (magari dopo aver riacceso il Wi-Fi) si ricontrolla il
+  // server: altrimenti il banner offline resterebbe finché non si cambia schermata.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (stato) => {
+      if (stato === 'active') void checkServerReachable();
+    });
+    return () => sub.remove();
   }, []);
 
   if (!ready) {
@@ -101,7 +117,7 @@ function MainApp() {
         >
           <Ionicons name="cloud-offline" size={15} color="#fbbf24" style={styles.offlineIcon} />
           <Text style={styles.offlineBannerText} numberOfLines={1}>
-            Modalità non in linea · Server non raggiungibile
+            Non in linea · libreria salvata e brani scaricati
           </Text>
           <Ionicons name="chevron-forward" size={14} color="#fbbf24" />
         </Pressable>

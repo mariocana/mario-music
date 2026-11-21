@@ -6,7 +6,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { AppState, Platform } from 'react-native';
+import { Alert, AppState, Platform } from 'react-native';
 import {
   createAudioPlayer,
   requestNotificationPermissionsAsync,
@@ -15,8 +15,8 @@ import {
   type AudioStatus,
 } from 'expo-audio';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { api, coverUrl, streamUrl } from '../api';
-import { accoda, inserisciDopo, sposta, togli } from '../coda';
+import { api, checkServerReachable, coverUrl, isServerOnlineSync, streamUrl } from '../api';
+import { accoda, inserisciDopo, soloAscoltabili, sposta, togli } from '../coda';
 import {
   CHIAVE_CROSSFADE,
   DURATE_CROSSFADE,
@@ -687,8 +687,33 @@ export function PlayerProvider({
     };
   }, []);
 
-  const playQueue = useCallback((tracks: Track[], startIndex = 0) => {
-    if (tracks.length === 0) return;
+  /**
+   * Offline il catalogo si sfoglia tutto (vedi catalogo.ts), ma suonano solo
+   * i brani scaricati: gli altri si tolgono dalla coda prima di partire,
+   * invece di far bloccare il player sul primo che prova a chiedere al server.
+   */
+  const perOffline = useCallback(async (tracks: Track[], startIndex: number) => {
+    if (isServerOnlineSync() || !getOfflineUri) return { tracks, startIndex };
+    // "Offline" può voler dire solo che una richiesta è andata male poco fa:
+    // prima di rifiutare lo streaming si ricontrolla. Senza rete fallisce
+    // subito; aspetta davvero solo se la rete c'è e il server tace.
+    if (await checkServerReachable()) return { tracks, startIndex };
+    const r = soloAscoltabili(tracks, startIndex, (t) => getOfflineUri(t.id) !== null);
+    if (!r) {
+      Alert.alert(
+        'Non in linea',
+        tracks.length === 1
+          ? 'Questo brano non è scaricato: per ascoltarlo serve la connessione al server.'
+          : 'Nessuno di questi brani è scaricato: per ascoltarli serve la connessione al server.',
+      );
+    }
+    return r;
+  }, [getOfflineUri]);
+
+  const playQueue = useCallback(async (tutti: Track[], startScelto = 0) => {
+    const ascoltabili = await perOffline(tutti, startScelto);
+    if (!ascoltabili || ascoltabili.tracks.length === 0) return;
+    const { tracks, startIndex } = ascoltabili;
     originalQueueRef.current = tracks;
 
     if (stateRef.current.shuffle) {
@@ -698,10 +723,10 @@ export function PlayerProvider({
     } else {
       void loadAndPlayTrack(tracks, startIndex);
     }
-  }, [loadAndPlayTrack]);
+  }, [loadAndPlayTrack, perOffline]);
 
-  const playNext = useCallback((tracksInput: Track | Track[]) => {
-    const items = Array.isArray(tracksInput) ? tracksInput : [tracksInput];
+  const playNext = useCallback(async (tracksInput: Track | Track[]) => {
+    const items = (await perOffline(Array.isArray(tracksInput) ? tracksInput : [tracksInput], 0))?.tracks ?? [];
     if (items.length === 0) return;
 
     const { queue, index } = stateRef.current;
@@ -713,10 +738,10 @@ export function PlayerProvider({
     const res = inserisciDopo({ queue, index }, items);
     originalQueueRef.current = res.queue;
     setState((s) => ({ ...s, queue: res.queue, index: res.index }));
-  }, [loadAndPlayTrack]);
+  }, [loadAndPlayTrack, perOffline]);
 
-  const addToQueue = useCallback((tracksInput: Track | Track[]) => {
-    const items = Array.isArray(tracksInput) ? tracksInput : [tracksInput];
+  const addToQueue = useCallback(async (tracksInput: Track | Track[]) => {
+    const items = (await perOffline(Array.isArray(tracksInput) ? tracksInput : [tracksInput], 0))?.tracks ?? [];
     if (items.length === 0) return;
 
     const { queue, index } = stateRef.current;
@@ -728,7 +753,7 @@ export function PlayerProvider({
     const res = accoda({ queue, index }, items);
     originalQueueRef.current = res.queue;
     setState((s) => ({ ...s, queue: res.queue }));
-  }, [loadAndPlayTrack]);
+  }, [loadAndPlayTrack, perOffline]);
 
   /** Primo play dopo una ripresa: solo ora si carica il file, e si torna al punto salvato. */
   const avviaRipresa = useCallback(() => {

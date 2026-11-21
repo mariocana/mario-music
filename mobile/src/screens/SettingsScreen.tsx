@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { api } from '../api';
+import { api, checkServerReachable, DEFAULT_TIMEOUT_MS } from '../api';
 import { getServerUrlSync, setServerUrl } from '../config';
 import { DURATE_CROSSFADE } from '../gapless';
 import { RIFERIMENTO } from '../loudness';
@@ -55,6 +55,11 @@ export const SettingsScreen: React.FC<Props> = ({ onBack }) => {
     setStatusMsg(null);
     try {
       await setServerUrl(targetUrl);
+      // Prima si bussa al server davvero: api.stats() da solo potrebbe
+      // rispondere dal catalogo offline e dare "connesso" a server spento.
+      if (!(await checkServerReachable(DEFAULT_TIMEOUT_MS))) {
+        throw new Error('Impossibile raggiungere il server');
+      }
       const res = await api.stats();
       setStats(res);
       setStatusMsg({ ok: true, text: 'Connessione stabilita con successo!' });

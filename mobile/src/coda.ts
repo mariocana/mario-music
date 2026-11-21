@@ -57,3 +57,25 @@ export function sposta(coda: Coda, from: number, to: number): Coda {
   else if (from > coda.index && to <= coda.index) index = coda.index + 1;
   return { queue, index };
 }
+
+/**
+ * Offline si possono suonare solo i brani scaricati: la coda tiene quelli, e
+ * basta. Se il brano scelto non c'è, si parte dal primo ascoltabile che viene
+ * dopo di lui (o, se dopo non ce n'è, dal primo della lista): è il brano più
+ * vicino a quello che si voleva sentire. Null se non ce n'è nessuno.
+ */
+export function soloAscoltabili(
+  tracks: Track[],
+  startIndex: number,
+  ascoltabile: (t: Track) => boolean,
+): { tracks: Track[]; startIndex: number } | null {
+  const tenuti: Track[] = [];
+  let inizio = -1;
+  tracks.forEach((t, i) => {
+    if (!ascoltabile(t)) return;
+    if (inizio < 0 && i >= startIndex) inizio = tenuti.length;
+    tenuti.push(t);
+  });
+  if (tenuti.length === 0) return null;
+  return { tracks: tenuti, startIndex: inizio < 0 ? 0 : inizio };
+}

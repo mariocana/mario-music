@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as FileSystem from 'expo-file-system/legacy';
+import { leggiCatalogo, scriviCatalogo } from './catalogo';
+import { daMettereInCache } from './catalogoChiavi';
 import { getServerUrlSync } from './config';
 import type { ScanResult } from './scan';
 import type {
@@ -84,14 +86,60 @@ export async function fetchWithTimeout(
   }
 }
 
+/** Ultima volta che, da offline, si è provato a vedere se il server è tornato. */
+let ultimoTentativo = 0;
+const INTERVALLO_TENTATIVI_MS = 10_000;
+
+/**
+ * Da offline si risponde dalla cache senza toccare la rete: è proprio questo
+ * che prima riportava l'app "online" al primo successo. Allora lo si
+ * controlla a parte, in sottofondo e non più spesso di ogni dieci secondi.
+ */
+function riprovaConnessione() {
+  const ora = Date.now();
+  if (ora - ultimoTentativo < INTERVALLO_TENTATIVI_MS) return;
+  ultimoTentativo = ora;
+  void checkServerReachable();
+}
+
+/**
+ * GET verso il server, con il catalogo offline (vedi catalogo.ts):
+ * - online: si chiede al server e si salva la risposta;
+ * - il server non risponde: si restituisce l'ultima risposta salvata;
+ * - già offline: si restituisce subito quella salvata, senza aspettare il
+ *   timeout a ogni schermata.
+ * Gli errori HTTP (404, 500…) non si nascondono: il server ha risposto.
+ */
 async function get<T>(path: string, timeoutMs = DEFAULT_TIMEOUT_MS): Promise<T> {
   const base = getServerUrlSync();
-  const url = `${base}${path.startsWith('/') ? path : `/${path}`}`;
-  const res = await fetchWithTimeout(url, undefined, timeoutMs);
+  const rel = path.startsWith('/') ? path : `/${path}`;
+  const url = `${base}${rel}`;
+  const salvabile = daMettereInCache(rel);
+
+  if (salvabile && !isServerOnline) {
+    const salvato = await leggiCatalogo<T>(base, rel);
+    if (salvato !== null) {
+      riprovaConnessione();
+      return salvato;
+    }
+  }
+
+  let res: Response;
+  try {
+    res = await fetchWithTimeout(url, undefined, timeoutMs);
+  } catch (err) {
+    if (salvabile) {
+      const salvato = await leggiCatalogo<T>(base, rel);
+      if (salvato !== null) return salvato;
+    }
+    throw err;
+  }
   if (!res.ok) {
     throw new Error(`HTTP ${res.status} su ${path}`);
   }
-  return res.json() as Promise<T>;
+  const dati = (await res.json()) as T;
+  if (salvabile) void scriviCatalogo(base, rel, dati);
+  return dati;
 }
 
 async function send<T>(

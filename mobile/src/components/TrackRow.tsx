@@ -1,6 +1,7 @@
 import React from 'react';
 import { ActionSheetIOS, ActivityIndicator, Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useServerOnline } from '../api';
 import { useDownloads } from '../downloads/DownloadsContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { usePlayer } from '../player/PlayerContext';
@@ -37,6 +38,7 @@ export const TrackRow: React.FC<Props> = ({
 }) => {
   const { current, isPlaying, playNext, addToQueue, toggleFavorite } = usePlayer();
   const { isDownloaded, downloadTrack, removeTrack, progress } = useDownloads();
+  const online = useServerOnline();
   const { navigateToAlbum, navigateToArtist, openAddToPlaylist } = useNavigation();
 
   const isCurrent = current?.id === track.id;
@@ -148,7 +150,8 @@ export const TrackRow: React.FC<Props> = ({
 
   return (
     <Pressable
-      style={({ pressed }) => [styles.container, pressed && styles.pressed]}
+      // Offline si vede tutto il catalogo salvato, ma suonano solo i brani scaricati.
+      style={({ pressed }) => [styles.container, pressed && styles.pressed, !online && !downloaded && styles.nonAscoltabile]}
       onPress={onPress}
     >
       {showCover ? (
@@ -201,6 +204,9 @@ export const TrackRow: React.FC<Props> = ({
 };
 
 const styles = StyleSheet.create({
+  nonAscoltabile: {
+    opacity: 0.4,
+  },
   container: {
     flexDirection: 'row',
     alignItems: 'center',

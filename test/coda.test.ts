@@ -7,7 +7,7 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { accoda, inserisciDopo, sposta, togli } from '../mobile/src/coda.ts';
+import { accoda, inserisciDopo, soloAscoltabili, sposta, togli } from '../mobile/src/coda.ts';
 import type { Track } from '../mobile/src/types.ts';
 
 /** Una traccia finta: dei suoi campi qui interessa solo l'id. */
@@ -136,4 +136,29 @@ test('sposta: oltre i bordi non fa niente', () => {
   const c = cinque();
   assert.equal(sposta(c, 0, -1), c);
   assert.equal(sposta(c, 4, 5), c);
+});
+
+/* ── offline: solo i brani scaricati ── */
+
+const scaricati = new Set([2, 4, 5]);
+const ok = (t: Track) => scaricati.has(t.id);
+
+test('soloAscoltabili: restano i brani scaricati, nell\'ordine', () => {
+  const r = soloAscoltabili([1, 2, 3, 4, 5].map(brano), 1, ok);
+  assert.deepEqual(r?.tracks.map((t) => t.id), [2, 4, 5]);
+  assert.equal(r?.tracks[r.startIndex].id, 2, 'il brano scelto era scaricato: parte lui');
+});
+
+test('soloAscoltabili: brano scelto non scaricato, parte il primo scaricato dopo di lui', () => {
+  const r = soloAscoltabili([1, 2, 3, 4, 5].map(brano), 2, ok);
+  assert.equal(r?.tracks[r.startIndex].id, 4);
+});
+
+test('soloAscoltabili: dopo non c\'è niente, si riparte dal primo scaricato', () => {
+  const r = soloAscoltabili([1, 2, 3].map(brano), 2, ok);
+  assert.equal(r?.tracks[r.startIndex].id, 2);
+});
+
+test('soloAscoltabili: nessun brano scaricato, null', () => {
+  assert.equal(soloAscoltabili([1, 3].map(brano), 0, ok), null);
 });
