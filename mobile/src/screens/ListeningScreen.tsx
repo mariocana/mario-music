@@ -4,12 +4,14 @@ import {
   FlatList,
   Pressable,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../api';
+import { ReplayView } from '../components/ReplayView';
 import { TrackRow } from '../components/TrackRow';
 import { usePlayer } from '../player/PlayerContext';
 import { theme } from '../theme';
@@ -19,7 +21,7 @@ type Props = {
   onBack?: () => void;
 };
 
-type TabMode = 'recenti' | 'top';
+type TabMode = 'recenti' | 'top' | 'riepilogo';
 
 const PERIODS = [
   { label: 'Sempre', days: undefined },
@@ -37,6 +39,12 @@ export const ListeningScreen: React.FC<Props> = ({ onBack }) => {
   const { playQueue, toggleShuffle, shuffle } = usePlayer();
 
   const loadData = async () => {
+    // Il riepilogo si carica i dati suoi (vedi ReplayView).
+    if (tab === 'riepilogo') {
+      setLoading(false);
+      setRefreshing(false);
+      return;
+    }
     try {
       if (tab === 'recenti') {
         const res = await api.recent();
@@ -66,6 +74,88 @@ export const ListeningScreen: React.FC<Props> = ({ onBack }) => {
     playQueue(tracks, startIndex);
   };
 
+  const intestazione = (
+    <View style={styles.header}>
+      <Text style={styles.pageTitle}>Ascolti</Text>
+
+      {/* Schede principali: Di recente / Più ascoltati / Riepilogo */}
+      <View style={styles.tabContainer}>
+        <Pressable
+          style={[styles.tabBtn, tab === 'recenti' && styles.tabBtnActive]}
+          onPress={() => setTab('recenti')}
+        >
+          <Text style={[styles.tabBtnText, tab === 'recenti' && styles.tabBtnTextActive]}>
+            Di recente
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.tabBtn, tab === 'top' && styles.tabBtnActive]}
+          onPress={() => setTab('top')}
+        >
+          <Text style={[styles.tabBtnText, tab === 'top' && styles.tabBtnTextActive]}>
+            Più ascoltati
+          </Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.tabBtn, tab === 'riepilogo' && styles.tabBtnActive]}
+          onPress={() => setTab('riepilogo')}
+        >
+          <Text style={[styles.tabBtnText, tab === 'riepilogo' && styles.tabBtnTextActive]}>
+            Riepilogo
+          </Text>
+        </Pressable>
+      </View>
+
+      {/* Sotto-filtri periodo se in "Più ascoltati" */}
+      {tab === 'top' && (
+        <View style={styles.periodRow}>
+          {PERIODS.map((p) => {
+            const isActive = days === p.days;
+            return (
+              <Pressable
+                key={p.label}
+                style={[styles.periodPill, isActive && styles.periodPillActive]}
+                onPress={() => setDays(p.days)}
+              >
+                <Text
+                  style={[
+                    styles.periodPillText,
+                    isActive && styles.periodPillTextActive,
+                  ]}
+                >
+                  {p.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
+
+      {/* Pulsanti Riproduci / Casuale se ci sono tracce */}
+      {tab !== 'riepilogo' && !loading && tracks.length > 0 && (
+        <View style={styles.actionButtons}>
+          <Pressable
+            style={[styles.btn, styles.primaryBtn]}
+            onPress={() => handlePlayAll(false)}
+          >
+            <Ionicons name="play" size={18} color="#fff" />
+            <Text style={styles.primaryBtnText}>Riproduci</Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.btn, styles.secondaryBtn]}
+            onPress={() => handlePlayAll(true)}
+          >
+            <Ionicons name="shuffle" size={18} color={theme.colors.tint} />
+            <Text style={styles.secondaryBtnText}>Casuale</Text>
+          </Pressable>
+        </View>
+      )}
+    </View>
+  );
+
   return (
     <View style={styles.container}>
       {onBack && (
@@ -77,119 +167,57 @@ export const ListeningScreen: React.FC<Props> = ({ onBack }) => {
         </View>
       )}
 
-      <FlatList
-        data={tracks}
-        keyExtractor={(item, index) => `${item.id}-${index}`}
-        contentContainerStyle={styles.listContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => {
-              setRefreshing(true);
-              void loadData();
-            }}
-            tintColor={theme.colors.tint}
-          />
-        }
-        ListHeaderComponent={
-          <View style={styles.header}>
-            <Text style={styles.pageTitle}>Ascolti</Text>
-
-            {/* Schede Principali: Di recente / Più ascoltati */}
-            <View style={styles.tabContainer}>
-              <Pressable
-                style={[styles.tabBtn, tab === 'recenti' && styles.tabBtnActive]}
-                onPress={() => setTab('recenti')}
-              >
-                <Text style={[styles.tabBtnText, tab === 'recenti' && styles.tabBtnTextActive]}>
-                  Di recente
-                </Text>
-              </Pressable>
-
-              <Pressable
-                style={[styles.tabBtn, tab === 'top' && styles.tabBtnActive]}
-                onPress={() => setTab('top')}
-              >
-                <Text style={[styles.tabBtnText, tab === 'top' && styles.tabBtnTextActive]}>
-                  Più ascoltati
-                </Text>
-              </Pressable>
-            </View>
-
-            {/* Sotto-filtri periodo se in "Più ascoltati" */}
-            {tab === 'top' && (
-              <View style={styles.periodRow}>
-                {PERIODS.map((p) => {
-                  const isActive = days === p.days;
-                  return (
-                    <Pressable
-                      key={p.label}
-                      style={[styles.periodPill, isActive && styles.periodPillActive]}
-                      onPress={() => setDays(p.days)}
-                    >
-                      <Text
-                        style={[
-                          styles.periodPillText,
-                          isActive && styles.periodPillTextActive,
-                        ]}
-                      >
-                        {p.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            )}
-
-            {/* Pulsanti Riproduci / Casuale se ci sono tracce */}
-            {!loading && tracks.length > 0 && (
-              <View style={styles.actionButtons}>
-                <Pressable
-                  style={[styles.btn, styles.primaryBtn]}
-                  onPress={() => handlePlayAll(false)}
-                >
-                  <Ionicons name="play" size={18} color="#fff" />
-                  <Text style={styles.primaryBtnText}>Riproduci</Text>
-                </Pressable>
-
-                <Pressable
-                  style={[styles.btn, styles.secondaryBtn]}
-                  onPress={() => handlePlayAll(true)}
-                >
-                  <Ionicons name="shuffle" size={18} color={theme.colors.tint} />
-                  <Text style={styles.secondaryBtnText}>Casuale</Text>
-                </Pressable>
-              </View>
-            )}
+      {tab === 'riepilogo' ? (
+        <ScrollView contentContainerStyle={styles.listContent}>
+          {intestazione}
+          <View style={styles.riepilogo}>
+            <ReplayView />
           </View>
-        }
-        ListEmptyComponent={
-          loading ? (
-            <View style={styles.centerBox}>
-              <ActivityIndicator size="large" color={theme.colors.tint} />
-            </View>
-          ) : (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="stats-chart-outline" size={48} color={theme.colors.textMuted} />
-              <Text style={styles.emptyText}>
-                {tab === 'recenti'
-                  ? 'Ancora nessun ascolto registrato.'
-                  : 'Nessun ascolto registrato per questo periodo.'}
-              </Text>
-              <Text style={styles.emptySubtext}>
-                Un brano conta come ascolto quando ne ascolti almeno la metà.
-              </Text>
-            </View>
-          )
-        }
-        renderItem={({ item, index }) => (
-          <TrackRow
-            track={item}
-            index={index}
-            onPress={() => playQueue(tracks, index)}
-          />
-        )}
-      />
+        </ScrollView>
+      ) : (
+        <FlatList
+          data={tracks}
+          keyExtractor={(item, index) => `${item.id}-${index}`}
+          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => {
+                setRefreshing(true);
+                void loadData();
+              }}
+              tintColor={theme.colors.tint}
+            />
+          }
+          ListHeaderComponent={intestazione}
+          ListEmptyComponent={
+            loading ? (
+              <View style={styles.centerBox}>
+                <ActivityIndicator size="large" color={theme.colors.tint} />
+              </View>
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="stats-chart-outline" size={48} color={theme.colors.textMuted} />
+                <Text style={styles.emptyText}>
+                  {tab === 'recenti'
+                    ? 'Ancora nessun ascolto registrato.'
+                    : 'Nessun ascolto registrato per questo periodo.'}
+                </Text>
+                <Text style={styles.emptySubtext}>
+                  Un brano conta come ascolto quando ne ascolti almeno la metà.
+                </Text>
+              </View>
+            )
+          }
+          renderItem={({ item, index }) => (
+            <TrackRow
+              track={item}
+              index={index}
+              onPress={() => playQueue(tracks, index)}
+            />
+          )}
+        />
+      )}
     </View>
   );
 };
@@ -214,6 +242,9 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '400',
     marginLeft: 2,
+  },
+  riepilogo: {
+    paddingHorizontal: theme.spacing.md,
   },
   listContent: {
     paddingBottom: 120,
