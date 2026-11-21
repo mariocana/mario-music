@@ -207,8 +207,6 @@ export const NowPlayingModal: React.FC<Props> = ({ visible, onClose }) => {
 
   if (!current) return null;
 
-  const progress = duration > 0 ? Math.min(1, Math.max(0, currentTime / duration)) : 0;
-
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={styles.container}>

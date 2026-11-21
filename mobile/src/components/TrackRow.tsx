@@ -36,7 +36,7 @@ export const TrackRow: React.FC<Props> = ({
   currentArtistId,
   playlistContext,
 }) => {
-  const { current, isPlaying, playNext, addToQueue, toggleFavorite } = usePlayer();
+  const { current, playNext, addToQueue, toggleFavorite } = usePlayer();
   const { isDownloaded, downloadTrack, removeTrack, progress } = useDownloads();
   const online = useServerOnline();
   const { navigateToAlbum, navigateToArtist, openAddToPlaylist } = useNavigation();

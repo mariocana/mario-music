@@ -63,14 +63,14 @@ export type PlaylistSummary = {
   trackCount: number;
   duration: number;
   coverKey: string | null;
-  covers: Array<{ albumId: number; coverKey: string | null }>;
+  covers: { albumId: number; coverKey: string | null }[];
 };
 
 export type PlaylistDetail = {
   id: number;
   name: string;
   coverKey: string | null;
-  tracks: Array<Track & { position: number }>;
+  tracks: (Track & { position: number })[];
 };
 
 export type LyricLine = {
@@ -88,13 +88,13 @@ export type Lyrics = {
 export type Replay = {
   giorni: number | null;
   totali: { ascolti: number; minuti: number; brani: number; artisti: number; album: number };
-  artisti: Array<{ id: number; nome: string; ascolti: number; minuti: number }>;
-  album: Array<{ id: number; titolo: string; artista: string; coverKey: string | null; ascolti: number; minuti: number }>;
-  brani: Array<{ id: number; titolo: string; artista: string; album: string; albumId: number; coverKey: string | null; ascolti: number }>;
+  artisti: { id: number; nome: string; ascolti: number; minuti: number }[];
+  album: { id: number; titolo: string; artista: string; coverKey: string | null; ascolti: number; minuti: number }[];
+  brani: { id: number; titolo: string; artista: string; album: string; albumId: number; coverKey: string | null; ascolti: number }[];
   /** "2026-10" */
-  mesi: Array<{ mese: string; ascolti: number; minuti: number }>;
+  mesi: { mese: string; ascolti: number; minuti: number }[];
   /** sempre 24 voci, da 0 a 23 */
-  ore: Array<{ ora: number; ascolti: number }>;
+  ore: { ora: number; ascolti: number }[];
   /** "2026-11-17" */
   record: { data: string; ascolti: number } | null;
   /** millisecondi del primo ascolto registrato */

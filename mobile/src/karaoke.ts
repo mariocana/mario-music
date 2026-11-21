@@ -74,7 +74,7 @@ export function avanzamentoRiga(
  * lunga non si canta sempre in proporzione alle sue lettere — ma è la stessa
  * che fa già `durataRiga`, e dentro una riga sola l'errore è piccolo.
  */
-export function parole(testo: string): Array<{ testo: string; inizio: number }> {
+export function parole(testo: string): { testo: string; inizio: number }[] {
   const pezzi = testo.split(/(\s+)/).filter((x) => x.length > 0);
   const totale = testo.length || 1;
   let scorsi = 0;
@@ -97,7 +97,7 @@ export function finestra(
   righe: LyricLine[] | null | undefined,
   i: number,
   { prima = 2, dopo = 3 }: { prima?: number; dopo?: number } = {},
-): { righe: Array<LyricLine & { indice: number }>; attiva: number } {
+): { righe: (LyricLine & { indice: number })[]; attiva: number } {
   if (!righe || righe.length === 0) return { righe: [], attiva: -1 };
   // Prima che cominci il canto (i = -1) si mostrano le prime righe, così lo
   // schermo non è vuoto durante l'introduzione strumentale.

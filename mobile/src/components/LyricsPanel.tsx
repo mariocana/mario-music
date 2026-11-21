@@ -79,7 +79,7 @@ export const LyricsPanel: React.FC<Props> = ({ trackId, onKaraoke }) => {
   /* ── scorrimento automatico ── */
   const scrollRef = useRef<ScrollViewInstance>(null);
   /** posizione e altezza di ogni verso, come le riporta onLayout */
-  const posizioni = useRef<Array<{ y: number; h: number }>>([]);
+  const posizioni = useRef<{ y: number; h: number }[]>([]);
   const altezzaVista = useRef(0);
   /** fino a quando lo scorrimento resta in mano all'utente */
   const manualeFino = useRef(0);

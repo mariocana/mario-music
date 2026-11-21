@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { playlistCoverUrl } from '../api';
@@ -18,7 +18,7 @@ export const PlaylistCover: React.FC<Props> = ({
   size = 140,
   borderRadius = theme.radii.md,
 }) => {
-  const { id, name, coverKey, covers = [] } = playlist;
+  const { id, coverKey, covers = [] } = playlist;
 
   if (coverKey) {
     return (

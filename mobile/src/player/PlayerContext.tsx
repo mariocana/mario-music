@@ -133,7 +133,7 @@ export function PlayerProvider({
    */
   const playersRef = useRef<[AudioPlayer, AudioPlayer] | null>(null);
   const attivoRef = useRef(0);
-  const subscriptionsRef = useRef<Array<{ remove: () => void }>>([]);
+  const subscriptionsRef = useRef<{ remove: () => void }[]>([]);
   const advancingRef = useRef(false);
   const nextRef = useRef<() => void>(() => {});
   const previousRef = useRef<() => void>(() => {});

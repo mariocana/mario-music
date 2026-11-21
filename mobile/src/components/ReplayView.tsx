@@ -23,7 +23,7 @@ import { theme } from '../theme';
 import type { Replay } from '../types';
 import { CoverImage } from './CoverImage';
 
-const PERIODI: ReadonlyArray<{ label: string; giorni: number | null }> = [
+const PERIODI: readonly { label: string; giorni: number | null }[] = [
   { label: 'Sempre', giorni: null },
   { label: 'Ultimo anno', giorni: 365 },
   { label: 'Ultimo mese', giorni: 30 },
