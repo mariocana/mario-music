@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   ActionSheetIOS,
   Alert,
@@ -14,14 +14,14 @@ import {
   View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { api } from '../api';
 import { useDownloads } from '../downloads/DownloadsContext';
 import { useNavigation } from '../navigation/NavigationContext';
 import { usePlayer } from '../player/PlayerContext';
 import { theme } from '../theme';
-import { formatTime, type Lyrics } from '../types';
+import { formatTime } from '../types';
 import { CoverImage } from './CoverImage';
 import { KaraokeModal } from './KaraokeModal';
+import { LyricsPanel } from './LyricsPanel';
 import { Scrubber } from './Scrubber';
 
 type Props = {
@@ -203,22 +203,8 @@ export const NowPlayingModal: React.FC<Props> = ({ visible, onClose }) => {
   };
 
   const [activeTab, setActiveTab] = useState<'player' | 'lyrics' | 'queue'>('player');
-  const [lyrics, setLyrics] = useState<Lyrics | null>(null);
   const [karaoke, setKaraoke] = useState(false);
 
-  // Caricamento testi
-  useEffect(() => {
-    if (!current || activeTab !== 'lyrics') return;
-    let mounted = true;
-    void api.lyrics(current.id).then((l) => {
-      if (mounted) setLyrics(l);
-    }).catch(() => {
-      if (mounted) setLyrics(null);
-    });
-    return () => {
-      mounted = false;
-    };
-  }, [current, activeTab]);
 
   if (!current) return null;
 
@@ -352,37 +338,7 @@ export const NowPlayingModal: React.FC<Props> = ({ visible, onClose }) => {
 
           {/* VISTA 2: Testi sincronizzati (Karaoke) */}
           {activeTab === 'lyrics' && (
-            <ScrollView style={styles.lyricsScroll} contentContainerStyle={styles.lyricsContent}>
-              {lyrics?.synced && lyrics.synced.length > 0 && (
-                <Pressable
-                  onPress={() => setKaraoke(true)}
-                  style={styles.karaokeBtn}
-                  accessibilityRole="button"
-                  accessibilityLabel="Apri il karaoke a tutto schermo"
-                >
-                  <Ionicons name="mic" size={16} color={theme.colors.tint} />
-                  <Text style={styles.karaokeBtnText}>Karaoke</Text>
-                </Pressable>
-              )}
-              {lyrics?.synced ? (
-                lyrics.synced.map((line, i) => {
-                  const isActive =
-                    currentTime >= line.t &&
-                    (i === lyrics.synced!.length - 1 || currentTime < lyrics.synced![i + 1].t);
-                  return (
-                    <Pressable key={i} onPress={() => seek(line.t)} style={styles.lyricLine}>
-                      <Text style={[styles.lyricText, isActive && styles.lyricTextActive]}>
-                        {line.text}
-                      </Text>
-                    </Pressable>
-                  );
-                })
-              ) : lyrics?.plain ? (
-                <Text style={styles.plainLyrics}>{lyrics.plain}</Text>
-              ) : (
-                <Text style={styles.noLyrics}>Testi non disponibili per questo brano.</Text>
-              )}
-            </ScrollView>
+            <LyricsPanel trackId={current.id} onKaraoke={() => setKaraoke(true)} />
           )}
 
           {/* VISTA 3: Coda di riproduzione */}
@@ -531,48 +487,6 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.card,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  lyricsScroll: {
-    flex: 1,
-    paddingHorizontal: theme.spacing.lg,
-  },
-  lyricsContent: {
-    paddingVertical: 32,
-  },
-  lyricLine: {
-    paddingVertical: 12,
-  },
-  lyricText: {
-    fontSize: 22,
-    fontWeight: '600',
-    color: theme.colors.textMuted,
-    lineHeight: 32,
-  },
-  lyricTextActive: {
-    color: theme.colors.textPrimary,
-    fontSize: 26,
-    fontWeight: '800',
-  },
-  karaokeBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginBottom: 16,
-    borderRadius: 999,
-    backgroundColor: theme.colors.tintSubtle,
-  },
-  karaokeBtnText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.colors.tint,
-  },
-  plainLyrics: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-    lineHeight: 28,
   },
   noLyrics: {
     fontSize: 16,
