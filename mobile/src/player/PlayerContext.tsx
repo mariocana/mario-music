@@ -36,7 +36,16 @@ import {
   scriviPosizione,
 } from '../ripresa';
 import { sogliaAscolto } from '../soglia';
-import { CHIAVE_QUALITA, QUALITA, queryStream, usaConversione, type Qualita } from '../sorgente';
+import * as Network from 'expo-network';
+import {
+  CHIAVE_QUALITA,
+  QUALITA,
+  qualitaEffettiva,
+  queryStream,
+  usaConversione,
+  type Qualita,
+  type QualitaEffettiva,
+} from '../sorgente';
 import type { RepeatMode, Track } from '../types';
 
 type PlayerState = {
@@ -83,6 +92,10 @@ type PlayerContextApi = PlayerState & {
   /** originale, o AAC convertito dal server per consumare meno dati */
   qualita: Qualita;
   setQualita: (q: Qualita) => void;
+  /** quella che vale adesso: con "automatica" dipende dalla rete */
+  qualitaAttiva: QualitaEffettiva;
+  /** il tipo di rete secondo expo-network ("WIFI", "CELLULAR"…), undefined finché non si sa */
+  rete: string | undefined;
   /** "Volume uniforme": abbassa i brani più forti a RIFERIMENTO LUFS */
   normalizza: boolean;
   setNormalizza: (on: boolean) => void;
@@ -225,6 +238,35 @@ export function PlayerProvider({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /*
+   * La rete, per la qualità "automatica". Se cambiando rete cambia anche la
+   * qualità che vale, il brano già precaricato aveva l'URL sbagliato: lo si
+   * dimentica, e precarica() lo richiederà giusto. Il brano in corso continua
+   * com'è, come quando si cambia qualità a mano.
+   */
+  const reteRef = useRef<string | undefined>(undefined);
+  const [rete, setRete] = useState<string | undefined>(undefined);
+
+  const qualitaAttivaAdesso = useCallback(
+    (): QualitaEffettiva => qualitaEffettiva(qualitaRef.current, reteRef.current),
+    [],
+  );
+
+  const aggiornaRete = useCallback((tipo: string | undefined) => {
+    const prima = qualitaAttivaAdesso();
+    reteRef.current = tipo;
+    setRete(tipo);
+    if (qualitaAttivaAdesso() !== prima) precaricatoRef.current = null;
+  }, [qualitaAttivaAdesso]);
+
+  useEffect(() => {
+    void Network.getNetworkStateAsync()
+      .then((stato) => aggiornaRete(stato.type))
+      .catch(() => undefined);
+    const sub = Network.addNetworkStateListener((stato) => aggiornaRete(stato.type));
+    return () => sub.remove();
+  }, [aggiornaRete]);
+
   const setQualita = useCallback((q: Qualita) => {
     qualitaRef.current = q;
     setQualitaState(q);
@@ -313,8 +355,8 @@ export function PlayerProvider({
 
   // La copia scaricata vince sempre: non costa rete, qualunque sia la qualità.
   const urlDi = useCallback(
-    (track: Track) => getOfflineUri?.(track.id) || streamUrl(track.id, queryStream(track.codec, qualitaRef.current)),
-    [getOfflineUri],
+    (track: Track) => getOfflineUri?.(track.id) || streamUrl(track.id, queryStream(track.codec, qualitaAttivaAdesso())),
+    [getOfflineUri, qualitaAttivaAdesso],
   );
 
   /** I due player nascono insieme, la prima volta che servono, e non muoiono più. */
@@ -412,9 +454,9 @@ export function PlayerProvider({
     const i = indiceProssimo({ ...stateRef.current, queue, index });
     const track = i >= 0 ? queue[i] : undefined;
     if (!track || getOfflineUri?.(track.id)) return;
-    if (!usaConversione(track.codec, qualitaRef.current)) return;
+    if (!usaConversione(track.codec, qualitaAttivaAdesso())) return;
     void api.prepare(track.id).catch(() => undefined);
-  }, [indiceProssimo, getOfflineUri]);
+  }, [indiceProssimo, getOfflineUri, qualitaAttivaAdesso]);
 
   /**
    * Dopo un cambio di coda il brano già caricato nel player in attesa può
@@ -1040,6 +1082,8 @@ export function PlayerProvider({
     setCrossfade,
     qualita,
     setQualita,
+    qualitaAttiva: qualitaEffettiva(qualita, rete),
+    rete,
     normalizza,
     setNormalizza,
   };

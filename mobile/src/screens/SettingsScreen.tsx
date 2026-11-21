@@ -25,12 +25,27 @@ type Props = {
   onBack?: () => void;
 };
 
+/** Il tipo di rete di expo-network, detto in italiano per la nota sulla qualità. */
+function nomeRete(rete: string | undefined): string {
+  switch (rete) {
+    case 'WIFI': return 'Wi-Fi';
+    case 'ETHERNET': return 'rete via cavo';
+    case 'CELLULAR': return 'rete cellulare';
+    case 'VPN': return 'VPN';
+    case 'NONE': return 'nessuna rete';
+    case undefined: return 'rete ancora da rilevare';
+    default: return 'rete non riconosciuta';
+  }
+}
+
 export const SettingsScreen: React.FC<Props> = ({ onBack }) => {
   const [url, setUrl] = useState(getServerUrlSync());
   const [stats, setStats] = useState<Stats | null>(null);
   const [testing, setTesting] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const { crossfade, setCrossfade, qualita, setQualita, normalizza, setNormalizza } = usePlayer();
+  const {
+    crossfade, setCrossfade, qualita, setQualita, qualitaAttiva, rete, normalizza, setNormalizza,
+  } = usePlayer();
   const [scansione, setScansione] = useState<
     { stato: 'in corso' } | { stato: 'fatto'; risultato: ScanResult } | { stato: 'errore'; messaggio: string } | null
   >(null);
@@ -249,7 +264,7 @@ export const SettingsScreen: React.FC<Props> = ({ onBack }) => {
                   accessibilityState={{ selected: scelto }}
                 >
                   <Text style={[styles.segmentText, scelto && styles.segmentTextActive]}>
-                    {q === 'originale' ? 'Originale' : 'Risparmio'}
+                    {q === 'originale' ? 'Originale' : q === 'automatica' ? 'Automatica' : 'Risparmio'}
                   </Text>
                 </Pressable>
               );
@@ -258,7 +273,9 @@ export const SettingsScreen: React.FC<Props> = ({ onBack }) => {
           <Text style={styles.hint}>
             {qualita === 'originale'
               ? 'I brani arrivano come sono sul server: un FLAC di quattro minuti pesa circa 26 MB.'
-              : 'FLAC e ALAC arrivano convertiti in AAC a 256 kbps, circa un quarto dei dati. MP3 e AAC restano come sono. La prima volta che ascolti un brano la conversione richiede qualche secondo. I brani scaricati non cambiano.'}
+              : qualita === 'automatica'
+                ? `Originale in Wi-Fi, risparmio sulla rete cellulare (e quando non si capisce che rete è). Adesso: ${nomeRete(rete)}, quindi ${qualitaAttiva}. Cambiando rete vale dal brano successivo.`
+                : 'FLAC e ALAC arrivano convertiti in AAC a 256 kbps, circa un quarto dei dati. MP3 e AAC restano come sono. La prima volta che ascolti un brano la conversione richiede qualche secondo. I brani scaricati non cambiano.'}
           </Text>
         </View>
       </View>
