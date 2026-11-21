@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import * as FileSystem from 'expo-file-system/legacy';
 import {
   ActivityIndicator,
   Alert,
@@ -18,9 +19,27 @@ type Props = {
   onBack?: () => void;
 };
 
+/** Sotto questa soglia di spazio libero si avvisa: un album in FLAC pesa qualche centinaio di MB. */
+const SOGLIA_POCO_SPAZIO = 1024 ** 3;
+
 export const DownloadsScreen: React.FC<Props> = ({ onBack }) => {
   const { items, loading, totalBytes, clearAll } = useDownloads();
   const { playQueue, toggleShuffle, shuffle } = usePlayer();
+
+  /*
+   * Lo spazio libero sul telefono: è l'equivalente del "X di Y concessi dal
+   * browser" del web. Si rilegge quando cambia quanto occupano i download,
+   * perché è proprio scaricando o liberando che cambia.
+   */
+  const [libero, setLibero] = useState<number | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    void FileSystem.getFreeDiskStorageAsync()
+      .then((byte) => { if (vivo) setLibero(byte); })
+      .catch(() => undefined);
+    return () => { vivo = false; };
+  }, [totalBytes]);
+  const pocoSpazio = libero !== null && libero < SOGLIA_POCO_SPAZIO;
 
   const downloadedList = Array.from(items.values());
   const tracks = downloadedList.map((d) => d.track);
@@ -76,7 +95,13 @@ export const DownloadsScreen: React.FC<Props> = ({ onBack }) => {
             <Text style={styles.pageTitle}>Scaricati</Text>
             <Text style={styles.subtext}>
               {tracks.length} {tracks.length === 1 ? 'brano' : 'brani'} offline · {formatBytes(totalBytes)} occupati
+              {libero !== null ? ` · ${formatBytes(libero)} liberi sul telefono` : ''}
             </Text>
+            {pocoSpazio && (
+              <Text style={styles.avvisoSpazio}>
+                Il telefono è quasi pieno: i prossimi download potrebbero non riuscire.
+              </Text>
+            )}
 
             {tracks.length > 0 && (
               <View style={styles.actionRow}>
@@ -175,6 +200,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.colors.textMuted,
     marginTop: 4,
+    marginBottom: 16,
+  },
+  avvisoSpazio: {
+    fontSize: 13,
+    color: theme.colors.error,
+    marginTop: -8,
     marginBottom: 16,
   },
   actionRow: {
