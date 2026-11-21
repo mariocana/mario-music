@@ -30,7 +30,7 @@ jobs:
       - run: npm test
 
   mobile:
-    name: Mobile App (typecheck)
+    name: Mobile App (typecheck, lint)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -44,6 +44,7 @@ jobs:
           cache-dependency-path: mobile/package-lock.json
       - run: npm ci
       - run: npm run typecheck
+      - run: npm run lint
 
   # Su ogni push a main, se i test passano, compila APK e rilascia su TestFlight
   deploy-mobile:

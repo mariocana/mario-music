@@ -6,6 +6,7 @@
   "dependencies": {
     "@expo/vector-icons": "^15.0.2",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "eslint-config-expo": "~58.0.4",
     "expo": "~58.0.26",
     "expo-asset": "~58.0.21",
     "expo-audio": "~58.0.12",
@@ -24,6 +25,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.3.0",
+    "eslint": "^9.39.5",
     "patch-package": "^8.0.1",
     "typescript": "~6.0.3"
   },
@@ -34,7 +36,8 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "build:ios:local": "bash scripts/build-ios-local.sh",
-    "postinstall": "patch-package"
+    "postinstall": "patch-package",
+    "lint": "expo lint"
   },
   "private": true,
   "expo": {
