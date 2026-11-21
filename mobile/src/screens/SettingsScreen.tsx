@@ -12,6 +12,8 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../api';
 import { getServerUrlSync, setServerUrl } from '../config';
+import { DURATE_CROSSFADE } from '../gapless';
+import { usePlayer } from '../player/PlayerContext';
 import { theme } from '../theme';
 import { formatLength, type Stats } from '../types';
 
@@ -24,6 +26,7 @@ export const SettingsScreen: React.FC<Props> = ({ onBack }) => {
   const [stats, setStats] = useState<Stats | null>(null);
   const [testing, setTesting] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const { crossfade, setCrossfade } = usePlayer();
 
   const checkConnection = async (targetUrl = url) => {
     setTesting(true);
@@ -130,6 +133,37 @@ export const SettingsScreen: React.FC<Props> = ({ onBack }) => {
           </View>
         </View>
       )}
+
+      {/* Passaggio tra un brano e l'altro */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>RIPRODUZIONE</Text>
+        <View style={styles.card}>
+          <Text style={styles.label}>Dissolvenza incrociata</Text>
+          <View style={styles.segmented}>
+            {DURATE_CROSSFADE.map((secondi) => {
+              const scelto = crossfade === secondi;
+              return (
+                <Pressable
+                  key={secondi}
+                  onPress={() => setCrossfade(secondi)}
+                  style={[styles.segment, scelto && styles.segmentActive]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: scelto }}
+                >
+                  <Text style={[styles.segmentText, scelto && styles.segmentTextActive]}>
+                    {secondi === 0 ? 'Nessuna' : `${secondi} s`}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={styles.hint}>
+            {crossfade === 0
+              ? 'I brani si susseguono senza pause: il successivo è già caricato quando finisce quello in ascolto.'
+              : `Gli ultimi ${crossfade} secondi di un brano sfumano nei primi del successivo.`}
+          </Text>
+        </View>
+      </View>
 
       {/* Dettagli audio nativi */}
       <View style={styles.section}>
@@ -254,6 +288,36 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: theme.colors.textPrimary,
+  },
+  segmented: {
+    flexDirection: 'row',
+    backgroundColor: theme.colors.cardLight,
+    borderRadius: theme.radii.sm,
+    padding: 2,
+  },
+  segment: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: 'center',
+    borderRadius: theme.radii.sm - 2,
+  },
+  segmentActive: {
+    backgroundColor: theme.colors.tint,
+  },
+  segmentText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.colors.textSecondary,
+  },
+  segmentTextActive: {
+    color: '#fff',
+    fontWeight: '700',
+  },
+  hint: {
+    fontSize: 12,
+    color: theme.colors.textMuted,
+    lineHeight: 17,
+    marginTop: 10,
   },
   infoTitle: {
     fontSize: 14,
