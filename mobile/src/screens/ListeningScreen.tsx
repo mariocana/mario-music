@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -32,39 +32,30 @@ const PERIODS = [
 export const ListeningScreen: React.FC<Props> = ({ onBack }) => {
   const [tab, setTab] = useState<TabMode>('recenti');
   const [days, setDays] = useState<number | undefined>(undefined);
-  const [tracks, setTracks] = useState<Track[]>([]);
-  const [loading, setLoading] = useState(true);
+  // I brani si ricordano per quale scheda e periodo sono arrivati: cambiando
+  // scheda si vede il caricamento, non la lista di prima, e una risposta
+  // arrivata tardi per una scheda già lasciata non la sovrascrive.
+  const chiave = tab === 'top' ? `top-${days ?? 'sempre'}` : tab;
+  const [arrivati, setArrivati] = useState<{ chiave: string; tracks: Track[] } | null>(null);
+  const tracks = arrivati?.chiave === chiave ? arrivati.tracks : [];
+  const loading = tab !== 'riepilogo' && arrivati?.chiave !== chiave;
   const [refreshing, setRefreshing] = useState(false);
 
   const { playQueue, toggleShuffle, shuffle } = usePlayer();
 
-  const loadData = async () => {
+  const loadData = useCallback(() => {
     // Il riepilogo si carica i dati suoi (vedi ReplayView).
-    if (tab === 'riepilogo') {
-      setLoading(false);
-      setRefreshing(false);
-      return;
-    }
-    try {
-      if (tab === 'recenti') {
-        const res = await api.recent();
-        setTracks(res);
-      } else {
-        const res = await api.top(days);
-        setTracks(res);
-      }
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+    if (tab === 'riepilogo') return Promise.resolve().then(() => setRefreshing(false));
+    const richiesta = tab === 'recenti' ? api.recent() : api.top(days);
+    return richiesta
+      .then((res) => setArrivati({ chiave, tracks: res }))
+      .catch(() => setArrivati({ chiave, tracks: [] }))
+      .finally(() => setRefreshing(false));
+  }, [tab, days, chiave]);
 
   useEffect(() => {
-    setLoading(true);
     void loadData();
-  }, [tab, days]);
+  }, [loadData]);
 
   const handlePlayAll = (casuale: boolean) => {
     if (tracks.length === 0) return;

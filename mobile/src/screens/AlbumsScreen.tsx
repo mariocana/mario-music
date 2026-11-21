@@ -34,17 +34,17 @@ export const AlbumsScreen: React.FC<Props> = ({ onSelectAlbum, onBack }) => {
   const { items: downloadedItems } = useDownloads();
   const { navigateToDownloads } = useNavigation();
 
-  const loadAlbums = async () => {
-    try {
-      const res = await api.albums();
-      setAlbums(res);
-    } catch {
-      // Ignora errori
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+  // Lo stato si imposta solo nelle callback della promessa, mai subito:
+  // chiamata da un effect, una funzione che imposta lo stato in modo
+  // sincrono provoca un render in più (react-hooks/set-state-in-effect).
+  const loadAlbums = () =>
+    api.albums()
+      .then(setAlbums)
+      .catch(() => undefined)
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
 
   useEffect(() => {
     void loadAlbums();

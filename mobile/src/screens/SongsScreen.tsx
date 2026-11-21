@@ -39,17 +39,16 @@ export const SongsScreen: React.FC<Props> = ({ onBack }) => {
   const effectiveTracks = tracks.length > 0 ? tracks : downloadedTracks;
   const isOfflineFallback = tracks.length === 0 && downloadedTracks.length > 0;
 
-  const loadTracks = async () => {
-    try {
-      const res = await api.tracks();
-      setTracks(res);
-    } catch {
+  // Lo stato si imposta solo nelle callback della promessa (vedi AlbumsScreen).
+  const loadTracks = () =>
+    api.tracks()
+      .then(setTracks)
       // ignore, cadrà nel fallback offline
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+      .catch(() => undefined)
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
 
   useEffect(() => {
     void loadTracks();

@@ -39,18 +39,18 @@ export const HomeScreen: React.FC<Props> = ({ onSelectAlbum, onOpenListening }) 
     [downloadedItems]
   );
 
-  const loadData = async () => {
-    try {
-      setError(null);
-      const res = await api.home();
-      setData(res);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Errore nel caricamento');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+  // Lo stato si imposta solo nelle callback della promessa (vedi AlbumsScreen).
+  const loadData = () =>
+    api.home()
+      .then((res) => {
+        setData(res);
+        setError(null);
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Errore nel caricamento'))
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
 
   useEffect(() => {
     void loadData();
@@ -201,7 +201,7 @@ export const HomeScreen: React.FC<Props> = ({ onSelectAlbum, onOpenListening }) 
         <Text style={styles.errorText}>Server non raggiungibile</Text>
         <Text style={styles.errorSubtext}>
           {error ?? 'Impossibile connettersi al server musicale.'}
-          {'\n'}Non hai ancora scaricato alcun brano per l'ascolto offline.
+          {"\nNon hai ancora scaricato alcun brano per l'ascolto offline."}
         </Text>
         <View style={styles.offlineEmptyActions}>
           <Pressable style={styles.primaryActionBtn} onPress={navigateToSettings}>

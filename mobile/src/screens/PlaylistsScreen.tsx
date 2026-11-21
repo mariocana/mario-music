@@ -40,17 +40,16 @@ export const PlaylistsScreen: React.FC<Props> = ({ onBack, onSelectPlaylist }) =
   const { items: downloadedItems } = useDownloads();
   const { navigateToDownloads } = useNavigation();
 
-  const loadPlaylists = async () => {
-    try {
-      const res = await api.playlists();
-      setPlaylists(res);
-    } catch {
+  // Lo stato si imposta solo nelle callback della promessa (vedi AlbumsScreen).
+  const loadPlaylists = () =>
+    api.playlists()
+      .then(setPlaylists)
       // ignore
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+      .catch(() => undefined)
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
 
   useEffect(() => {
     void loadPlaylists();

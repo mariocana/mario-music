@@ -32,8 +32,12 @@ export const ArtistDetailModal: React.FC<Props> = ({
   onBack,
   onSelectAlbum,
 }) => {
-  const [detail, setDetail] = useState<ArtistDetail | null>(null);
-  const [loading, setLoading] = useState(false);
+  // Il dettaglio si ricorda per quale artist è arrivato: aprendone un altro si
+  // vede il caricamento, non quello di prima (e senza azzerare lo stato
+  // dentro l'effect, che costerebbe un render in più).
+  const [arrivato, setArrivato] = useState<{ id: number; detail: ArtistDetail | null } | null>(null);
+  const detail = artist && arrivato?.id === artist.id ? arrivato.detail : null;
+  const loading = Boolean(artist) && arrivato?.id !== artist?.id;
   const [playingAll, setPlayingAll] = useState(false);
 
   const { playQueue, toggleShuffle, shuffle } = usePlayer();
@@ -48,20 +52,16 @@ export const ArtistDetailModal: React.FC<Props> = ({
   );
 
   useEffect(() => {
-    if (!artist) {
-      setDetail(null);
-      return;
-    }
-    setLoading(true);
+    if (!artist) return;
+    const id = artist.id;
     let mounted = true;
     api
-      .artist(artist.id)
+      .artist(id)
       .then((res) => {
-        if (mounted) setDetail(res);
+        if (mounted) setArrivato({ id, detail: res });
       })
-      .catch(() => undefined)
-      .finally(() => {
-        if (mounted) setLoading(false);
+      .catch(() => {
+        if (mounted) setArrivato({ id, detail: null });
       });
     return () => {
       mounted = false;
@@ -240,7 +240,7 @@ export const ArtistDetailModal: React.FC<Props> = ({
         {!loading && !detail && (
           downloadedArtistTracks.length > 0 ? (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Brani scaricati dell'artista</Text>
+              <Text style={styles.sectionTitle}>{"Brani scaricati dell'artista"}</Text>
               {downloadedArtistTracks.map((track, i) => (
                 <TrackRow
                   key={track.id}

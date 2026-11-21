@@ -36,17 +36,16 @@ export const FavoritesScreen: React.FC = () => {
   const isOfflineFallback = tracks.length === 0 && downloadedFavorites.length > 0;
   const effectiveTracks = tracks.length > 0 ? tracks : downloadedFavorites;
 
-  const loadFavorites = async () => {
-    try {
-      const res = await api.favorites();
-      setTracks(res);
-    } catch {
+  // Lo stato si imposta solo nelle callback della promessa (vedi AlbumsScreen).
+  const loadFavorites = () =>
+    api.favorites()
+      .then(setTracks)
       // Ignora errori, cadrà nei preferiti offline
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+      .catch(() => undefined)
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
 
   useEffect(() => {
     void loadFavorites();

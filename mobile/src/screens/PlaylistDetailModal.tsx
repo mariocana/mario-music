@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActionSheetIOS,
   ActivityIndicator,
@@ -38,44 +38,56 @@ export const PlaylistDetailModal: React.FC<Props> = ({
   onBack,
   onPlaylistDeleted,
 }) => {
-  const [detail, setDetail] = useState<PlaylistDetail | null>(null);
-  const [loading, setLoading] = useState(false);
+  // Il dettaglio si ricorda per quale playlist è arrivato: aprendone un altro si
+  // vede il caricamento, non quello di prima (e senza azzerare lo stato
+  // dentro l'effect, che costerebbe un render in più).
+  const [arrivato, setArrivato] = useState<{ id: number; detail: PlaylistDetail | null } | null>(null);
+  const detail = playlist && arrivato?.id === playlist.id ? arrivato.detail : null;
+  const loading = Boolean(playlist) && arrivato?.id !== playlist?.id;
   // Il nome mostrato: quello con cui si è aperta la schermata, finché una
   // rinomina non lo cambia (la lista sotto si ricarica da sola al ritorno).
   const [rinominata, setRinominata] = useState<{ id: number; name: string } | null>(null);
   const nome = rinominata && rinominata.id === playlist?.id ? rinominata.name : (playlist?.name ?? '');
   const [rinomina, setRinomina] = useState(false);
   const [caricoCopertina, setCaricoCopertina] = useState(false);
+  /** le modifiche ai brani, una dopo l'altra (vedi handleRemoveTrack) */
+  const codaModifiche = useRef<Promise<unknown>>(Promise.resolve());
+  const modificheInCorso = useRef(0);
   const { downloadTrack, removeTrack, isDownloaded } = useDownloads();
   /** download in corso: quanti brani fatti su quanti */
   const [scarico, setScarico] = useState<{ fatti: number; totale: number } | null>(null);
 
   const { playQueue, toggleShuffle, shuffle } = usePlayer();
 
+  /**
+   * Ricarica dopo una modifica (brano tolto o spostato). Il dettaglio vecchio
+   * resta a schermo finché arriva quello nuovo, invece di sparire dietro la
+   * rotellina. Un errore lascia quello che c'era.
+   */
   const loadDetail = () => {
     if (!playlist) return;
-    setLoading(true);
+    const id = playlist.id;
+    void api
+      .playlist(id)
+      .then((res) => setArrivato({ id, detail: res }))
+      .catch(() => undefined);
+  };
+
+  useEffect(() => {
+    if (!playlist) return;
+    const id = playlist.id;
     let mounted = true;
     api
-      .playlist(playlist.id)
+      .playlist(id)
       .then((res) => {
-        if (mounted) setDetail(res);
+        if (mounted) setArrivato({ id, detail: res });
       })
-      .catch(() => undefined)
-      .finally(() => {
-        if (mounted) setLoading(false);
+      .catch(() => {
+        if (mounted) setArrivato({ id, detail: null });
       });
     return () => {
       mounted = false;
     };
-  };
-
-  useEffect(() => {
-    if (!playlist) {
-      setDetail(null);
-      return;
-    }
-    return loadDetail();
   }, [playlist]);
 
   if (!playlist) return null;
@@ -147,22 +159,45 @@ export const PlaylistDetailModal: React.FC<Props> = ({
     else void scaricaPlaylist();
   };
 
-  const handleRemoveTrack = async (position: number) => {
-    try {
-      await api.removeTrackFromPlaylist(playlist.id, position);
-      loadDetail();
-    } catch (err) {
-      Alert.alert('Errore', err instanceof Error ? err.message : 'Impossibile rimuovere il brano');
-    }
+  /*
+   * Togliere e spostare lavorano per posizione (0, 1, 2… contigue sul server).
+   * La lista si aggiorna subito anche qui, rinumerata, così una seconda
+   * modifica fatta prima che arrivi la ricarica usa già le posizioni giuste;
+   * e le richieste partono una dopo l'altra, perché due in volo insieme
+   * potrebbero arrivare al server in ordine inverso. Alla fine si ricarica:
+   * se qualcosa è andato storto, torna la versione vera del server.
+   */
+  const aggiornaSubito = (cambia: (t: PlaylistDetail['tracks']) => PlaylistDetail['tracks']) =>
+    setArrivato((a) => (a?.detail
+      ? { ...a, detail: { ...a.detail, tracks: cambia(a.detail.tracks).map((t, i) => ({ ...t, position: i })) } }
+      : a));
+
+  const modifica = (richiesta: () => Promise<unknown>, errore: string) => {
+    modificheInCorso.current++;
+    codaModifiche.current = codaModifiche.current
+      .then(richiesta)
+      .catch((err) => Alert.alert('Errore', err instanceof Error ? err.message : errore))
+      .finally(() => {
+        // Si ricarica solo a coda vuota: una ricarica a metà riporterebbe a
+        // schermo lo stato intermedio, prima delle modifiche ancora in fila.
+        modificheInCorso.current--;
+        if (modificheInCorso.current === 0) loadDetail();
+      });
   };
 
-  const handleMoveTrack = async (from: number, to: number) => {
-    try {
-      await api.moveTrackInPlaylist(playlist.id, from, to);
-      loadDetail();
-    } catch (err) {
-      Alert.alert('Errore', err instanceof Error ? err.message : 'Impossibile spostare il brano');
-    }
+  const handleRemoveTrack = (position: number) => {
+    aggiornaSubito((t) => t.filter((_, k) => k !== position));
+    modifica(() => api.removeTrackFromPlaylist(playlist.id, position), 'Impossibile rimuovere il brano');
+  };
+
+  const handleMoveTrack = (from: number, to: number) => {
+    aggiornaSubito((t) => {
+      const copia = [...t];
+      const [mosso] = copia.splice(from, 1);
+      copia.splice(to, 0, mosso);
+      return copia;
+    });
+    modifica(() => api.moveTrackInPlaylist(playlist.id, from, to), 'Impossibile spostare il brano');
   };
 
   const handleRename = async (nuovo: string) => {
@@ -187,7 +222,7 @@ export const PlaylistDetailModal: React.FC<Props> = ({
     setCaricoCopertina(true);
     try {
       const coverKey = await uploadPlaylistCover(playlist.id, foto.uri, foto.mimeType);
-      setDetail((d) => (d ? { ...d, coverKey } : d));
+      setArrivato((a) => (a?.detail ? { ...a, detail: { ...a.detail, coverKey } } : a));
     } catch (err) {
       Alert.alert('Immagine non caricata', err instanceof Error ? err.message : 'Caricamento non riuscito');
     } finally {
@@ -198,7 +233,7 @@ export const PlaylistDetailModal: React.FC<Props> = ({
   const rimuoviCopertina = async () => {
     try {
       await api.removePlaylistCover(playlist.id);
-      setDetail((d) => (d ? { ...d, coverKey: null } : d));
+      setArrivato((a) => (a?.detail ? { ...a, detail: { ...a.detail, coverKey: null } } : a));
     } catch (err) {
       Alert.alert('Errore', err instanceof Error ? err.message : "Impossibile rimuovere l'immagine");
     }
@@ -229,7 +264,7 @@ export const PlaylistDetailModal: React.FC<Props> = ({
 
   const showMoreMenu = () => {
     const haImmagine = Boolean(detail?.coverKey);
-    const voci: Array<{ testo: string; azione: () => void; distruttiva?: boolean }> = [
+    const voci: { testo: string; azione: () => void; distruttiva?: boolean }[] = [
       { testo: 'Rinomina', azione: () => setRinomina(true) },
     ];
     if (braniUnici.length > 0 && !scarico) {

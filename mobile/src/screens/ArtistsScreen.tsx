@@ -31,17 +31,16 @@ export const ArtistsScreen: React.FC<Props> = ({ onBack, onSelectArtist }) => {
   const { items: downloadedItems } = useDownloads();
   const { navigateToDownloads } = useNavigation();
 
-  const loadArtists = async () => {
-    try {
-      const res = await api.artists();
-      setArtists(res);
-    } catch {
+  // Lo stato si imposta solo nelle callback della promessa (vedi AlbumsScreen).
+  const loadArtists = () =>
+    api.artists()
+      .then(setArtists)
       // ignore
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+      .catch(() => undefined)
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
 
   useEffect(() => {
     void loadArtists();

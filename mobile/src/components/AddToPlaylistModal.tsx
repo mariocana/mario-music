@@ -22,21 +22,26 @@ type Props = {
   onClose: () => void;
 };
 
+/**
+ * Il contenuto esiste solo da aperto: a ogni apertura riparte pulito (niente
+ * nome di playlist lasciato a metà, lista ricaricata) senza doverlo azzerare
+ * a mano in un effect.
+ */
 export const AddToPlaylistModal: React.FC<Props> = ({ visible, tracks, onClose }) => {
+  if (!visible || !tracks || tracks.length === 0) return null;
+  return <Contenuto tracks={tracks} onClose={onClose} />;
+};
+
+function Contenuto({ tracks, onClose }: { tracks: Track[]; onClose: () => void }) {
+  const visible = true;
   const [playlists, setPlaylists] = useState<PlaylistSummary[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [newPlaylistName, setNewPlaylistName] = useState('');
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
-    if (!visible) {
-      setShowCreate(false);
-      setNewPlaylistName('');
-      return;
-    }
-    setLoading(true);
     let mounted = true;
     api
       .playlists()
@@ -50,9 +55,7 @@ export const AddToPlaylistModal: React.FC<Props> = ({ visible, tracks, onClose }
     return () => {
       mounted = false;
     };
-  }, [visible]);
-
-  if (!visible || !tracks || tracks.length === 0) return null;
+  }, []);
 
   const trackIds = tracks.map((t) => t.id);
 
@@ -200,7 +203,7 @@ export const AddToPlaylistModal: React.FC<Props> = ({ visible, tracks, onClose }
       </View>
     </Modal>
   );
-};
+}
 
 const styles = StyleSheet.create({
   overlay: {

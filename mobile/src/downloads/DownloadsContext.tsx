@@ -29,6 +29,40 @@ const DownloadsContext = createContext<DownloadsContextType | null>(null);
 const STORAGE_KEY = '@mariomusic/offline_tracks_v1';
 const TRACKS_DIR = `${FileSystem.documentDirectory || ''}offline_tracks/`;
 
+async function ensureDirectory() {
+  try {
+    const dirInfo = await FileSystem.getInfoAsync(TRACKS_DIR);
+    if (!dirInfo.exists) {
+      await FileSystem.makeDirectoryAsync(TRACKS_DIR, { intermediates: true });
+    }
+  } catch {
+    // ignore
+  }
+}
+
+/** L'elenco dei brani scaricati, con le dimensioni vere dei file e senza quelli spariti dal disco. */
+async function leggiSalvati(): Promise<Map<number, DownloadedItem>> {
+  await ensureDirectory();
+  const raw = await AsyncStorage.getItem(STORAGE_KEY);
+  const validMap = new Map<number, DownloadedItem>();
+  if (!raw) return validMap;
+  const parsed = JSON.parse(raw) as DownloadedItem[];
+  for (const item of parsed) {
+    try {
+      const info = await FileSystem.getInfoAsync(item.localUri);
+      if (info.exists) {
+        validMap.set(item.track.id, {
+          ...item,
+          size: (info as { size?: number }).size ?? item.size,
+        });
+      }
+    } catch {
+      // File mancante, non includere
+    }
+  }
+  return validMap;
+}
+
 export function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
   if (bytes < 1024) return `${bytes} B`;
@@ -46,55 +80,17 @@ export const DownloadsProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [loading, setLoading] = useState(true);
 
   // Assicura che la directory esista
-  const ensureDirectory = async () => {
-    try {
-      const dirInfo = await FileSystem.getInfoAsync(TRACKS_DIR);
-      if (!dirInfo.exists) {
-        await FileSystem.makeDirectoryAsync(TRACKS_DIR, { intermediates: true });
-      }
-    } catch {
-      // ignore
-    }
-  };
-
-  // Carica i brani salvati da AsyncStorage e verifica che i file esistano
-  const loadStored = useCallback(async () => {
-    try {
-      await ensureDirectory();
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      if (!raw) {
-        setItems(new Map());
-        setLoading(false);
-        return;
-      }
-      const parsed = JSON.parse(raw) as DownloadedItem[];
-      const validMap = new Map<number, DownloadedItem>();
-
-      for (const item of parsed) {
-        try {
-          const info = await FileSystem.getInfoAsync(item.localUri);
-          if (info.exists) {
-            validMap.set(item.track.id, {
-              ...item,
-              size: (info as { size?: number }).size ?? item.size,
-            });
-          }
-        } catch {
-          // File mancante, non includere
-        }
-      }
-
-      setItems(validMap);
-    } catch {
-      setItems(new Map());
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+  // Carica i brani salvati da AsyncStorage e tiene solo quelli il cui file
+  // esiste ancora. Lo stato si imposta nelle callback, non qui dentro: vedi
+  // react-hooks/set-state-in-effect.
   useEffect(() => {
-    void loadStored();
-  }, [loadStored]);
+    let vivo = true;
+    leggiSalvati()
+      .then((map) => { if (vivo) setItems(map); })
+      .catch(() => { if (vivo) setItems(new Map()); })
+      .finally(() => { if (vivo) setLoading(false); });
+    return () => { vivo = false; };
+  }, []);
 
   // Salva l'elenco corrente in AsyncStorage
   const persist = async (map: Map<number, DownloadedItem>) => {

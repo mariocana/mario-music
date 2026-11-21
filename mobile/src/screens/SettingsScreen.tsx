@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -41,7 +41,8 @@ function nomeRete(rete: string | undefined): string {
 export const SettingsScreen: React.FC<Props> = ({ onBack }) => {
   const [url, setUrl] = useState(getServerUrlSync());
   const [stats, setStats] = useState<Stats | null>(null);
-  const [testing, setTesting] = useState(false);
+  // Parte da true: all'apertura la connessione si verifica subito (vedi l'effect più sotto).
+  const [testing, setTesting] = useState(true);
   const [statusMsg, setStatusMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const {
     crossfade, setCrossfade, qualita, setQualita, qualitaAttiva, rete, normalizza, setNormalizza,
@@ -65,33 +66,43 @@ export const SettingsScreen: React.FC<Props> = ({ onBack }) => {
     }
   };
 
-  const checkConnection = async (targetUrl = url) => {
-    setTesting(true);
-    setStatusMsg(null);
-    try {
-      await setServerUrl(targetUrl);
+  /**
+   * Salva l'indirizzo e prova il server. Lo stato si imposta solo nelle
+   * callback, così la si può chiamare anche dall'effect d'apertura.
+   */
+  const verifica = useCallback((targetUrl: string) =>
+    setServerUrl(targetUrl)
       // Prima si bussa al server davvero: api.stats() da solo potrebbe
       // rispondere dal catalogo offline e dare "connesso" a server spento.
-      if (!(await checkServerReachable(DEFAULT_TIMEOUT_MS))) {
-        throw new Error('Impossibile raggiungere il server');
-      }
-      const res = await api.stats();
-      setStats(res);
-      setStatusMsg({ ok: true, text: 'Connessione stabilita con successo!' });
-    } catch (err) {
-      setStats(null);
-      setStatusMsg({
-        ok: false,
-        text: `Errore di connessione: ${err instanceof Error ? err.message : 'Impossibile raggiungere il server'}`,
-      });
-    } finally {
-      setTesting(false);
-    }
+      .then(() => checkServerReachable(DEFAULT_TIMEOUT_MS))
+      .then((raggiungibile) => {
+        if (!raggiungibile) throw new Error('Impossibile raggiungere il server');
+        return api.stats();
+      })
+      .then((res) => {
+        setStats(res);
+        setStatusMsg({ ok: true, text: 'Connessione stabilita con successo!' });
+      })
+      .catch((err) => {
+        setStats(null);
+        setStatusMsg({
+          ok: false,
+          text: `Errore di connessione: ${err instanceof Error ? err.message : 'Impossibile raggiungere il server'}`,
+        });
+      })
+      .finally(() => setTesting(false)), []);
+
+  /** Dal pulsante: si azzera l'esito di prima e si mostra il caricamento. */
+  const checkConnection = (targetUrl = url) => {
+    setTesting(true);
+    setStatusMsg(null);
+    return verifica(targetUrl);
   };
 
+  // All'apertura si prova l'indirizzo salvato (testing parte già da true).
   useEffect(() => {
-    void checkConnection();
-  }, []);
+    void verifica(getServerUrlSync());
+  }, [verifica]);
 
   const handleSave = async () => {
     if (!url.trim()) {
