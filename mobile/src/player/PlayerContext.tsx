@@ -36,6 +36,7 @@ import {
   scriviPosizione,
 } from '../ripresa';
 import { sogliaAscolto } from '../soglia';
+import { CHIAVE_QUALITA, QUALITA, queryStream, usaConversione, type Qualita } from '../sorgente';
 import type { RepeatMode, Track } from '../types';
 
 type PlayerState = {
@@ -67,6 +68,9 @@ type PlayerContextApi = PlayerState & {
   /** secondi di dissolvenza incrociata tra un brano e l'altro; 0 = gapless puro */
   crossfade: Crossfade;
   setCrossfade: (secondi: Crossfade) => void;
+  /** originale, o AAC convertito dal server per consumare meno dati */
+  qualita: Qualita;
+  setQualita: (q: Qualita) => void;
 };
 
 const PlayerContext = createContext<PlayerContextApi | null>(null);
@@ -125,6 +129,8 @@ export function PlayerProvider({
   const seekPendenteRef = useRef<number | null>(null);
   const ultimoSalvataggioRef = useRef(0);
   const [crossfade, setCrossfadeState] = useState<Crossfade>(0);
+  const qualitaRef = useRef<Qualita>('originale');
+  const [qualita, setQualitaState] = useState<Qualita>('originale');
 
   const [state, setState] = useState<PlayerState>({
     queue: [],
@@ -172,6 +178,27 @@ export function PlayerProvider({
     crossfadeRef.current = secondi;
     setCrossfadeState(secondi);
     void AsyncStorage.setItem(CHIAVE_CROSSFADE, String(secondi)).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    void AsyncStorage.getItem(CHIAVE_QUALITA).then((raw) => {
+      if (QUALITA.includes(raw as Qualita)) {
+        qualitaRef.current = raw as Qualita;
+        setQualitaState(raw as Qualita);
+      }
+    }).catch(() => undefined);
+  }, []);
+
+  /**
+   * Il brano in corso continua com'è; dal prossimo si usa la qualità nuova.
+   * Quello già precaricato aveva l'URL vecchio: lo si dimentica, e
+   * precarica() lo richiederà giusto.
+   */
+  const setQualita = useCallback((q: Qualita) => {
+    qualitaRef.current = q;
+    setQualitaState(q);
+    precaricatoRef.current = null;
+    void AsyncStorage.setItem(CHIAVE_QUALITA, q).catch(() => undefined);
   }, []);
 
   /** Scrive dove si è arrivati. Leggera: si chiama spesso. */
@@ -241,8 +268,9 @@ export function PlayerProvider({
     return baseVolume * fattoreVolume(track.loudness);
   }, []);
 
+  // La copia scaricata vince sempre: non costa rete, qualunque sia la qualità.
   const urlDi = useCallback(
-    (track: Track) => getOfflineUri?.(track.id) || streamUrl(track.id),
+    (track: Track) => getOfflineUri?.(track.id) || streamUrl(track.id, queryStream(track.codec, qualitaRef.current)),
     [getOfflineUri],
   );
 
@@ -319,6 +347,19 @@ export function PlayerProvider({
     return s.repeat === 'all' ? 0 : -1;
   }, []);
 
+  /**
+   * Fa convertire al server, adesso, il brano che verrà dopo `index`: quando
+   * toccherà a lui (o quando precarica() lo chiederà, ~25 s prima) il file
+   * sarà già pronto e non si aspetteranno i secondi della conversione.
+   */
+  const preparaProssimo = useCallback((queue: Track[], index: number) => {
+    const i = indiceProssimo({ ...stateRef.current, queue, index });
+    const track = i >= 0 ? queue[i] : undefined;
+    if (!track || getOfflineUri?.(track.id)) return;
+    if (!usaConversione(track.codec, qualitaRef.current)) return;
+    void api.prepare(track.id).catch(() => undefined);
+  }, [indiceProssimo, getOfflineUri]);
+
   /** Mette il brano successivo nel player fermo e lo lascia caricare. */
   const precarica = useCallback(() => {
     // Durante la dissolvenza il player "in attesa" è quello che sta
@@ -371,6 +412,7 @@ export function PlayerProvider({
     contatoRef.current = null;
     advancingRef.current = false;
     mostraSuLockScreen(entrante, track);
+    preparaProssimo(s.queue, i);
     setState((prev) => ({
       ...prev,
       index: i,
@@ -402,7 +444,7 @@ export function PlayerProvider({
       }
     }, 50);
     return true;
-  }, [attivo, inAttesa, concludiTransizione, calculateVolumeFor, mostraSuLockScreen, fermaRampa]);
+  }, [attivo, inAttesa, concludiTransizione, calculateVolumeFor, mostraSuLockScreen, fermaRampa, preparaProssimo]);
 
   statusRef.current = (player: AudioPlayer, status: AudioStatus) => {
     // Il player in attesa carica, quello uscente sfuma e poi finisce: nessuno
@@ -521,6 +563,7 @@ export function PlayerProvider({
       player.volume = calculateVolumeFor(track);
       mostraSuLockScreen(player, track);
       player.play();
+      preparaProssimo(queue, index);
     } catch (err) {
       advancingRef.current = false;
       setState((s) => ({
@@ -530,7 +573,7 @@ export function PlayerProvider({
         error: err instanceof Error ? err.message : 'Errore riproduzione',
       }));
     }
-  }, [concludiTransizione, getPlayers, attivo, inAttesa, urlDi, calculateVolumeFor, mostraSuLockScreen]);
+  }, [concludiTransizione, getPlayers, attivo, inAttesa, urlDi, calculateVolumeFor, mostraSuLockScreen, preparaProssimo]);
 
   const next = useCallback(() => {
     const { queue, index, repeat } = stateRef.current;
@@ -643,6 +686,7 @@ export function PlayerProvider({
     player.replace(urlDi(track));
     player.volume = calculateVolumeFor(track);
     mostraSuLockScreen(player, track);
+    preparaProssimo(s.queue, s.index);
     // Come loadAndPlayTrack: il tasto mostra già la pausa mentre il file carica.
     setState((prev) => ({ ...prev, isPlaying: true, isLoading: true, error: null }));
     if (s.currentTime > 0) {
@@ -650,7 +694,7 @@ export function PlayerProvider({
     } else {
       player.play();
     }
-  }, [getPlayers, attivo, urlDi, calculateVolumeFor, mostraSuLockScreen]);
+  }, [getPlayers, attivo, urlDi, calculateVolumeFor, mostraSuLockScreen, preparaProssimo]);
 
   const toggle = useCallback(() => {
     if (sorgentePendenteRef.current) {
@@ -782,6 +826,8 @@ export function PlayerProvider({
     toggleFavorite,
     crossfade,
     setCrossfade,
+    qualita,
+    setQualita,
   };
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;

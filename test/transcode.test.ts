@@ -1,7 +1,7 @@
 /**
  * Transcodifica: cache per impronta, una conversione sola per brano anche
  * con richieste concorrenti, niente file mozzi in caso di errore, e la scelta
- * dell'URL lato client (sorgente.ts).
+ * coerenza con la regola usata dall'app (sorgente.ts).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,7 +14,7 @@ import {
   transcodedFile, giaPronto, vaTranscodificato, percorsoTranscodificato,
   iniziaConversione, leggiMentreCresce,
 } from '../server/transcode.ts';
-import { urlBrano, leggibile } from '../mobile/src/sorgente.ts';
+import { convertibile } from '../mobile/src/sorgente.ts';
 
 function cartella() {
   const dir = mkdtempSync(path.join(tmpdir(), 'mario-music-transcode-'));
@@ -118,35 +118,14 @@ test('con ffmpeg vero: un FLAC diventa un AAC leggibile', async () => {
   } finally { pulisci(); }
 });
 
-/* ── lato client: quale URL chiedere ── */
+/* ── lato client: l'app e il server devono essere d'accordo ── */
 
-const chrome = (mime: string) => (mime.includes('alac') || mime.includes('wma') ? '' : 'probably');
-const safari = (mime: string) => (mime.includes('ogg') ? '' : 'maybe');
-
-test('urlBrano: scaricato batte tutto', () => {
-  assert.equal(urlBrano(7, 'flac', { scaricato: true, qualita: 'risparmio', canPlay: chrome }), '/api/tracks/7/stream?offline');
-});
-
-test('urlBrano: originale se il browser lo legge e l\'utente non chiede risparmio', () => {
-  assert.equal(urlBrano(7, 'flac', { scaricato: false, qualita: 'originale', canPlay: chrome }), '/api/tracks/7/stream');
-});
-
-test('urlBrano: risparmio dati → si chiede AAC (poi decide il server)', () => {
-  assert.equal(urlBrano(7, 'flac', { scaricato: false, qualita: 'risparmio', canPlay: chrome }), '/api/tracks/7/stream?format=aac');
-  assert.equal(urlBrano(7, 'mp3', { scaricato: false, qualita: 'risparmio', canPlay: chrome }), '/api/tracks/7/stream?format=aac');
-});
-
-test('urlBrano: formato illeggibile per QUESTO browser → AAC anche in qualità originale', () => {
-  assert.equal(leggibile('alac', chrome), false);
-  assert.equal(leggibile('alac', safari), true);
-  assert.equal(leggibile('opus', safari), false);
-  assert.equal(urlBrano(7, 'alac', { scaricato: false, qualita: 'originale', canPlay: chrome }), '/api/tracks/7/stream?format=aac');
-  assert.equal(urlBrano(7, 'alac', { scaricato: false, qualita: 'originale', canPlay: safari }), '/api/tracks/7/stream');
-});
-
-test('urlBrano: codec sconosciuto → si prova l\'originale', () => {
-  assert.equal(leggibile('boh', chrome), true);
-  assert.equal(leggibile(null, chrome), true);
+test("l'app chiede la conversione solo per i brani che il server converte davvero", () => {
+  // Se divergessero, l'app chiederebbe ?format=aac&full=1 per un MP3 (inutile)
+  // o non preparerebbe in anticipo un brano che poi andrà convertito.
+  for (const codec of ['mp3', 'aac', 'flac', 'alac', 'vorbis', 'opus', 'wmav2', 'pcm_s16le', null]) {
+    assert.equal(convertibile(codec), vaTranscodificato(codec), `codec ${codec}`);
+  }
 });
 
 /* ── conversione progressiva: servire il file mentre viene scritto ── */

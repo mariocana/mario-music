@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { api } from '../api';
 import { getServerUrlSync, setServerUrl } from '../config';
 import { DURATE_CROSSFADE } from '../gapless';
+import { QUALITA } from '../sorgente';
 import { usePlayer } from '../player/PlayerContext';
 import { theme } from '../theme';
 import { formatLength, type Stats } from '../types';
@@ -26,7 +27,7 @@ export const SettingsScreen: React.FC<Props> = ({ onBack }) => {
   const [stats, setStats] = useState<Stats | null>(null);
   const [testing, setTesting] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const { crossfade, setCrossfade } = usePlayer();
+  const { crossfade, setCrossfade, qualita, setQualita } = usePlayer();
 
   const checkConnection = async (targetUrl = url) => {
     setTesting(true);
@@ -161,6 +162,31 @@ export const SettingsScreen: React.FC<Props> = ({ onBack }) => {
             {crossfade === 0
               ? 'I brani si susseguono senza pause: il successivo è già caricato quando finisce quello in ascolto.'
               : `Gli ultimi ${crossfade} secondi di un brano sfumano nei primi del successivo.`}
+          </Text>
+
+          <Text style={[styles.label, styles.labelSpaced]}>Qualità in streaming</Text>
+          <View style={styles.segmented}>
+            {QUALITA.map((q) => {
+              const scelto = qualita === q;
+              return (
+                <Pressable
+                  key={q}
+                  onPress={() => setQualita(q)}
+                  style={[styles.segment, scelto && styles.segmentActive]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: scelto }}
+                >
+                  <Text style={[styles.segmentText, scelto && styles.segmentTextActive]}>
+                    {q === 'originale' ? 'Originale' : 'Risparmio'}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={styles.hint}>
+            {qualita === 'originale'
+              ? 'I brani arrivano come sono sul server: un FLAC di quattro minuti pesa circa 26 MB.'
+              : 'FLAC e ALAC arrivano convertiti in AAC a 256 kbps, circa un quarto dei dati. MP3 e AAC restano come sono. La prima volta che ascolti un brano la conversione richiede qualche secondo. I brani scaricati non cambiano.'}
           </Text>
         </View>
       </View>
@@ -312,6 +338,9 @@ const styles = StyleSheet.create({
   segmentTextActive: {
     color: '#fff',
     fontWeight: '700',
+  },
+  labelSpaced: {
+    marginTop: 20,
   },
   hint: {
     fontSize: 12,

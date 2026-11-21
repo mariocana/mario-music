@@ -158,6 +158,8 @@ export const api = {
 
   recordPlay: (trackId: number) =>
     send<{ id: number; playCount: number }>(`/api/tracks/${trackId}/play`, 'POST'),
+  /** fa convertire in anticipo un brano: risponde subito, la conversione va in sottofondo */
+  prepare: (trackId: number) => send<{ pronto: boolean }>(`/api/tracks/${trackId}/prepare`, 'POST'),
 };
 
 export const coverUrl = (albumId: number, coverKey?: string | null): string => {
@@ -170,7 +172,8 @@ export const playlistCoverUrl = (playlistId: number, coverKey?: string | null): 
   return `${base}/api/playlists/${playlistId}/cover${coverKey ? `?v=${coverKey}` : ''}`;
 };
 
-export const streamUrl = (trackId: number): string => {
+/** `query` sceglie la versione: vuota per l'originale, vedi queryStream() in sorgente.ts. */
+export const streamUrl = (trackId: number, query = ''): string => {
   const base = getServerUrlSync();
-  return `${base}/api/tracks/${trackId}/stream`;
+  return `${base}/api/tracks/${trackId}/stream${query}`;
 };
