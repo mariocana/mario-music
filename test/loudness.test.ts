@@ -14,7 +14,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { leggiMisura, misuraFile } from '../server/loudness.ts';
-import { guadagnoDb, fattoreVolume, RIFERIMENTO } from '../mobile/src/loudness.ts';
+import { guadagnoDb, fattoreVolume, RIFERIMENTO, volumeDelBrano, leggiNormalizza } from '../mobile/src/loudness.ts';
 
 const RIASSUNTO = `
 [Parsed_ebur128_0 @ 0x7f8] Summary:
@@ -115,4 +115,16 @@ test('con ffmpeg vero: un tono misurato ha il loudness che ci si aspetta', async
 
 test('un file che non esiste non fa esplodere niente', async () => {
   assert.equal(await misuraFile('/non/esisto.flac'), null);
+});
+
+test('volume uniforme spento: ogni brano al suo volume', () => {
+  assert.equal(volumeDelBrano(-8, false), 1);
+  assert.equal(volumeDelBrano(-8, true), fattoreVolume(-8));
+  assert.ok(volumeDelBrano(-8, true) < 1);
+});
+
+test("volume uniforme: acceso se non è mai stato toccato, spento solo se lo si è spento", () => {
+  assert.equal(leggiNormalizza(null), true);
+  assert.equal(leggiNormalizza('1'), true);
+  assert.equal(leggiNormalizza('0'), false);
 });

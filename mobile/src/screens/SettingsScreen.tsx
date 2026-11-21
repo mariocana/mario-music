@@ -5,6 +5,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -13,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { api } from '../api';
 import { getServerUrlSync, setServerUrl } from '../config';
 import { DURATE_CROSSFADE } from '../gapless';
+import { RIFERIMENTO } from '../loudness';
 import { QUALITA } from '../sorgente';
 import { usePlayer } from '../player/PlayerContext';
 import { theme } from '../theme';
@@ -27,7 +29,7 @@ export const SettingsScreen: React.FC<Props> = ({ onBack }) => {
   const [stats, setStats] = useState<Stats | null>(null);
   const [testing, setTesting] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const { crossfade, setCrossfade, qualita, setQualita } = usePlayer();
+  const { crossfade, setCrossfade, qualita, setQualita, normalizza, setNormalizza } = usePlayer();
 
   const checkConnection = async (targetUrl = url) => {
     setTesting(true);
@@ -139,7 +141,22 @@ export const SettingsScreen: React.FC<Props> = ({ onBack }) => {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>RIPRODUZIONE</Text>
         <View style={styles.card}>
-          <Text style={styles.label}>Dissolvenza incrociata</Text>
+          <View style={styles.switchRow}>
+            <Text style={styles.switchLabel}>Volume uniforme</Text>
+            <Switch
+              value={normalizza}
+              onValueChange={setNormalizza}
+              trackColor={{ true: theme.colors.tint }}
+              accessibilityLabel="Volume uniforme"
+            />
+          </View>
+          <Text style={[styles.hint, styles.hintAfterSwitch]}>
+            {normalizza
+              ? `I brani più forti vengono abbassati al livello di riferimento (${RIFERIMENTO} LUFS): un album rimasterizzato non ti fa sobbalzare dopo uno del 1975. Il volume non viene mai alzato, quindi niente distorsione.`
+              : 'Ogni brano suona al volume con cui è stato masterizzato.'}
+          </Text>
+
+          <Text style={[styles.label, styles.labelSpaced]}>Dissolvenza incrociata</Text>
           <View style={styles.segmented}>
             {DURATE_CROSSFADE.map((secondi) => {
               const scelto = crossfade === secondi;
@@ -338,6 +355,18 @@ const styles = StyleSheet.create({
   segmentTextActive: {
     color: '#fff',
     fontWeight: '700',
+  },
+  switchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  switchLabel: {
+    fontSize: 15,
+    color: theme.colors.textPrimary,
+  },
+  hintAfterSwitch: {
+    marginTop: 6,
   },
   labelSpaced: {
     marginTop: 20,

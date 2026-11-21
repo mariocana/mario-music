@@ -26,7 +26,7 @@ import {
   guadagni,
   type Crossfade,
 } from '../gapless';
-import { fattoreVolume } from '../loudness';
+import { CHIAVE_NORMALIZZA, leggiNormalizza, volumeDelBrano } from '../loudness';
 import {
   CHIAVE_CODA,
   CHIAVE_POSIZIONE,
@@ -71,6 +71,9 @@ type PlayerContextApi = PlayerState & {
   /** originale, o AAC convertito dal server per consumare meno dati */
   qualita: Qualita;
   setQualita: (q: Qualita) => void;
+  /** "Volume uniforme": abbassa i brani più forti a RIFERIMENTO LUFS */
+  normalizza: boolean;
+  setNormalizza: (on: boolean) => void;
 };
 
 const PlayerContext = createContext<PlayerContextApi | null>(null);
@@ -130,6 +133,8 @@ export function PlayerProvider({
   const ultimoSalvataggioRef = useRef(0);
   const [crossfade, setCrossfadeState] = useState<Crossfade>(0);
   const qualitaRef = useRef<Qualita>('originale');
+  const normalizzaRef = useRef(true);
+  const [normalizza, setNormalizzaState] = useState(true);
   const [qualita, setQualitaState] = useState<Qualita>('originale');
 
   const [state, setState] = useState<PlayerState>({
@@ -194,6 +199,19 @@ export function PlayerProvider({
    * Quello già precaricato aveva l'URL vecchio: lo si dimentica, e
    * precarica() lo richiederà giusto.
    */
+  useEffect(() => {
+    void AsyncStorage.getItem(CHIAVE_NORMALIZZA).then((raw) => {
+      const on = leggiNormalizza(raw);
+      normalizzaRef.current = on;
+      setNormalizzaState(on);
+      // Se la ripresa ha già caricato un brano, il volume va ricalcolato.
+      const player = playersRef.current?.[attivoRef.current];
+      if (player && !rampaRef.current) player.volume = calculateVolumeFor(stateRef.current.current);
+    }).catch(() => undefined);
+    // calculateVolumeFor è stabile (deps vuote): basta leggerlo una volta.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const setQualita = useCallback((q: Qualita) => {
     qualitaRef.current = q;
     setQualitaState(q);
@@ -265,8 +283,20 @@ export function PlayerProvider({
 
   const calculateVolumeFor = useCallback((track: Track | null, baseVolume = stateRef.current.volume) => {
     if (!track) return baseVolume;
-    return baseVolume * fattoreVolume(track.loudness);
+    return baseVolume * volumeDelBrano(track.loudness, normalizzaRef.current);
   }, []);
+
+  /**
+   * Vale subito, anche per il brano in corso: è un interruttore che si prova
+   * ascoltando. Durante una dissolvenza ci pensa la rampa, al giro dopo.
+   */
+  const setNormalizza = useCallback((on: boolean) => {
+    normalizzaRef.current = on;
+    setNormalizzaState(on);
+    const player = playersRef.current?.[attivoRef.current];
+    if (player && !rampaRef.current) player.volume = calculateVolumeFor(stateRef.current.current);
+    void AsyncStorage.setItem(CHIAVE_NORMALIZZA, on ? '1' : '0').catch(() => undefined);
+  }, [calculateVolumeFor]);
 
   // La copia scaricata vince sempre: non costa rete, qualunque sia la qualità.
   const urlDi = useCallback(
@@ -828,6 +858,8 @@ export function PlayerProvider({
     setCrossfade,
     qualita,
     setQualita,
+    normalizza,
+    setNormalizza,
   };
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;
