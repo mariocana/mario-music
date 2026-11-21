@@ -55,35 +55,49 @@ export function useServerOnline(): boolean {
   return online;
 }
 
-export async function fetchWithTimeout(
-  url: string,
-  init?: RequestInit,
-  timeoutMs = DEFAULT_TIMEOUT_MS
-): Promise<Response> {
+/** fetch con un tempo massimo, senza toccare lo stato in linea / non in linea. */
+async function fetchConLimite(url: string, init: RequestInit | undefined, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
-  const timer = setTimeout(() => {
-    controller.abort();
-  }, timeoutMs);
-
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, {
-      ...init,
-      signal: controller.signal,
-    });
-    // Il server ha risposto (anche se con codice HTTP 4xx o 5xx, la macchina è raggiungibile)
-    setServerOnline(true);
-    return res;
+    return await fetch(url, { ...init, signal: controller.signal });
   } catch (err: unknown) {
-    const isAbort = (err as { name?: string })?.name === 'AbortError';
-    // Fallimento di rete o timeout: server non raggiungibile
-    setServerOnline(false);
-    if (isAbort) {
+    if ((err as { name?: string })?.name === 'AbortError') {
       throw new TimeoutError(`Timeout (${Math.round(timeoutMs / 1000)}s): impossibile raggiungere il server`);
     }
     throw err;
   } finally {
     clearTimeout(timer);
   }
+}
+
+export async function fetchWithTimeout(
+  url: string,
+  init?: RequestInit,
+  timeoutMs = DEFAULT_TIMEOUT_MS
+): Promise<Response> {
+  try {
+    const res = await fetchConLimite(url, init, timeoutMs);
+    // Il server ha risposto (anche se con codice HTTP 4xx o 5xx, la macchina è raggiungibile)
+    setServerOnline(true);
+    return res;
+  } catch (err: unknown) {
+    // Una richiesta andata male NON basta a dire "non in linea". Prima
+    // bastava, e sul 5G (o con Tailscale che passa da un relay) bastava
+    // l'elenco dei brani da 700 KB o un gruppo di copertine oltre i 4 secondi
+    // per far comparire il banner; la richiesta riuscita dopo lo toglieva, la
+    // successiva lenta lo rimetteva. Ora decide una verifica a parte, con una
+    // richiesta minuscola e un secondo tentativo.
+    void verificaServer();
+    throw err;
+  }
+}
+
+/** Una verifica alla volta: dieci richieste fallite insieme ne fanno partire una. */
+let verificaInCorso: Promise<boolean> | null = null;
+function verificaServer(): Promise<boolean> {
+  verificaInCorso ??= checkServerReachable().finally(() => { verificaInCorso = null; });
+  return verificaInCorso;
 }
 
 /** Ultima volta che, da offline, si è provato a vedere se il server è tornato. */
@@ -166,17 +180,27 @@ async function send<T>(
   return res.json() as Promise<T>;
 }
 
-export async function checkServerReachable(timeoutMs = 2500): Promise<boolean> {
-  try {
-    const base = getServerUrlSync();
-    const res = await fetchWithTimeout(`${base}/api/stats`, undefined, timeoutMs);
-    const ok = res.ok;
-    setServerOnline(ok);
-    return ok;
-  } catch {
-    setServerOnline(false);
-    return false;
+/**
+ * Il server risponde? Chiede /api/stats (60 byte), che passa anche su una
+ * rete lenta, e prima di dire di no riprova una volta dopo un secondo: dopo
+ * che il telefono è rimasto fermo, Tailscale deve riallacciare la
+ * connessione e la prima richiesta può perdersi. Senza rete il fallimento è
+ * immediato, quindi il secondo tentativo costa solo quel secondo.
+ */
+export async function checkServerReachable(timeoutMs = 6000, tentativi = 2): Promise<boolean> {
+  const base = getServerUrlSync();
+  for (let i = 0; i < tentativi; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, 1000));
+    try {
+      const res = await fetchConLimite(`${base}/api/stats`, undefined, timeoutMs);
+      setServerOnline(res.ok);
+      return res.ok;
+    } catch {
+      // si riprova, o si conclude qui sotto
+    }
   }
+  setServerOnline(false);
+  return false;
 }
 
 export const api = {

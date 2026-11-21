@@ -10,7 +10,12 @@
  *                            con ?format=aac la versione convertita (vedi transcode.ts)
  *   POST /api/tracks/:id/prepare  converte in anticipo, per il brano successivo
  */
+// Ogni riga del log con l'orario (vedi log.ts). Gli import vengono valutati
+// prima di questa chiamata, ma nessun modulo scrive nel log mentre si carica.
+import { orarioSuOgniRiga, registraRichiesta } from './log.ts';
+orarioSuOgniRiga();
 import { createServer } from 'node:http';
+import { gzipSync } from 'node:zlib';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -107,14 +112,30 @@ const q = {
 
 /* ─────────────────────────────── helper ─────────────────────────────── */
 
+/**
+ * Le risposte JSON grandi viaggiano compresse. L'elenco di tutti i brani pesa
+ * ~680 KB in chiaro e ~80 compresso: in casa non cambia niente, sul 5G (o con
+ * Tailscale che passa da un relay a pochi Mbit/s) sono secondi. Sotto il
+ * chilobyte non vale la pena: l'intestazione gzip costerebbe quasi quanto il
+ * risparmio. Il client (fetch su iOS e Android) decomprime da solo.
+ */
+const SOGLIA_GZIP = 1024;
+
 function json(res: ServerResponse, status: number, body: unknown) {
-  const payload = JSON.stringify(body);
-  res.writeHead(status, {
+  let payload: Buffer = Buffer.from(JSON.stringify(body));
+  const headers: Record<string, string | number> = {
     'Content-Type': 'application/json; charset=utf-8',
-    'Content-Length': Buffer.byteLength(payload),
     // Il catalogo cambia solo dopo uno scan: niente cache, il costo è nullo.
     'Cache-Control': 'no-store',
-  });
+    Vary: 'Accept-Encoding',
+  };
+  const accetta = String(res.req?.headers['accept-encoding'] ?? '');
+  if (payload.length > SOGLIA_GZIP && /\bgzip\b/.test(accetta)) {
+    payload = gzipSync(payload);
+    headers['Content-Encoding'] = 'gzip';
+  }
+  headers['Content-Length'] = payload.length;
+  res.writeHead(status, headers);
   res.end(payload);
 }
 
@@ -643,13 +664,7 @@ const DIST = path.resolve('dist');
 
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
-  const started = process.hrtime.bigint();
-
-  res.on('finish', () => {
-    const ms = Number(process.hrtime.bigint() - started) / 1e6;
-    const range = req.headers.range ? ` range=${req.headers.range}` : '';
-    console.log(`${req.method} ${url.pathname} → ${res.statusCode} ${ms.toFixed(1)}ms${range}`);
-  });
+  registraRichiesta(req, res, url);
 
   // CORS headers per consentire connessioni da qualsiasi client (mobile, expo web, etc.)
   res.setHeader('Access-Control-Allow-Origin', '*');

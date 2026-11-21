@@ -755,7 +755,8 @@ export function PlayerProvider({
     // "Offline" può voler dire solo che una richiesta è andata male poco fa:
     // prima di rifiutare lo streaming si ricontrolla. Senza rete fallisce
     // subito; aspetta davvero solo se la rete c'è e il server tace.
-    if (await checkServerReachable()) return { tracks, startIndex };
+    // Un tentativo solo: qui qualcuno ha appena premuto play e aspetta.
+    if (await checkServerReachable(4000, 1)) return { tracks, startIndex };
     const r = soloAscoltabili(tracks, startIndex, (t) => getOfflineUri(t.id) !== null);
     if (!r) {
       Alert.alert(
