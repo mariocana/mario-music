@@ -67,6 +67,12 @@ type PlayerContextApi = PlayerState & {
   next: () => void;
   previous: () => void;
   seek: (seconds: number) => void;
+  /**
+   * Il tempo letto adesso dal player nativo. `currentTime` nello stato si
+   * aggiorna quattro volte al secondo: basta per la barra, non per accendere
+   * le parole del karaoke senza scatti.
+   */
+  getTime: () => number;
   setVolume: (v: number) => void;
   toggleShuffle: () => void;
   cycleRepeat: () => void;
@@ -889,6 +895,16 @@ export function PlayerProvider({
     setState((prev) => ({ ...prev, queue: r.queue, index: r.index }));
   }, [riallineaPrecaricato]);
 
+  const getTime = useCallback((): number => {
+    const player = attivo();
+    // Brano ripreso e non ancora caricato (o in attesa del salto): il player
+    // non sa ancora dove siamo, lo stato sì.
+    if (!player || sorgentePendenteRef.current || seekPendenteRef.current !== null) {
+      return stateRef.current.currentTime;
+    }
+    return player.currentTime;
+  }, [attivo]);
+
   const setVolume = useCallback((v: number) => {
     const clamped = Math.max(0, Math.min(1, v));
     // Durante una dissolvenza ci pensa la rampa, al prossimo giro, a usare il volume nuovo.
@@ -974,6 +990,7 @@ export function PlayerProvider({
     next,
     previous,
     seek,
+    getTime,
     setVolume,
     toggleShuffle,
     cycleRepeat,

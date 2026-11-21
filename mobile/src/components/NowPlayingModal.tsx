@@ -21,6 +21,7 @@ import { usePlayer } from '../player/PlayerContext';
 import { theme } from '../theme';
 import { formatTime, type Lyrics } from '../types';
 import { CoverImage } from './CoverImage';
+import { KaraokeModal } from './KaraokeModal';
 import { Scrubber } from './Scrubber';
 
 type Props = {
@@ -203,6 +204,7 @@ export const NowPlayingModal: React.FC<Props> = ({ visible, onClose }) => {
 
   const [activeTab, setActiveTab] = useState<'player' | 'lyrics' | 'queue'>('player');
   const [lyrics, setLyrics] = useState<Lyrics | null>(null);
+  const [karaoke, setKaraoke] = useState(false);
 
   // Caricamento testi
   useEffect(() => {
@@ -351,6 +353,17 @@ export const NowPlayingModal: React.FC<Props> = ({ visible, onClose }) => {
           {/* VISTA 2: Testi sincronizzati (Karaoke) */}
           {activeTab === 'lyrics' && (
             <ScrollView style={styles.lyricsScroll} contentContainerStyle={styles.lyricsContent}>
+              {lyrics?.synced && lyrics.synced.length > 0 && (
+                <Pressable
+                  onPress={() => setKaraoke(true)}
+                  style={styles.karaokeBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Apri il karaoke a tutto schermo"
+                >
+                  <Ionicons name="mic" size={16} color={theme.colors.tint} />
+                  <Text style={styles.karaokeBtnText}>Karaoke</Text>
+                </Pressable>
+              )}
               {lyrics?.synced ? (
                 lyrics.synced.map((line, i) => {
                   const isActive =
@@ -434,6 +447,7 @@ export const NowPlayingModal: React.FC<Props> = ({ visible, onClose }) => {
           )}
         </SafeAreaView>
       </View>
+      <KaraokeModal visible={karaoke} onClose={() => setKaraoke(false)} />
     </Modal>
   );
 };
@@ -538,6 +552,22 @@ const styles = StyleSheet.create({
     color: theme.colors.textPrimary,
     fontSize: 26,
     fontWeight: '800',
+  },
+  karaokeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginBottom: 16,
+    borderRadius: 999,
+    backgroundColor: theme.colors.tintSubtle,
+  },
+  karaokeBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.colors.tint,
   },
   plainLyrics: {
     fontSize: 16,
