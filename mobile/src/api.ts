@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import * as FileSystem from 'expo-file-system/legacy';
 import { getServerUrlSync } from './config';
+import type { ScanResult } from './scan';
 import type {
   Album,
   AlbumDetail,
@@ -132,6 +133,12 @@ export async function checkServerReachable(timeoutMs = 2500): Promise<boolean> {
 
 export const api = {
   stats: () => get<Stats>('/api/stats'),
+  /**
+   * Fa rileggere al server la cartella della musica. Senza novità dura un
+   * secondo; con album nuovi molto di più (ogni file va letto e misurato), da
+   * cui il timeout lungo.
+   */
+  scan: () => send<ScanResult>('/api/scan', 'POST', undefined, 10 * 60 * 1000),
   home: () => get<Home>('/api/home'),
   replay: (giorni?: number | null) => get<Replay>(`/api/replay${giorni ? `?days=${giorni}` : ''}`),
   albums: () => get<Album[]>('/api/albums'),

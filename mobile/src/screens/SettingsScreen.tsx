@@ -15,6 +15,7 @@ import { api } from '../api';
 import { getServerUrlSync, setServerUrl } from '../config';
 import { DURATE_CROSSFADE } from '../gapless';
 import { RIFERIMENTO } from '../loudness';
+import { avvisiScan, riepilogoScan, type ScanResult } from '../scan';
 import { QUALITA } from '../sorgente';
 import { usePlayer } from '../player/PlayerContext';
 import { theme } from '../theme';
@@ -30,6 +31,24 @@ export const SettingsScreen: React.FC<Props> = ({ onBack }) => {
   const [testing, setTesting] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const { crossfade, setCrossfade, qualita, setQualita, normalizza, setNormalizza } = usePlayer();
+  const [scansione, setScansione] = useState<
+    { stato: 'in corso' } | { stato: 'fatto'; risultato: ScanResult } | { stato: 'errore'; messaggio: string } | null
+  >(null);
+
+  /**
+   * Le altre schermate si ricaricano da sole quando ci si torna (si rimontano
+   * a ogni cambio di scheda): qui basta aggiornare le statistiche.
+   */
+  const aggiornaLibreria = async () => {
+    setScansione({ stato: 'in corso' });
+    try {
+      const risultato = await api.scan();
+      setScansione({ stato: 'fatto', risultato });
+      setStats(await api.stats());
+    } catch (err) {
+      setScansione({ stato: 'errore', messaggio: err instanceof Error ? err.message : 'Aggiornamento non riuscito' });
+    }
+  };
 
   const checkConnection = async (targetUrl = url) => {
     setTesting(true);
@@ -133,6 +152,37 @@ export const SettingsScreen: React.FC<Props> = ({ onBack }) => {
               <Text style={styles.statLabel}>Durata totale</Text>
               <Text style={styles.statValue}>{formatLength(stats.duration)}</Text>
             </View>
+
+            <Pressable
+              style={[styles.saveBtn, styles.scanBtn, scansione?.stato === 'in corso' && styles.scanBtnBusy]}
+              onPress={() => void aggiornaLibreria()}
+              disabled={scansione?.stato === 'in corso'}
+              accessibilityRole="button"
+              accessibilityHint="Il server rilegge la cartella della musica e aggiunge i brani nuovi"
+            >
+              {scansione?.stato === 'in corso' ? (
+                <View style={styles.scanBusyRow}>
+                  <ActivityIndicator size="small" color="#fff" />
+                  <Text style={styles.saveBtnText}>Aggiorno la libreria…</Text>
+                </View>
+              ) : (
+                <Text style={styles.saveBtnText}>Aggiorna libreria</Text>
+              )}
+            </Pressable>
+            {scansione?.stato === 'in corso' && (
+              <Text style={styles.hint}>Con molti album nuovi può volerci qualche minuto.</Text>
+            )}
+            {scansione?.stato === 'fatto' && (
+              <>
+                <Text style={styles.scanEsito}>{riepilogoScan(scansione.risultato)}</Text>
+                {avvisiScan(scansione.risultato).map((a) => (
+                  <Text key={a} style={styles.scanAvviso}>{a}</Text>
+                ))}
+              </>
+            )}
+            {scansione?.stato === 'errore' && (
+              <Text style={styles.scanAvviso}>{scansione.messaggio}</Text>
+            )}
           </View>
         </View>
       )}
@@ -331,6 +381,29 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: theme.colors.textPrimary,
+  },
+  scanBtn: {
+    marginTop: 16,
+  },
+  scanBtnBusy: {
+    opacity: 0.8,
+  },
+  scanBusyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  scanEsito: {
+    fontSize: 13,
+    color: theme.colors.textSecondary,
+    marginTop: 10,
+    lineHeight: 18,
+  },
+  scanAvviso: {
+    fontSize: 13,
+    color: theme.colors.error,
+    marginTop: 8,
+    lineHeight: 18,
   },
   segmented: {
     flexDirection: 'row',
