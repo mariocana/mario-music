@@ -15,6 +15,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
+import { useKeepAwake } from 'expo-keep-awake';
 import { Ionicons } from '@expo/vector-icons';
 import { api, coverUrl } from '../api';
 import { avanzamentoRiga, finestra, parole } from '../karaoke';
@@ -27,6 +28,19 @@ type Props = {
   visible: boolean;
   onClose: () => void;
 };
+
+/**
+ * Lo schermo resta acceso finché il karaoke è aperto: è l'unica schermata che
+ * si guarda da lontano, senza toccarla, e iOS la spegnerebbe dopo trenta
+ * secondi. Un componente a parte perché useKeepAwake vale finché chi lo usa
+ * è montato, e KaraokeModal resta montato anche da chiuso.
+ */
+function TieniAcceso() {
+  // Su Android, se l'Activity è già andata quando si chiude, il rilascio
+  // lancerebbe un errore non gestito: non c'è niente da rilasciare, si tace.
+  useKeepAwake('karaoke', { suppressDeactivateWarnings: true });
+  return null;
+}
 
 export const KaraokeModal: React.FC<Props> = ({ visible, onClose }) => {
   const { current, isPlaying, toggle, next, previous, seek, getTime, duration } = usePlayer();
@@ -73,6 +87,7 @@ export const KaraokeModal: React.FC<Props> = ({ visible, onClose }) => {
 
   return (
     <Modal visible={visible} animationType="fade" presentationStyle="fullScreen" onRequestClose={onClose}>
+      {visible && <TieniAcceso />}
       <View style={styles.container}>
         {/* La copertina ingrandita e sfocata dà un colore alla stanza senza rubare leggibilità. */}
         {current?.coverKey && (
