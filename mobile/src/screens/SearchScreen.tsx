@@ -18,10 +18,6 @@ import type { Track } from '../types';
 
 export const SearchScreen: React.FC = () => {
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<Track[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [isOfflineResults, setIsOfflineResults] = useState(false);
-
   const isServerOnline = useServerOnline();
   const { items: downloadedItems } = useDownloads();
   const { playQueue } = usePlayer();
@@ -31,66 +27,54 @@ export const SearchScreen: React.FC = () => {
     [downloadedItems]
   );
 
+  const testo = query.trim();
+
+  /** Cerca nei brani scaricati: è quello che si può ascoltare senza server. */
+  const traScaricati = useMemo(() => {
+    const q = testo.toLowerCase();
+    if (!q) return [];
+    return downloadedTracks.filter(
+      (t) =>
+        t.title.toLowerCase().includes(q) ||
+        t.artist.toLowerCase().includes(q) ||
+        t.album.toLowerCase().includes(q)
+    );
+  }, [testo, downloadedTracks]);
+
+  /*
+   * La risposta del server si ricorda per quale testo è arrivata. Così una
+   * ricerca vecchia che risponde tardi (si è scritto altro nel frattempo) non
+   * sovrascrive quella nuova: prima il suo "annulla" stava dentro il
+   * setTimeout e non veniva mai chiamato.
+   */
+  const [remoto, setRemoto] = useState<{ testo: string; risultati: Track[]; offline: boolean } | null>(null);
+
   useEffect(() => {
-    const trimmed = query.trim();
-    if (!trimmed) {
-      setResults([]);
-      setLoading(false);
-      setIsOfflineResults(false);
-      return;
-    }
-
-    // Se il server è noto per essere offline, cerca immediatamente nei download
-    if (!isServerOnline) {
-      const q = trimmed.toLowerCase();
-      const localMatches = downloadedTracks.filter(
-        (t) =>
-          t.title.toLowerCase().includes(q) ||
-          t.artist.toLowerCase().includes(q) ||
-          t.album.toLowerCase().includes(q)
-      );
-      setResults(localMatches);
-      setIsOfflineResults(true);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
+    if (!testo || !isServerOnline) return;
+    let attiva = true;
     const timer = setTimeout(() => {
-      let active = true;
       api
-        .search(trimmed)
+        .search(testo)
         .then((res) => {
-          if (active) {
-            setResults(res);
-            setIsOfflineResults(false);
-          }
+          if (attiva) setRemoto({ testo, risultati: res, offline: false });
         })
         .catch(() => {
-          if (active) {
-            // Fallback locale sui download
-            const q = trimmed.toLowerCase();
-            const localMatches = downloadedTracks.filter(
-              (t) =>
-                t.title.toLowerCase().includes(q) ||
-                t.artist.toLowerCase().includes(q) ||
-                t.album.toLowerCase().includes(q)
-            );
-            setResults(localMatches);
-            setIsOfflineResults(true);
-          }
-        })
-        .finally(() => {
-          if (active) setLoading(false);
+          // Server sparito a metà: si ripiega sui download.
+          if (attiva) setRemoto({ testo, risultati: traScaricati, offline: true });
         });
-
-      return () => {
-        active = false;
-      };
     }, 250);
+    return () => {
+      attiva = false;
+      clearTimeout(timer);
+    };
+  }, [testo, isServerOnline, traScaricati]);
 
-    return () => clearTimeout(timer);
-  }, [query, isServerOnline, downloadedTracks]);
+  // Offline (server noto come irraggiungibile) si cerca subito nei download.
+  const soloLocale = testo.length > 0 && !isServerOnline;
+  const pronto = remoto !== null && remoto.testo === testo;
+  const results = !testo ? [] : soloLocale ? traScaricati : pronto ? remoto.risultati : [];
+  const loading = testo.length > 0 && !soloLocale && !pronto;
+  const isOfflineResults = soloLocale || (pronto && remoto.offline);
 
   return (
     <View style={styles.container}>

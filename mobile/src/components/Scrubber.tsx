@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import {
-  PanResponder,
+  type GestureResponderEvent,
   StyleSheet,
   Text,
   View,
@@ -23,66 +23,61 @@ export const Scrubber: React.FC<Props> = ({ currentTime, duration, onSeek }) => 
   const [isDragging, setIsDragging] = useState(false);
   const [dragTime, setDragTime] = useState(0);
 
+  // Lo stato del trascinamento in corso: lo leggono solo i gestori dei tocchi.
   const isDraggingRef = useRef(false);
   const dragTimeRef = useRef(0);
-  const trackWidthRef = useRef(0);
   const initialTouchX = useRef(0);
   const initialTouchPageX = useRef(0);
 
-  trackWidthRef.current = trackWidth;
+  /*
+   * Gestori di tocco di View, non un PanResponder creato una volta sola:
+   * quello si portava dietro duration e onSeek del primo render, e con la
+   * schermata aperta su un brano nuovo il trascinamento calcolava la posizione
+   * sulla durata del brano vecchio. Questi si ricreano a ogni render, quindi
+   * vedono sempre i valori attuali.
+   */
+  const secondiA = (x: number) => {
+    const pct = Math.max(0, Math.min(trackWidth, x)) / trackWidth;
+    return Math.max(0, Math.min(duration, pct * duration));
+  };
 
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
-      onMoveShouldSetPanResponder: () => true,
+  const onResponderGrant = (evt: GestureResponderEvent) => {
+    if (trackWidth <= 0) return;
+    const touchX = Math.max(0, Math.min(trackWidth, evt.nativeEvent.locationX));
+    const newSec = secondiA(touchX);
 
-      onPanResponderGrant: (evt) => {
-        const width = trackWidthRef.current;
-        if (width <= 0) return;
+    isDraggingRef.current = true;
+    dragTimeRef.current = newSec;
+    initialTouchX.current = touchX;
+    initialTouchPageX.current = evt.nativeEvent.pageX;
 
-        const touchX = Math.max(0, Math.min(width, evt.nativeEvent.locationX));
-        const pct = touchX / width;
-        const newSec = Math.max(0, Math.min(duration, pct * duration));
+    setIsDragging(true);
+    setDragTime(newSec);
+    void Haptics.selectionAsync().catch(() => undefined);
+  };
 
-        isDraggingRef.current = true;
-        dragTimeRef.current = newSec;
-        initialTouchX.current = touchX;
-        initialTouchPageX.current = evt.nativeEvent.pageX;
+  const onResponderMove = (evt: GestureResponderEvent) => {
+    if (!isDraggingRef.current || trackWidth <= 0) return;
+    // Dalla posizione di partenza più lo spostamento sulla pagina: locationX
+    // durante il movimento è relativa alla View sotto il dito, che può cambiare.
+    const deltaX = evt.nativeEvent.pageX - initialTouchPageX.current;
+    const newSec = secondiA(initialTouchX.current + deltaX);
+    dragTimeRef.current = newSec;
+    setDragTime(newSec);
+  };
 
-        setIsDragging(true);
-        setDragTime(newSec);
-        void Haptics.selectionAsync().catch(() => undefined);
-      },
+  const onResponderRelease = () => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    setIsDragging(false);
+    onSeek(dragTimeRef.current);
+    void Haptics.selectionAsync().catch(() => undefined);
+  };
 
-      onPanResponderMove: (evt) => {
-        const width = trackWidthRef.current;
-        if (!isDraggingRef.current || width <= 0) return;
-
-        const deltaX = evt.nativeEvent.pageX - initialTouchPageX.current;
-        const currentX = Math.max(0, Math.min(width, initialTouchX.current + deltaX));
-        const pct = currentX / width;
-        const newSec = Math.max(0, Math.min(duration, pct * duration));
-
-        dragTimeRef.current = newSec;
-        setDragTime(newSec);
-      },
-
-      onPanResponderRelease: () => {
-        if (isDraggingRef.current) {
-          const finalSec = dragTimeRef.current;
-          isDraggingRef.current = false;
-          setIsDragging(false);
-          onSeek(finalSec);
-          void Haptics.selectionAsync().catch(() => undefined);
-        }
-      },
-
-      onPanResponderTerminate: () => {
-        isDraggingRef.current = false;
-        setIsDragging(false);
-      },
-    })
-  ).current;
+  const onResponderTerminate = () => {
+    isDraggingRef.current = false;
+    setIsDragging(false);
+  };
 
   const displayTime = isDragging ? dragTime : currentTime;
   const progressPct =
@@ -91,10 +86,15 @@ export const Scrubber: React.FC<Props> = ({ currentTime, duration, onSeek }) => 
 
   return (
     <View style={styles.container}>
-      {/* Area tattile allargata con PanResponder */}
+      {/* Area tattile allargata: i tocchi li gestisce questa View */}
       <View
         style={styles.touchArea}
-        {...panResponder.panHandlers}
+        onStartShouldSetResponder={() => true}
+        onMoveShouldSetResponder={() => true}
+        onResponderGrant={onResponderGrant}
+        onResponderMove={onResponderMove}
+        onResponderRelease={onResponderRelease}
+        onResponderTerminate={onResponderTerminate}
         onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}
       >
         {/* Barra di sfondo */}

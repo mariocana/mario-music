@@ -30,8 +30,12 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const COVER_SIZE = Math.min(SCREEN_WIDTH * 0.55, 220);
 
 export const AlbumDetailModal: React.FC<Props> = ({ album, onBack }) => {
-  const [detail, setDetail] = useState<AlbumDetail | null>(null);
-  const [loading, setLoading] = useState(false);
+  // Il dettaglio si ricorda per quale album è arrivato: aprendone un altro si
+  // vede il caricamento, non quello di prima (e senza azzerare lo stato
+  // dentro l'effect, che costerebbe un render in più).
+  const [arrivato, setArrivato] = useState<{ id: number; detail: AlbumDetail | null } | null>(null);
+  const detail = album && arrivato?.id === album.id ? arrivato.detail : null;
+  const loading = Boolean(album) && arrivato?.id !== album?.id;
 
   const { playQueue, playNext, addToQueue } = usePlayer();
   const { downloadTracks, removeTrack, isDownloaded, items: downloadedItems } = useDownloads();
@@ -39,35 +43,34 @@ export const AlbumDetailModal: React.FC<Props> = ({ album, onBack }) => {
   const [downloadingAlbum, setDownloadingAlbum] = useState(false);
 
   useEffect(() => {
-    if (!album) {
-      setDetail(null);
-      return;
-    }
-    setLoading(true);
+    if (!album) return;
+    const id = album.id;
     let mounted = true;
     api
-      .album(album.id)
+      .album(id)
       .then((res) => {
-        if (mounted) setDetail(res);
+        if (mounted) setArrivato({ id, detail: res });
       })
-      .catch(() => undefined)
-      .finally(() => {
-        if (mounted) setLoading(false);
+      .catch(() => {
+        if (mounted) setArrivato({ id, detail: null });
       });
     return () => {
       mounted = false;
     };
   }, [album]);
 
-  if (!album) return null;
-
+  // Prima del return qui sotto: un hook dopo un return condizionale cambierebbe
+  // l'ordine degli hook fra un render e l'altro (rules-of-hooks).
+  const albumId = album?.id;
   const downloadedAlbumTracks = React.useMemo(
     () =>
       Array.from(downloadedItems.values())
         .map((d) => d.track)
-        .filter((t) => t.albumId === album?.id),
-    [downloadedItems, album?.id]
+        .filter((t) => t.albumId === albumId),
+    [downloadedItems, albumId]
   );
+
+  if (!album) return null;
 
   const tracks = detail?.tracks ?? downloadedAlbumTracks;
   const totalDuration = tracks.reduce((acc, t) => acc + t.duration, 0);
