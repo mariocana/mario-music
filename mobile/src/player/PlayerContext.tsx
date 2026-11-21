@@ -6,7 +6,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import {
   createAudioPlayer,
   requestNotificationPermissionsAsync,
@@ -27,6 +27,14 @@ import {
   type Crossfade,
 } from '../gapless';
 import { fattoreVolume } from '../loudness';
+import {
+  CHIAVE_CODA,
+  CHIAVE_POSIZIONE,
+  INTERVALLO_SALVATAGGIO_MS,
+  leggiRipresa,
+  scriviCoda,
+  scriviPosizione,
+} from '../ripresa';
 import { sogliaAscolto } from '../soglia';
 import type { RepeatMode, Track } from '../types';
 
@@ -106,6 +114,16 @@ export function PlayerProvider({
   /** il brano entrante ha già suonato durante la dissolvenza in corso? (vedi il gestore degli stati) */
   const rampaPartitaRef = useRef(false);
   const crossfadeRef = useRef<Crossfade>(0);
+  /*
+   * Ripresa dopo la chiusura (vedi ripresa.ts). Il brano ritrovato torna nel
+   * mini player IN PAUSA, ma il file non si carica finché non si preme play:
+   * riaprire l'app non vuol dire voler sentire subito la musica, e così
+   * all'avvio non si consuma rete (né si fallisce, se si è offline).
+   */
+  const sorgentePendenteRef = useRef(false);
+  /** posizione da raggiungere appena il player ha caricato il brano ripreso */
+  const seekPendenteRef = useRef<number | null>(null);
+  const ultimoSalvataggioRef = useRef(0);
   const [crossfade, setCrossfadeState] = useState<Crossfade>(0);
 
   const [state, setState] = useState<PlayerState>({
@@ -154,6 +172,68 @@ export function PlayerProvider({
     crossfadeRef.current = secondi;
     setCrossfadeState(secondi);
     void AsyncStorage.setItem(CHIAVE_CROSSFADE, String(secondi)).catch(() => undefined);
+  }, []);
+
+  /** Scrive dove si è arrivati. Leggera: si chiama spesso. */
+  const salvaPosizione = useCallback(() => {
+    const s = stateRef.current;
+    if (!s.current || s.index < 0) return;
+    ultimoSalvataggioRef.current = Date.now();
+    void AsyncStorage.setItem(CHIAVE_POSIZIONE, scriviPosizione({
+      index: s.index,
+      id: s.current.id,
+      time: s.currentTime,
+      shuffle: s.shuffle,
+      repeat: s.repeat,
+    })).catch(() => undefined);
+  }, []);
+
+  // La coda si riscrive solo quando cambia: può essere lunga migliaia di brani.
+  useEffect(() => {
+    if (state.queue.length === 0) return;
+    void AsyncStorage.setItem(CHIAVE_CODA, scriviCoda(state.queue, originalQueueRef.current))
+      .catch(() => undefined);
+  }, [state.queue]);
+
+  // Cambio di brano, pausa, shuffle o ripetizione: la posizione si salva subito.
+  useEffect(() => {
+    salvaPosizione();
+  }, [state.index, state.current?.id, state.isPlaying, state.shuffle, state.repeat, salvaPosizione]);
+
+  // In background iOS può chiudere l'app senza preavviso: è l'ultimo momento sicuro.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (stato) => {
+      if (stato !== 'active') salvaPosizione();
+    });
+    return () => sub.remove();
+  }, [salvaPosizione]);
+
+  // All'avvio: si rimette la coda dov'era, in pausa.
+  useEffect(() => {
+    void Promise.all([AsyncStorage.getItem(CHIAVE_CODA), AsyncStorage.getItem(CHIAVE_POSIZIONE)])
+      .then(([coda, posizione]) => {
+        const r = leggiRipresa(coda, posizione);
+        // Se nel frattempo l'utente ha già fatto partire qualcosa, vince lui.
+        if (!r || stateRef.current.index >= 0) return;
+        const track = r.queue[r.index];
+        originalQueueRef.current = r.original;
+        sorgentePendenteRef.current = true;
+        // Oltre la soglia l'ascolto era già stato contato prima di chiudere.
+        contatoRef.current = r.time >= sogliaAscolto(track.duration) ? track.id : null;
+        setState((s) => ({
+          ...s,
+          queue: r.queue,
+          index: r.index,
+          current: track,
+          currentTime: r.time,
+          duration: track.duration,
+          shuffle: r.shuffle,
+          repeat: r.repeat,
+          isPlaying: false,
+          isLoading: false,
+        }));
+      })
+      .catch(() => undefined);
   }, []);
 
   const calculateVolumeFor = useCallback((track: Track | null, baseVolume = stateRef.current.volume) => {
@@ -339,8 +419,22 @@ export function PlayerProvider({
       else if (rampaPartitaRef.current) concludiTransizione();
     }
 
+    // Brano ripreso: prima si raggiunge il punto in cui ci si era fermati,
+    // poi si suona. Partire e poi saltare farebbe sentire un attimo l'inizio.
+    const seekPendente = seekPendenteRef.current;
+    if (seekPendente !== null) {
+      if (!status.isLoaded) return;
+      seekPendenteRef.current = null;
+      void player.seekTo(seekPendente).catch(() => undefined).then(() => player.play());
+      return;
+    }
+
     const current = stateRef.current.current;
     const durata = status.duration > 0 ? status.duration : (current?.duration ?? 0);
+
+    if (status.playing && Date.now() - ultimoSalvataggioRef.current >= INTERVALLO_SALVATAGGIO_MS) {
+      salvaPosizione();
+    }
 
     setState((s) => ({
       ...s,
@@ -402,6 +496,8 @@ export function PlayerProvider({
     advancingRef.current = false;
     contatoRef.current = null;
     precaricatoRef.current = null;
+    sorgentePendenteRef.current = false;
+    seekPendenteRef.current = null;
 
     try {
       setState((s) => ({
@@ -463,11 +559,16 @@ export function PlayerProvider({
 
   const previous = useCallback(() => {
     const { queue, index, currentTime } = stateRef.current;
-    const player = attivo();
-    if (!player || index < 0) return;
+    if (index < 0) return;
 
     // Se siamo oltre i 3 secondi, riparti da inizio brano
     if (currentTime > 3 || index === 0) {
+      if (sorgentePendenteRef.current) {
+        setState((s) => ({ ...s, currentTime: 0 }));
+        return;
+      }
+      const player = attivo();
+      if (!player) return;
       concludiTransizione();
       void player.seekTo(0);
       setState((s) => ({ ...s, currentTime: 0 }));
@@ -531,7 +632,41 @@ export function PlayerProvider({
     setState((s) => ({ ...s, queue: res.queue }));
   }, [loadAndPlayTrack]);
 
+  /** Primo play dopo una ripresa: solo ora si carica il file, e si torna al punto salvato. */
+  const avviaRipresa = useCallback(() => {
+    const s = stateRef.current;
+    const track = s.current;
+    if (!track) return;
+    sorgentePendenteRef.current = false;
+    getPlayers();
+    const player = attivo()!;
+    player.replace(urlDi(track));
+    player.volume = calculateVolumeFor(track);
+    mostraSuLockScreen(player, track);
+    // Come loadAndPlayTrack: il tasto mostra già la pausa mentre il file carica.
+    setState((prev) => ({ ...prev, isPlaying: true, isLoading: true, error: null }));
+    if (s.currentTime > 0) {
+      seekPendenteRef.current = s.currentTime;
+    } else {
+      player.play();
+    }
+  }, [getPlayers, attivo, urlDi, calculateVolumeFor, mostraSuLockScreen]);
+
   const toggle = useCallback(() => {
+    if (sorgentePendenteRef.current) {
+      avviaRipresa();
+      return;
+    }
+    // Un tocco mentre il brano ripreso sta ancora caricando vale come pausa:
+    // si torna allo stato di prima, e il tocco successivo riprova da capo.
+    // Senza, il brano partirebbe da zero e poi salterebbe al punto salvato.
+    if (seekPendenteRef.current !== null) {
+      seekPendenteRef.current = null;
+      sorgentePendenteRef.current = true;
+      attivo()?.pause();
+      setState((s) => ({ ...s, isPlaying: false, isLoading: false }));
+      return;
+    }
     const player = attivo();
     if (!player || !stateRef.current.current) return;
 
@@ -542,9 +677,16 @@ export function PlayerProvider({
     } else {
       player.play();
     }
-  }, [attivo, concludiTransizione]);
+  }, [attivo, concludiTransizione, avviaRipresa]);
 
   const seek = useCallback((seconds: number) => {
+    // Brano ripreso ma non ancora caricato: si sposta solo il punto di partenza.
+    // Se sta ancora caricando, si cambia il punto da raggiungere appena è pronto.
+    if (sorgentePendenteRef.current || seekPendenteRef.current !== null) {
+      if (seekPendenteRef.current !== null) seekPendenteRef.current = seconds;
+      setState((s) => ({ ...s, currentTime: seconds }));
+      return;
+    }
     const player = attivo();
     if (!player) return;
     concludiTransizione();
